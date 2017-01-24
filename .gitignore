@@ -1,0 +1,8 @@
+*.vo
+*.v.d
+*.glob
+Makefile.coq
+*.aux
+*~
+.coq-native
+*.DS_Store
