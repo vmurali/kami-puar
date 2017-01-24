@@ -1,0 +1,3 @@
+[submodule "kami"]
+	path = kami
+	url = git@github.mit.edu:plv/kami.git
