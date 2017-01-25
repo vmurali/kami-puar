@@ -48,7 +48,7 @@ Section AbstractIsa.
              "src1" :: Bit rfIdx; "hasSrc1" :: Bool;
              "src2" :: Bit rfIdx; "hasSrc2" :: Bool;
              (* csr :: Bit csrIdx; hasCsr :: Bool; *) (* TODO: later *)
-             "imm" :: Data dataBytes
+             "imm" :: Data dataBytes; "hasImm" :: Bool
            }.
 
   Definition DecodedInst := Struct decodedInst.

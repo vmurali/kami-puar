@@ -1,7 +1,7 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Proc.Fetch Proc.AbstractIsa.
+Require Import Fetch AbstractIsa.
 
 Set Implicit Arguments.
 
@@ -63,16 +63,24 @@ Section Processor.
   End BHT.
 
   Section Decode.
-    Variables (f2dName iMemRepName: string).
+    Variables (f2dName d2rName iMemRepName: string).
     Variable decodeInst: DecodeT rfIdx dataBytes.
 
     Definition f2dDeq := MethodSig (f2dName -- "deq")(): Struct (F2D addrSize).
     Definition iMemRep := MethodSig iMemRepName(): Struct (RsToProc dataBytes).
 
+    Definition D2R :=
+      STRUCT { "pc" :: Bit addrSize;
+               "predPc" :: Bit addrSize;
+               "dInst" :: Struct (decodedInst rfIdx dataBytes);
+               "exeEpoch" :: Bool }.
+    Definition d2rEnq := MethodSig (d2rName -- "enq")(Struct D2R): Void.
+
     Definition decode :=
       MODULE {
         Rule "doDecode" :=
           Call f2d <- f2dDeq();
+          LET pc <- #f2d!(F2D addrSize)@."pc";
           Call instStr <- iMemRep();
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
@@ -82,9 +90,66 @@ Section Processor.
           If (#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
               && #decEpoch == #f2d!(F2D addrSize)@."decEpoch")
           then
+            LET predPc <- #f2d!(F2D addrSize)@."predPc";
             LET dInst <- decodeInst _ inst;
-              (* TODO: implement *)
+            If (#dInst!(decodedInst rfIdx dataBytes)@."iType" == $$iTypeBr)
+            then
+              Call taken <- bhtPredTaken(#pc);
+              LET bhtPredPc : Bit addrSize <-
+                (IF #taken
+                 then #pc + UniBit (ZeroExtendTrunc _ _) #dInst!(decodedInst rfIdx dataBytes)@."imm"
+                 else #pc + $4);
+              If (#predPc != #bhtPredPc)
+              then
+                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
+                                                                    "value" ::= #bhtPredPc };
+                Ret #ret
+              else
+                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
+                                                                    "value" ::= $$Default };
+                Ret #ret
+              as ret;
+              Ret #ret
+            else
+              If (#dInst!(decodedInst rfIdx dataBytes)@."iType" == $$iTypeJ)
+              then
+                LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _)
+                                             #dInst!(decodedInst rfIdx dataBytes)@."imm";
+                If (#predPc != #jumpAddr)
+                then
+                  LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
+                                                                      "value" ::= #jumpAddr };
+                  Ret #ret
+                else
+                  LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
+                                                                      "value" ::= $$Default };
+                  Ret #ret
+                as ret;
+                Ret #ret
+              else Ret (STRUCT { "isValid" ::= $$false; "value" ::= $$Default })
+              as ret;
+              Ret #ret
+            as ret;
+
+            If (#ret!(Maybe (Bit addrSize))@."isValid")
+            then
+              Call (redirSetValid addrSize "dec")(
+                     STRUCT { "pc" ::= #pc;
+                              "nextPc" ::= #ret!(Maybe (Bit addrSize))@."value" });
+              Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                   "predPc" ::= #ret!(Maybe (Bit addrSize))@."value";
+                                   "dInst" ::= #dInst;
+                                   "exeEpoch" ::= #exeEpoch });
+              Retv
+            else
+              Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                   "predPc" ::= #predPc;
+                                   "dInst" ::= #dInst;
+                                   "exeEpoch" ::= #exeEpoch });
+              Retv
+            as _;
             Retv
+              
           else
             Retv
           as _;
