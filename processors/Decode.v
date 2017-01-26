@@ -76,7 +76,7 @@ Section Processor.
 
   Section Decode.
     Variables (f2dName d2rName iMemRepName: string).
-    Variable decodeInst: DecodeT rfIdx dataBytes.
+    Variable decodeInst: DecodeT dataBytes rfIdx.
 
     Definition f2dDeq := MethodSig (f2dName -- "deq")(): Struct (F2D addrSize).
     Definition iMemRep := MethodSig iMemRepName(): Struct (RsToProc dataBytes).
@@ -84,7 +84,7 @@ Section Processor.
     Definition D2R :=
       STRUCT { "pc" :: Bit addrSize;
                "predPc" :: Bit addrSize;
-               "dInst" :: Struct (decodedInst rfIdx dataBytes);
+               "dInst" :: Struct (decodedInst dataBytes rfIdx);
                "exeEpoch" :: Bool }.
     Definition d2rEnq := MethodSig (d2rName -- "enq")(Struct D2R): Void.
 
@@ -104,12 +104,12 @@ Section Processor.
           then
             LET predPc <- #f2d!(F2D addrSize)@."predPc";
             LET dInst <- decodeInst _ inst;
-            If (#dInst!(decodedInst rfIdx dataBytes)@."iType" == $$iTypeBr)
+            If (#dInst!(decodedInst dataBytes rfIdx)@."iType" == $$iTypeBr)
             then
               Call taken <- bhtPredTaken(#pc);
               LET bhtPredPc : Bit addrSize <-
                 (IF #taken
-                 then #pc + UniBit (ZeroExtendTrunc _ _) #dInst!(decodedInst rfIdx dataBytes)@."imm"
+                 then #pc + UniBit (ZeroExtendTrunc _ _) #dInst!(decodedInst dataBytes rfIdx)@."imm"
                  else #pc + $4);
               If (#predPc != #bhtPredPc)
               then
@@ -123,10 +123,10 @@ Section Processor.
               as ret;
               Ret #ret
             else
-              If (#dInst!(decodedInst rfIdx dataBytes)@."iType" == $$iTypeJ)
+              If (#dInst!(decodedInst dataBytes rfIdx)@."iType" == $$iTypeJ)
               then
                 LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _)
-                                             #dInst!(decodedInst rfIdx dataBytes)@."imm";
+                                             #dInst!(decodedInst dataBytes rfIdx)@."imm";
                 If (#predPc != #jumpAddr)
                 then
                   LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;

@@ -57,7 +57,7 @@ Section Processor.
     Definition R2E :=
       STRUCT { "pc" :: Bit addrSize;
                "predPc" :: Bit addrSize;
-               "dInst" :: Struct (decodedInst rfIdx dataBytes);
+               "dInst" :: Struct (decodedInst dataBytes rfIdx);
                "rVal1" :: Data dataBytes;
                "rVal2" :: Data dataBytes;
                (* "csrVal" :: Data dataBytes; *)
@@ -69,8 +69,8 @@ Section Processor.
         Rule "doRegRead" :=
           Call d2r <- d2rDeq();
           LET dInst <- #d2r!(D2R addrSize dataBytes rfIdx)@."dInst";
-          LET src1 <- #dInst!(decodedInst rfIdx dataBytes)@."src1";
-          LET src2 <- #dInst!(decodedInst rfIdx dataBytes)@."src2";
+          LET src1 <- #dInst!(decodedInst dataBytes rfIdx)@."src1";
+          LET src2 <- #dInst!(decodedInst dataBytes rfIdx)@."src2";
           Call rVal1 <- rfrd1(#src1);
           Call rVal2 <- rfrd2(#src2);
 
@@ -79,7 +79,7 @@ Section Processor.
           Assert (!#sb1!(Maybe (Data dataBytes))@."isValid" &&
                   !#sb2!(Maybe (Data dataBytes))@."isValid");
 
-          LET dst <- #dInst!(decodedInst rfIdx dataBytes)@."dst";
+          LET dst <- #dInst!(decodedInst dataBytes rfIdx)@."dst";
           Call sbInsert(#dst);
 
           Call r2eEnq(STRUCT { "pc" ::= #d2r!(D2R addrSize dataBytes rfIdx)@."pc";
