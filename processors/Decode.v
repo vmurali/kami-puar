@@ -60,6 +60,18 @@ Section Processor.
           Retv
       }.
 
+    Variable (bhtTrainName: string).
+
+    Definition bhtTrainDeq := MethodSig (bhtTrainName -- "deq")(): Struct bhtUpdateStr.
+    
+    Definition bhtTrain :=
+      MODULE {
+        Rule "trainBht" :=
+          Call tr <- bhtTrainDeq();
+          Call bhtUpdate(#tr);
+          Retv
+      }.
+
   End BHT.
 
   Section Decode.
