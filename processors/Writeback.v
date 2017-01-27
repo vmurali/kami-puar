@@ -18,13 +18,13 @@ Section Processor.
       MODULE {
         Rule "noWriteback" :=
           Call m2w <- m2wDeq();
-          Call sbRemove();
+          Call bpRemove();
           Assert (#m2w!(M2W addrSize dataBytes rfIdx)@."poisoned");
           Retv
 
         with Rule "doWriteback" :=
           Call m2w <- m2wDeq();
-          Call sbRemove();
+          Call bpRemove();
           Assert (!#m2w!(M2W addrSize dataBytes rfIdx)@."poisoned");
 
           LET eInst <- #m2w!(M2W addrSize dataBytes rfIdx)@."eInst";

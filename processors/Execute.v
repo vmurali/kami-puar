@@ -60,6 +60,17 @@ Section Processor.
             Retv
           as _;
 
+          (* TODO: some other instruction types also need to be bypassed *)
+          If (#eInst!(execInst addrSize dataBytes rfIdx)@."iType" == $$iTypeAlu)
+          then
+            Call (bpInsert dataBytes rfIdx)(
+                   STRUCT { "idx" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."dst";
+                            "value" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."data" });
+            Retv
+          else
+            Retv
+          as _;
+
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
           Retv
       }.

@@ -39,7 +39,7 @@ Section Processor.
   
   Definition regRead := regRead addrSize dataBytes rfIdx d2rName r2eName.
   Definition rf := regFile dataBytes rfIdx.
-  (* Definition scoreBoard := TODO. *)
+  Definition bypass := bypass dataBytes rfIdx.
   Definition r2e := oneEltFifo r2eName (Struct (R2E addrSize dataBytes rfIdx)).
   
   Definition execute := execute r2eName e2mName bhtTrainName execInst.
@@ -50,11 +50,11 @@ Section Processor.
   
   Definition writeback := writeback addrSize dataBytes rfIdx m2wName dMemRepName.
 
-  (* TODO: scoreboard, tohost (or DMA-based message passing) *)
+  (* TODO: tohost (or DMA-based message passing) *)
   Definition inOrderSix :=
     (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2d ++
            decode ++ bht ++ bhtTrain ++ d2r ++
-           regRead ++ rf ++ r2e ++
+           regRead ++ rf ++ bypass ++ r2e ++
            execute ++ e2m ++
            mem ++ m2w ++
            writeback)%kami.
