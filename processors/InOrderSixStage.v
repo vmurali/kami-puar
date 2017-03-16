@@ -9,7 +9,12 @@ Open Scope string.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
-  Variables iMemReqName iMemRepName dMemReqName dMemRepName: string.
+
+  Definition iMemReqName := "iMemReq".
+  Definition iMemRepName := "iMemRep".
+  Definition dMemReqName := "dMemReq".
+  Definition dMemRepName := "dMemRep".
+  (* Variables iMemReqName iMemRepName dMemReqName dMemRepName: string. *)
 
   Variable decodeInst: DecodeT dataBytes rfIdx.
   Variable execInst: ExecT addrSize dataBytes rfIdx.
@@ -58,6 +63,6 @@ Section Processor.
            execute ++ e2m ++
            mem ++ m2w ++
            writeback)%kami.
-  
+
 End Processor.
 

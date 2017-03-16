@@ -45,12 +45,8 @@ Section Processor.
               Call dMemReq(STRUCT { "addr" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
                                     "op" ::= $$true;
                                     "data" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."data" });
-              Retv
-            else
-              Retv
-            as _;
-            Retv
-          as _;
+              Retv;
+            Retv;
 
           Call m2wEnq(#e2m);
           Retv

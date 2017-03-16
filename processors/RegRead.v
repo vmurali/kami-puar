@@ -6,7 +6,7 @@ Require Import Decode AbstractIsa.
 Set Implicit Arguments.
 
 Section Processor.
-  Variables addrSize dataBytes rfIdx: nat.
+  Variables addrSize dataBytes rfIdx csrIdx: nat.
 
   Section RegFile.
     Definition rfStr := STRUCT { "idx" :: Bit rfIdx; "value" :: Data dataBytes }.
@@ -52,7 +52,7 @@ Section Processor.
         with Method "bpSearch2"(idx: Bit rfIdx): Struct BypassStr := (cheat _)
         with Method "bpRegister"(idx: Bit rfIdx): Void := (cheat _)
         with Method "bpInsert"(v: Struct rfStr): Void := (cheat _)
-        with Method "sbRemove"(): Void := (cheat _)
+        with Method "bpRemove"(): Void := (cheat _)
       }.
 
     Definition bpSearch1 := MethodSig "bpSearch1"(Bit rfIdx) : Struct BypassStr.
@@ -66,7 +66,10 @@ Section Processor.
   Section RegRead.
     Variables (d2rName r2eName: string).
     
-    Definition d2rDeq := MethodSig (d2rName -- "deq")(): Struct (D2R addrSize dataBytes rfIdx).
+    Definition d2rDeq :=
+      MethodSig (d2rName -- "deq")(): Struct (D2R addrSize dataBytes rfIdx).
+
+    Definition D2R := D2R addrSize dataBytes rfIdx.
 
     Definition R2E :=
       STRUCT { "pc" :: Bit addrSize;
@@ -74,7 +77,6 @@ Section Processor.
                "dInst" :: Struct (decodedInst dataBytes rfIdx);
                "rVal1" :: Data dataBytes;
                "rVal2" :: Data dataBytes;
-               (* "csrVal" :: Data dataBytes; *)
                "exeEpoch" :: Bool }.
     Definition r2eEnq := MethodSig (r2eName -- "enq")(Struct R2E): Void.
   
@@ -82,7 +84,7 @@ Section Processor.
       MODULE {
         Rule "doRegRead" :=
           Call d2r <- d2rDeq();
-          LET dInst <- #d2r!(D2R addrSize dataBytes rfIdx)@."dInst";
+          LET dInst <- #d2r!D2R@."dInst";
           LET src1 <- #dInst!(decodedInst dataBytes rfIdx)@."src1";
           LET src2 <- #dInst!(decodedInst dataBytes rfIdx)@."src2";
 
@@ -110,12 +112,12 @@ Section Processor.
           LET dst <- #dInst!(decodedInst dataBytes rfIdx)@."dst";
           Call bpRegister(#dst);
 
-          Call r2eEnq(STRUCT { "pc" ::= #d2r!(D2R addrSize dataBytes rfIdx)@."pc";
-                               "predPc" ::= #d2r!(D2R addrSize dataBytes rfIdx)@."predPc";
+          Call r2eEnq(STRUCT { "pc" ::= #d2r!D2R@."pc";
+                               "predPc" ::= #d2r!D2R@."predPc";
                                "dInst" ::= #dInst;
                                "rVal1" ::= #rVal1;
                                "rVal2" ::= #rVal2;
-                               "exeEpoch" ::= #d2r!(D2R addrSize dataBytes rfIdx)@."exeEpoch" });
+                               "exeEpoch" ::= #d2r!D2R@."exeEpoch" });
           Retv
       }.
 

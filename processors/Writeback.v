@@ -1,7 +1,7 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import RegRead Mem AbstractIsa.
+Require Import AbstractIsa RegRead Mem Exception.
 
 Set Implicit Arguments.
 
@@ -14,6 +14,14 @@ Section Processor.
     Definition m2wDeq := MethodSig (m2wName -- "deq")(): Struct (M2W addrSize dataBytes rfIdx).
     Definition dMemRep := MethodSig dMemRepName(): Struct (RsToProc dataBytes).
 
+    (* TODO: implement *)
+    Definition csrf :=
+      MODULE {
+        Rule "dummy" := Retv
+      }.
+
+    (* TODO: exception handling *)
+    
     Definition writeback :=
       MODULE {
         Rule "noWriteback" :=

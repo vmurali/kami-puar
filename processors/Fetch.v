@@ -1,14 +1,9 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
+Require Import Exception.
 
 Set Implicit Arguments.
-
-(* Checklist
- * 0) Modular verification / Collapsing pipeline stages / Amortization
- * 1) Unified concept of instruction and data memory
- * 2) Control Status Registers (CSRs) and exceptions
- *)
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
@@ -31,11 +26,11 @@ Section Processor.
                         (#pcv)%kami_expr
                         Haddr).
 
-    Definition btbUpdateStr :=
+    Definition BtbUpdateStr :=
       STRUCT { "curPc" :: Bit addrSize; "nextPc" :: Bit addrSize }.
 
     Definition btbPredPc := MethodSig "predPc"(Bit addrSize): Bit addrSize.
-    Definition btbUpdate := MethodSig "update"(Struct btbUpdateStr): Void.
+    Definition btbUpdate := MethodSig "update"(Struct BtbUpdateStr): Void.
 
     Definition btb :=
       MODULE {
@@ -58,9 +53,9 @@ Section Processor.
             
             Ret #npc
                 
-          with Method "update" (upd: Struct btbUpdateStr): Void :=
-            LET curPc <- #upd ! btbUpdateStr @."curPc";
-            LET nextPc <- #upd ! btbUpdateStr @."nextPc";
+          with Method "update" (upd: Struct BtbUpdateStr): Void :=
+            LET curPc <- #upd ! BtbUpdateStr @."curPc";
+            LET nextPc <- #upd ! BtbUpdateStr @."nextPc";
             LET index <- getIndex curPc;
             LET tag <- getTag curPc;
 
@@ -76,14 +71,8 @@ Section Processor.
               Retv
             else
               If (#tag == #tags@[#index])
-              then
-                Write "valid" <- #valid@[#index <- $$false];
-                Retv
-              else
-                Retv
-              as _;
-              Retv
-            as _;
+              then Write "valid" <- #valid@[#index <- $$false]; Retv;
+              Retv;
             Retv
       }.
 
@@ -109,11 +98,13 @@ Section Processor.
             Ret #redir
 
           with Method (redirName -- "setInvalid") (): Void :=
-            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$false; "value" ::= $$Default };
+            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$false;
+                                                   "value" ::= $$Default };
             Retv
 
           with Method (redirName -- "setValid")(v: Struct redirectStr): Void :=
-            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$true; "value" ::= #v };
+            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$true;
+                                                   "value" ::= #v };
             Retv
         }.
 
@@ -144,7 +135,8 @@ Section Processor.
   Section Fetch.
     Variables (iMemReqName f2dName: string).
 
-    Definition iMemReq := MethodSig iMemReqName(Struct (RqFromProc dataBytes (Bit addrSize))): Void.
+    Definition iMemReq :=
+      MethodSig iMemReqName(Struct (RqFromProc dataBytes (Bit addrSize))): Void.
 
     Definition F2D :=
       STRUCT { "pc" :: Bit addrSize;
@@ -164,10 +156,9 @@ Section Processor.
                                 "data" ::= $$Default });
           Call predPc <- btbPredPc(#pc);
           Write "pc" <- #predPc;
-
           Call decEpoch <- (getEpoch "dec")();
           Call exeEpoch <- (getEpoch "exe")();
-
+          Call resetException();
           Call f2dEnq (STRUCT { "pc" ::= #pc;
                                 "predPc" ::= #predPc;
                                 "decEpoch" ::= #decEpoch;
@@ -193,12 +184,8 @@ Section Processor.
               Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
                                       "nextPc" ::= #r!redirectStr@."nextPc" });
               Call (toggleEpoch "dec")();
-              Retv
-            else
-              Retv
-            as _;
-            Retv
-          as _;
+              Retv;
+            Retv;
           Call (redirSetInvalid "exe")();
           Call (redirSetInvalid "dec")();
           Retv

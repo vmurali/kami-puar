@@ -1,12 +1,12 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Fetch AbstractIsa.
+Require Import Fetch AbstractIsa Exception.
 
 Set Implicit Arguments.
 
 Section Processor.
-  Variables addrSize dataBytes rfIdx: nat.
+  Variables addrSize dataBytes rfIdx csrIdx: nat.
 
   Section BHT.
     Variable (indexSize: nat).
@@ -81,10 +81,12 @@ Section Processor.
     Definition f2dDeq := MethodSig (f2dName -- "deq")(): Struct (F2D addrSize).
     Definition iMemRep := MethodSig iMemRepName(): Struct (RsToProc dataBytes).
 
+    Definition DecodedInst := decodedInst dataBytes rfIdx.
+
     Definition D2R :=
       STRUCT { "pc" :: Bit addrSize;
                "predPc" :: Bit addrSize;
-               "dInst" :: Struct (decodedInst dataBytes rfIdx);
+               "dInst" :: Struct DecodedInst;
                "exeEpoch" :: Bool }.
     Definition d2rEnq := MethodSig (d2rName -- "enq")(Struct D2R): Void.
 
@@ -104,70 +106,74 @@ Section Processor.
           then
             LET predPc <- #f2d!(F2D addrSize)@."predPc";
             LET dInst <- decodeInst _ inst;
-            If (#dInst!(decodedInst dataBytes rfIdx)@."iType" == $$iTypeBr)
+
+            If (#dInst!DecodedInst@."iType" != $$iTypeUnsupported)
             then
-              Call taken <- bhtPredTaken(#pc);
-              LET bhtPredPc : Bit addrSize <-
-                (IF #taken
-                 then #pc + UniBit (ZeroExtendTrunc _ _) #dInst!(decodedInst dataBytes rfIdx)@."imm"
-                 else #pc + $4);
-              If (#predPc != #bhtPredPc)
+              If (#dInst!DecodedInst@."iType" == $$iTypeBr)
               then
-                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
-                                                                    "value" ::= #bhtPredPc };
-                Ret #ret
-              else
-                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
-                                                                    "value" ::= $$Default };
-                Ret #ret
-              as ret;
-              Ret #ret
-            else
-              If (#dInst!(decodedInst dataBytes rfIdx)@."iType" == $$iTypeJ)
-              then
-                LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _)
-                                             #dInst!(decodedInst dataBytes rfIdx)@."imm";
-                If (#predPc != #jumpAddr)
+                Call taken <- bhtPredTaken(#pc);
+                LET bhtPredPc : Bit addrSize <-
+                  (IF #taken
+                   then #pc + UniBit (ZeroExtendTrunc _ _)
+                                     #dInst!DecodedInst@."imm"
+                   else #pc + $4);
+                If (#predPc != #bhtPredPc)
                 then
                   LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
-                                                                      "value" ::= #jumpAddr };
+                                                                      "value" ::= #bhtPredPc };
                   Ret #ret
-                else
+                else (* #predPc == #bhtPredPc *)
                   LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
                                                                       "value" ::= $$Default };
                   Ret #ret
                 as ret;
                 Ret #ret
-              else Ret (STRUCT { "isValid" ::= $$false; "value" ::= $$Default })
+              else (* #dInst!DecodedInst@."iType" != $$iTypeBr *)
+                If (#dInst!DecodedInst@."iType" == $$iTypeJ)
+                then
+                  LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _)
+                                               #dInst!DecodedInst@."imm";
+                  If (#predPc != #jumpAddr)
+                  then
+                    LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
+                                                                        "value" ::= #jumpAddr };
+                    Ret #ret
+                  else (* #predPc == #jumpAddr *)
+                    LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
+                                                                        "value" ::= $$Default };
+                    Ret #ret
+                  as ret;
+                  Ret #ret
+                else (* #dInst!DecodedInst@."iType" != $$iTypeJ *)
+                  Ret (STRUCT { "isValid" ::= $$false; "value" ::= $$Default })
+                as ret;
+                Ret #ret
               as ret;
-              Ret #ret
-            as ret;
 
-            If (#ret!(Maybe (Bit addrSize))@."isValid")
-            then
-              Call (redirSetValid addrSize "dec")(
-                     STRUCT { "pc" ::= #pc;
-                              "nextPc" ::= #ret!(Maybe (Bit addrSize))@."value" });
-              Call d2rEnq(STRUCT { "pc" ::= #pc;
-                                   "predPc" ::= #ret!(Maybe (Bit addrSize))@."value";
-                                   "dInst" ::= #dInst;
-                                   "exeEpoch" ::= #exeEpoch });
+              If (#ret!(Maybe (Bit addrSize))@."isValid")
+              then
+                Call (redirSetValid addrSize "dec")(
+                       STRUCT { "pc" ::= #pc;
+                                "nextPc" ::= #ret!(Maybe (Bit addrSize))@."value" });
+                Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                     "predPc" ::= #ret!(Maybe (Bit addrSize))@."value";
+                                     "dInst" ::= #dInst;
+                                     "exeEpoch" ::= #exeEpoch });
+                Retv
+              else (* ! #ret!(Maybe (Bit addrSize))@."isValid" *)
+                Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                     "predPc" ::= #predPc;
+                                     "dInst" ::= #dInst;
+                                     "exeEpoch" ::= #exeEpoch });
+                Retv;
               Retv
-            else
-              Call d2rEnq(STRUCT { "pc" ::= #pc;
-                                   "predPc" ::= #predPc;
-                                   "dInst" ::= #dInst;
-                                   "exeEpoch" ::= #exeEpoch });
-              Retv
-            as _;
-            Retv
-              
-          else
-            Retv
-          as _;
+            else (* #dInst!DecodedInst@."iType" == $$iTypeUnsupported *)
+              Call setException($$excIllegalInst);
+              Retv;
+            Retv;
           Retv
       }.
-    
+
   End Decode.
 
 End Processor.
