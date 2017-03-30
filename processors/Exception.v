@@ -50,3 +50,12 @@ Section Exception.
 
 End Exception.
 
+Hint Unfold ExceptionCause
+     excInstAddrMisaligned excInstAccessFault excIllegalInst
+     excBreakpoint excLoadAddrMisaligned excLoadAccessFault
+     excStoreAddrMisaligned excStoreAccessFault
+     excEnvCallU excEnvCallS excEnvCallH excEnvCallM
+     excIllegalException
+     setException resetException onException : MethDefs.
+Hint Unfold exception : ModuleDefs.
+

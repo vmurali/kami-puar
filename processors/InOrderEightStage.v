@@ -1,7 +1,7 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.Fifo Ex.NativeFifo.
-Require Import Fetch Decode RegRead Execute Mem Writeback AbstractIsa.
+Require Import Fetch IMem Decode RegRead Execute Mem DMem Writeback AbstractIsa.
 
 Set Implicit Arguments.
 
@@ -10,61 +10,73 @@ Open Scope string.
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
 
-  Definition iMemReqName := "iMemReq".
-  Definition iMemRepName := "iMemRep".
-  Definition dMemReqName := "dMemReq".
-  Definition dMemRepName := "dMemRep".
+  Definition iExecName := "exec".
+  Definition dExecName := "exec".
 
   Variable decodeInst: DecodeT dataBytes rfIdx.
   Variable execInst: ExecT addrSize dataBytes rfIdx.
 
-  Definition f2dName := "f2d".
+  Definition f2iName := "f2i".
+  Definition i2dName := "i2d".
   Definition d2rName := "d2r".
   Definition r2eName := "r2e".
   Definition e2mName := "e2m".
-  Definition m2wName := "m2w".
+  Definition m2dName := "m2d".
+  Definition d2wName := "d2w".
   Definition decName := "dec".
-  Definition exeName := "dec".
+  Definition exeName := "exe".
   Definition bhtTrainName := "bhtTrain".
 
   Variables btbIndexSize btbTagSize bhtIndexSize bhtTrainSize: nat.
   Hypothesis (Hbtb: btbIndexSize + btbTagSize = addrSize).
 
   (** Fetch related *)
-  Definition fetch := fetch addrSize dataBytes iMemReqName f2dName.
+  Definition fetch := fetch addrSize dataBytes f2iName.
   Definition btb := btb btbIndexSize btbTagSize Hbtb.
   Definition decRedir := redirect addrSize decName.
   Definition exeRedir := redirect addrSize exeName.
   Definition decEpoch := epoch decName.
   Definition exeEpoch := epoch exeName.
-  Definition f2d := @nativeFifo f2dName (Struct (F2D addrSize)) Default.
+  Definition f2i := @nativeFifo f2iName (Struct (F2I addrSize dataBytes)) Default.
 
-  (** Fetch related *)
-  Definition decode := decode addrSize f2dName d2rName iMemRepName decodeInst.
+  (** IMem related *)
+  Definition iMem := iMem addrSize dataBytes f2iName i2dName iExecName.
+  Definition i2d := @nativeFifo i2dName (Struct (I2D addrSize dataBytes)) Default.
+
+  (** Decode related *)
+  Definition decode := decode addrSize i2dName d2rName decodeInst.
   Definition bht := bht addrSize bhtIndexSize.
   Definition bhtTrain := fifo bhtTrainName bhtTrainSize (Struct (bhtUpdateStr addrSize)).
   Definition d2r := @nativeFifo d2rName (Struct (D2R addrSize dataBytes rfIdx)) Default.
-  
+
+  (** RegRead related *)
   Definition regRead := regRead addrSize dataBytes rfIdx d2rName r2eName.
   Definition rf := regFile dataBytes rfIdx.
   Definition bypass := bypass dataBytes rfIdx.
   Definition r2e := @nativeFifo r2eName (Struct (R2E addrSize dataBytes rfIdx)) Default.
-  
+
+  (** Execute related *)
   Definition execute := execute r2eName e2mName bhtTrainName execInst.
   Definition e2m := @nativeFifo e2mName (Struct (E2M addrSize dataBytes rfIdx)) Default.
-  
-  Definition mem := mem addrSize dataBytes rfIdx e2mName m2wName dMemReqName.
-  Definition m2w := @nativeFifo m2wName (Struct (M2W addrSize dataBytes rfIdx)) Default.
-  
-  Definition writeback := writeback addrSize dataBytes rfIdx m2wName dMemRepName.
 
-  (* TODO: tohost (or DMA-based message passing) *)
-  Definition inOrderSix :=
-    (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2d ++
+  (** Mem related *)
+  Definition mem := mem addrSize dataBytes rfIdx e2mName m2dName.
+  Definition m2d := @nativeFifo m2dName (Struct (M2D addrSize dataBytes rfIdx)) Default.
+
+  (** DMem related *)
+  Definition dMem := dMem addrSize dataBytes rfIdx m2dName d2wName dExecName.
+  Definition d2w := @nativeFifo d2wName (Struct (D2W addrSize dataBytes rfIdx)) Default.
+
+  Definition writeback := writeback addrSize dataBytes rfIdx d2wName.
+
+  Definition inOrderEight :=
+    (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+           iMem ++ i2d ++
            decode ++ bht ++ bhtTrain ++ d2r ++
            regRead ++ rf ++ bypass ++ r2e ++
            execute ++ e2m ++
-           mem ++ m2w ++
+           mem ++ m2d ++
+           dMem ++ d2w ++
            writeback)%kami.
 
 End Processor.

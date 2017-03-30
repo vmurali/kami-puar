@@ -1,9 +1,12 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Exception.
+
+(* NOTE: Let's add the exception mechanism after proving without it. *)
+(* Require Import Exception. *)
 
 Set Implicit Arguments.
+Open Scope string.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
@@ -133,17 +136,19 @@ Section Processor.
   End Epoch.
 
   Section Fetch.
-    Variables (iMemReqName f2dName: string).
-
-    Definition iMemReq :=
-      MethodSig iMemReqName(Struct (RqFromProc dataBytes (Bit addrSize))): Void.
+    Variable (f2iName: string).
 
     Definition F2D :=
       STRUCT { "pc" :: Bit addrSize;
                "predPc" :: Bit addrSize;
                "decEpoch" :: Bool;
                "exeEpoch" :: Bool }.
-    Definition f2dEnq := MethodSig (f2dName -- "enq")(Struct F2D): Void.
+
+    Definition F2I :=
+      STRUCT { "f2dOrig" :: Struct F2D;
+               "iMemReq" :: Struct (RqFromProc dataBytes (Bit addrSize)) }.
+
+    Definition f2iEnq := MethodSig (f2iName -- "enq")(Struct F2I): Void.
 
     Definition fetch :=
       MODULE {
@@ -151,18 +156,19 @@ Section Processor.
 
         with Rule "doFetch" :=
           Read pc <- "pc";
-          Call iMemReq(STRUCT { "addr" ::= #pc;
-                                "op" ::= $$false;
-                                "data" ::= $$Default });
           Call predPc <- btbPredPc(#pc);
           Write "pc" <- #predPc;
           Call decEpoch <- (getEpoch "dec")();
           Call exeEpoch <- (getEpoch "exe")();
-          Call resetException();
-          Call f2dEnq (STRUCT { "pc" ::= #pc;
-                                "predPc" ::= #predPc;
-                                "decEpoch" ::= #decEpoch;
-                                "exeEpoch" ::= #exeEpoch });
+          Call f2iEnq (
+                 STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
+                                                 "predPc" ::= #predPc;
+                                                 "decEpoch" ::= #decEpoch;
+                                                 "exeEpoch" ::= #exeEpoch };
+                          "iMemReq" ::= STRUCT { "addr" ::= #pc;
+                                                 "op" ::= $$false;
+                                                 "data" ::= $$Default }
+                        });
           Retv
 
         with Rule "redirect" :=
@@ -194,4 +200,35 @@ Section Processor.
   End Fetch.
 
 End Processor.
+
+Hint Unfold btb redirect epoch fetch : ModuleDefs.
+Hint Unfold getIndex getTag BtbUpdateStr btbPredPc btbUpdate
+     redirectStr RedirectK redirGet redirSetInvalid redirSetValid
+     getEpoch toggleEpoch
+     F2D F2I f2iEnq : MethDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+  Variable indexSize tagSize: nat.
+  Hypothesis (Haddr: indexSize + tagSize = addrSize).
+
+  Lemma btb_ModEquiv:
+    ModPhoasWf (btb indexSize tagSize Haddr).
+  Proof. kequiv. Qed.
+
+  Lemma redirect_ModEquiv:
+    forall redirName, ModPhoasWf (redirect addrSize redirName).
+  Proof. kequiv. Qed.
+
+  Lemma epoch_ModEquiv:
+    forall epochName, ModPhoasWf (epoch epochName).
+  Proof. kequiv. Qed.
+
+  Lemma fetch_ModEquiv:
+    forall f2iName, ModPhoasWf (fetch addrSize dataBytes f2iName).
+  Proof. kequiv. Qed.
+
+End Wf.
+
+Hint Resolve btb_ModEquiv redirect_ModEquiv epoch_ModEquiv fetch_ModEquiv.
 

@@ -1,7 +1,11 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Fetch Decode RegRead AbstractIsa Exception.
+Require Import Fetch Decode RegRead AbstractIsa.
+
+(* NOTE: Let's add the exception mechanism after proving without it. *)
+(* Require Import Exception. *)
+
 
 Set Implicit Arguments.
 
@@ -48,19 +52,7 @@ Section Processor.
 
           LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
 
-          (* Throw exceptions about ld/st misalignment *)
-          If (#iType == $$iTypeLd || #iType == $$iTypeSt)
-          then
-            LET addr <- #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
-            LET aligned <- isAligned _ addr;
-            If (!#aligned)
-            then
-              Call setException(
-                     IF (#iType == $$iTypeLd)
-                     then $$excLoadAddrMisaligned
-                     else $$excStoreAddrMisaligned);
-              Retv;
-            Retv;
+          (* NOTE: throw exceptions about ld/st misalignment later. *)
             
           (* To redirect a mispredicted pc *)
           If (#eInst!(execInst addrSize dataBytes rfIdx)@."mispredict")

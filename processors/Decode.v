@@ -1,12 +1,15 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Fetch AbstractIsa Exception.
+Require Import Fetch IMem AbstractIsa.
+
+(* NOTE: Let's add the exception mechanism after proving without it. *)
+(* Require Import Exception. *)
 
 Set Implicit Arguments.
 
 Section Processor.
-  Variables addrSize dataBytes rfIdx csrIdx: nat.
+  Variables addrSize dataBytes rfIdx: nat.
 
   Section BHT.
     Variable (indexSize: nat).
@@ -75,11 +78,12 @@ Section Processor.
   End BHT.
 
   Section Decode.
-    Variables (f2dName d2rName iMemRepName: string).
+    Variables (i2dName d2rName: string).
     Variable decodeInst: DecodeT dataBytes rfIdx.
 
-    Definition f2dDeq := MethodSig (f2dName -- "deq")(): Struct (F2D addrSize).
-    Definition iMemRep := MethodSig iMemRepName(): Struct (RsToProc dataBytes).
+    Definition I2D := I2D addrSize dataBytes.
+
+    Definition i2dDeq := MethodSig (i2dName -- "deq")(): Struct I2D.
 
     Definition DecodedInst := decodedInst dataBytes rfIdx.
 
@@ -93,9 +97,10 @@ Section Processor.
     Definition decode :=
       MODULE {
         Rule "doDecode" :=
-          Call f2d <- f2dDeq();
+          Call i2d <- i2dDeq();
+          LET f2d <- #i2d!I2D@."f2dOrig";
           LET pc <- #f2d!(F2D addrSize)@."pc";
-          Call instStr <- iMemRep();
+          LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
           Call decEpoch <- (getEpoch "dec")();
@@ -168,7 +173,7 @@ Section Processor.
                 Retv;
               Retv
             else (* #dInst!DecodedInst@."iType" == $$iTypeUnsupported *)
-              Call setException($$excIllegalInst);
+              (* NOTE: need to throw exception here later *)
               Retv;
             Retv;
           Retv
@@ -177,4 +182,30 @@ Section Processor.
   End Decode.
 
 End Processor.
+
+Hint Unfold bht bhtTrain decode : ModuleDefs.
+
+Hint Unfold satCntInit getIndex getTaken nextSatCnt bhtUpdateStr
+     bhtPredTaken bhtUpdate bhtTrainDeq
+     I2D i2dDeq DecodedInst D2R d2rEnq : MethDefs.
+
+Section Wf.
+  Variables addrSize indexSize dataBytes rfIdx: nat.
+  Variable decodeInst: DecodeT dataBytes rfIdx.
+
+  Lemma bht_ModEquiv:
+    ModPhoasWf (bht addrSize indexSize).
+  Proof. kequiv. Qed.
+
+  Lemma bhtTrain_ModEquiv:
+    forall bhtTrainName, ModPhoasWf (bhtTrain addrSize bhtTrainName).
+  Proof. kequiv. Qed.
+
+  Lemma decode_ModEquiv:
+    forall i2dName d2rName, ModPhoasWf (decode addrSize i2dName d2rName decodeInst).
+  Proof. kequiv. Qed.
+
+End Wf.
+
+Hint Resolve bht_ModEquiv bhtTrain_ModEquiv decode_ModEquiv.
 

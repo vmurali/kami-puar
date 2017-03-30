@@ -4,4 +4,3 @@
 -R kami/examples/isa_rv32 Ex
 -R kami/extraction Ext
 -R processors Proc
--R proofs Proof

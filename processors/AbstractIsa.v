@@ -90,3 +90,10 @@ Section AbstractIsa.
   
 End AbstractIsa.
 
+Hint Unfold IType iTypeUnsupported iTypeAlu iTypeLd iTypeSt
+     iTypeJ iTypeJr iTypeBr iTypeCsrr iTypeCsrw iTypeAuipc
+     AluFunc aluAdd aluSub aluAnd aluOr aluXor aluSlt aluSltu
+     aluSll aluSra aluSrl
+     BrFunc brEq brNeq brLt brLtu brGe brGeu brAT brNT
+     decodedInst DecodedInst DecodeT : MethDefs.
+
