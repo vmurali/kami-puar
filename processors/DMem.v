@@ -21,12 +21,15 @@ Section DMem.
   Definition exec :=
     MethodSig dExecName(Struct (RqFromProc dataBytes (Bit addrSize))) : Struct (RsToProc dataBytes).
 
+  Definition M2W := M2W addrSize dataBytes rfIdx.
+  Definition execInst := execInst addrSize dataBytes rfIdx.
+
   Definition dMem :=
     MODULE {
       Rule "passDMem" :=
         Call m2d <- m2dDeq();
         LET m2wOrig <- #m2d!M2D@."m2wOrig";
-        Assert (#m2wOrig!(M2W addrSize dataBytes rfIdx)@."poisoned");
+        Assert (#m2wOrig!M2W@."poisoned");
         Call d2wEnq(STRUCT { "m2wOrig" ::= #m2wOrig;
                              "dMemRep" ::= $$Default });
         Retv
@@ -34,10 +37,10 @@ Section DMem.
       with Rule "doDMem" :=
         Call m2d <- m2dDeq();
         LET m2wOrig <- #m2d!M2D@."m2wOrig";
-        Assert (!#m2wOrig!(M2W addrSize dataBytes rfIdx)@."poisoned");
+        Assert (!#m2wOrig!M2W@."poisoned");
 
-        LET eInst <- #m2wOrig!(M2W addrSize dataBytes rfIdx)@."eInst";
-        LET iType <- #eInst!(execInst addrSize dataBytes rfIdx)@."iType";
+        LET eInst <- #m2wOrig!M2W@."eInst";
+        LET iType <- #eInst!execInst@."iType";
 
         If (#iType == $$iTypeLd || #iType == $$iTypeSt)
         then

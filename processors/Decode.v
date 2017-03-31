@@ -1,7 +1,7 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Fetch IMem AbstractIsa.
+Require Import Fetch IMem Proc.RegFile AbstractIsa.
 
 (* NOTE: Let's add the exception mechanism after proving without it. *)
 (* Require Import Exception. *)
@@ -94,6 +94,9 @@ Section Processor.
                "exeEpoch" :: Bool }.
     Definition d2rEnq := MethodSig (d2rName -- "enq")(Struct D2R): Void.
 
+    Definition bpRegisterE := bpRegisterE rfIdx.
+    Definition bpRegisterM := bpRegisterM rfIdx.
+
     Definition decode :=
       MODULE {
         Rule "doDecode" :=
@@ -111,10 +114,24 @@ Section Processor.
           then
             LET predPc <- #f2d!(F2D addrSize)@."predPc";
             LET dInst <- decodeInst _ inst;
-
-            If (#dInst!DecodedInst@."iType" != $$iTypeUnsupported)
+            LET iType <- #dInst!DecodedInst@."iType";
+            
+            If (#iType != $$iTypeUnsupported)
             then
-              If (#dInst!DecodedInst@."iType" == $$iTypeBr)
+              (* Value bypassing related, may have some other iType's that need registration *)
+              If (#dInst!DecodedInst@."hasDst")
+              then
+                If (#iType == $$iTypeLd)
+                then
+                  Call bpRegisterM(#dInst!DecodedInst@."dst");
+                  Retv
+                else
+                  Call bpRegisterE(#dInst!DecodedInst@."dst");
+                  Retv;
+                Retv;
+                  
+              (* Branch prediction related *)
+              If (#iType == $$iTypeBr)
               then
                 Call taken <- bhtPredTaken(#pc);
                 LET bhtPredPc : Bit addrSize <-
@@ -133,8 +150,8 @@ Section Processor.
                   Ret #ret
                 as ret;
                 Ret #ret
-              else (* #dInst!DecodedInst@."iType" != $$iTypeBr *)
-                If (#dInst!DecodedInst@."iType" == $$iTypeJ)
+              else (* #iType != $$iTypeBr *)
+                If (#iType == $$iTypeJ)
                 then
                   LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _)
                                                #dInst!DecodedInst@."imm";
@@ -149,7 +166,7 @@ Section Processor.
                     Ret #ret
                   as ret;
                   Ret #ret
-                else (* #dInst!DecodedInst@."iType" != $$iTypeJ *)
+                else (* #iType != $$iTypeJ *)
                   Ret (STRUCT { "isValid" ::= $$false; "value" ::= $$Default })
                 as ret;
                 Ret #ret
@@ -172,7 +189,7 @@ Section Processor.
                                      "exeEpoch" ::= #exeEpoch });
                 Retv;
               Retv
-            else (* #dInst!DecodedInst@."iType" == $$iTypeUnsupported *)
+            else (* #iType == $$iTypeUnsupported *)
               (* NOTE: need to throw exception here later *)
               Retv;
             Retv;

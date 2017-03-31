@@ -1,11 +1,10 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import Fetch Decode RegRead AbstractIsa.
+Require Import Fetch Decode RegRead Proc.RegFile AbstractIsa.
 
 (* NOTE: Let's add the exception mechanism after proving without it. *)
 (* Require Import Exception. *)
-
 
 Set Implicit Arguments.
 
@@ -25,6 +24,9 @@ Section Processor.
 
     Definition bhtTrainEnq :=
       MethodSig (bhtTrainName -- "enq")(Struct (bhtUpdateStr addrSize)): Void.
+
+    Definition execInst := execInst addrSize dataBytes rfIdx.
+    Definition bpInsertE := bpInsertE dataBytes rfIdx.
 
     Definition execute :=
       MODULE {
@@ -52,25 +54,22 @@ Section Processor.
 
           LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
 
-          (* NOTE: throw exceptions about ld/st misalignment later. *)
-            
+          (* Value bypassing related *)
+          If (#eInst!execInst@."hasDst")
+          then
+            Call bpInsertE(STRUCT { "idx" ::= #eInst!execInst@."dst";
+                                    "value" ::= #eInst!execInst@."data" });
+            Retv;
+              
           (* To redirect a mispredicted pc *)
-          If (#eInst!(execInst addrSize dataBytes rfIdx)@."mispredict")
+          If (#eInst!execInst@."mispredict")
           then
             Call (redirSetValid addrSize "exe")(
                    STRUCT { "pc" ::= #pc;
-                            "nextPc" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr" });
+                            "nextPc" ::= #eInst!execInst@."addr" });
             Call bhtTrainEnq(
                    STRUCT { "pc" ::= #pc;
-                            "taken" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."brTaken" });
-            Retv;
-
-          (* TODO: some other instruction types also need to be bypassed *)
-          If (#eInst!(execInst addrSize dataBytes rfIdx)@."iType" == $$iTypeAlu)
-          then
-            Call (bpInsert dataBytes rfIdx)(
-                   STRUCT { "idx" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."dst";
-                            "value" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."data" });
+                            "taken" ::= #eInst!execInst@."brTaken" });
             Retv;
 
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });

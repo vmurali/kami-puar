@@ -1,7 +1,7 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
-Require Import AbstractIsa RegRead Mem DMem.
+Require Import AbstractIsa RegRead Mem DMem Proc.RegFile.
 
 (* NOTE: Let's add the exception mechanism after proving without it. *)
 (* Require Import Exception. *)
@@ -42,12 +42,13 @@ Section Processor.
 
     (* NOTE: handle exceptions later. *)
     (* NOTE: handle CSRs later. *)
+
+    Definition bpRemove := bpRemove rfIdx.
     
     Definition writeback :=
       MODULE {
         Rule "noWriteback" :=
           Call d2w <- d2wDeq();
-          Call bpRemove();
           LET m2wOrig <- #d2w!(D2W addrSize dataBytes rfIdx)@."m2wOrig";
           Assert (#m2wOrig!(M2W addrSize dataBytes rfIdx)@."poisoned");
           Retv
@@ -55,7 +56,6 @@ Section Processor.
         with Rule "doWriteback" :=
           Call d2w <- d2wDeq();
           LET m2w <- #d2w!(D2W addrSize dataBytes rfIdx)@."m2wOrig";
-          Call bpRemove();
           Assert (!#m2w!(M2W addrSize dataBytes rfIdx)@."poisoned");
 
           LET eInst <- #m2w!(M2W addrSize dataBytes rfIdx)@."eInst";
@@ -69,10 +69,12 @@ Section Processor.
           else
             Ret (#eInst!(execInst addrSize dataBytes rfIdx)@."data")
           as data;
-          
+
+          LET idx <- #eInst!(execInst addrSize dataBytes rfIdx)@."dst";
           Call (rfwr dataBytes rfIdx)(
-                 STRUCT { "idx" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."dst";
+                 STRUCT { "idx" ::= #idx;
                           "value" ::= #data });
+          Call bpRemove(#idx);
           Retv
       }.
 

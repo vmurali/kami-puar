@@ -1,7 +1,8 @@
 Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.Fifo Ex.NativeFifo.
-Require Import Fetch IMem Decode RegRead Execute Mem DMem Writeback AbstractIsa.
+Require Import AbstractIsa Proc.RegFile.
+Require Import Fetch IMem Decode RegRead Execute Mem DMem Writeback.
 
 Set Implicit Arguments.
 
@@ -9,9 +10,7 @@ Open Scope string.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
-
-  Definition iExecName := "exec".
-  Definition dExecName := "exec".
+  Variables iExecName dExecName: string.
 
   Variable decodeInst: DecodeT dataBytes rfIdx.
   Variable execInst: ExecT addrSize dataBytes rfIdx.
@@ -67,6 +66,7 @@ Section Processor.
   Definition dMem := dMem addrSize dataBytes rfIdx m2dName d2wName dExecName.
   Definition d2w := @nativeFifo d2wName (Struct (D2W addrSize dataBytes rfIdx)) Default.
 
+  (** Writeback related *)
   Definition writeback := writeback addrSize dataBytes rfIdx d2wName.
 
   Definition inOrderEight :=
