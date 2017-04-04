@@ -2,13 +2,11 @@ Require Import Kami.
 Require Import Lib.Indexer.
 Require Import Ex.MemTypes Ex.OneEltFifo.
 
-Set Implicit Arguments.
+(* NOTE: Let's add the exception mechanism after proving without it. *)
+(* Require Import Exception. *)
 
-(* Checklist
- * 0) Modular verification / Collapsing pipeline stages / Amortization
- * 1) Unified concept of instruction and data memory
- * 2) Control Status Registers (CSRs) and exceptions
- *)
+Set Implicit Arguments.
+Open Scope string.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
@@ -31,11 +29,11 @@ Section Processor.
                         (#pcv)%kami_expr
                         Haddr).
 
-    Definition btbUpdateStr :=
+    Definition BtbUpdateStr :=
       STRUCT { "curPc" :: Bit addrSize; "nextPc" :: Bit addrSize }.
 
     Definition btbPredPc := MethodSig "predPc"(Bit addrSize): Bit addrSize.
-    Definition btbUpdate := MethodSig "update"(Struct btbUpdateStr): Void.
+    Definition btbUpdate := MethodSig "update"(Struct BtbUpdateStr): Void.
 
     Definition btb :=
       MODULE {
@@ -58,9 +56,9 @@ Section Processor.
             
             Ret #npc
                 
-          with Method "update" (upd: Struct btbUpdateStr): Void :=
-            LET curPc <- #upd ! btbUpdateStr @."curPc";
-            LET nextPc <- #upd ! btbUpdateStr @."nextPc";
+          with Method "update" (upd: Struct BtbUpdateStr): Void :=
+            LET curPc <- #upd ! BtbUpdateStr @."curPc";
+            LET nextPc <- #upd ! BtbUpdateStr @."nextPc";
             LET index <- getIndex curPc;
             LET tag <- getTag curPc;
 
@@ -76,14 +74,8 @@ Section Processor.
               Retv
             else
               If (#tag == #tags@[#index])
-              then
-                Write "valid" <- #valid@[#index <- $$false];
-                Retv
-              else
-                Retv
-              as _;
-              Retv
-            as _;
+              then Write "valid" <- #valid@[#index <- $$false]; Retv;
+              Retv;
             Retv
       }.
 
@@ -109,11 +101,13 @@ Section Processor.
             Ret #redir
 
           with Method (redirName -- "setInvalid") (): Void :=
-            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$false; "value" ::= $$Default };
+            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$false;
+                                                   "value" ::= $$Default };
             Retv
 
           with Method (redirName -- "setValid")(v: Struct redirectStr): Void :=
-            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$true; "value" ::= #v };
+            Write redirName: RedirectK <- STRUCT { "isValid" ::= $$true;
+                                                   "value" ::= #v };
             Retv
         }.
 
@@ -142,16 +136,19 @@ Section Processor.
   End Epoch.
 
   Section Fetch.
-    Variables (iMemReqName f2dName: string).
-
-    Definition iMemReq := MethodSig iMemReqName(Struct (RqFromProc dataBytes (Bit addrSize))): Void.
+    Variable (f2iName: string).
 
     Definition F2D :=
       STRUCT { "pc" :: Bit addrSize;
                "predPc" :: Bit addrSize;
                "decEpoch" :: Bool;
                "exeEpoch" :: Bool }.
-    Definition f2dEnq := MethodSig (f2dName -- "enq")(Struct F2D): Void.
+
+    Definition F2I :=
+      STRUCT { "f2dOrig" :: Struct F2D;
+               "iMemReq" :: Struct (RqFromProc dataBytes (Bit addrSize)) }.
+
+    Definition f2iEnq := MethodSig (f2iName -- "enq")(Struct F2I): Void.
 
     Definition fetch :=
       MODULE {
@@ -159,19 +156,19 @@ Section Processor.
 
         with Rule "doFetch" :=
           Read pc <- "pc";
-          Call iMemReq(STRUCT { "addr" ::= #pc;
-                                "op" ::= $$false;
-                                "data" ::= $$Default });
           Call predPc <- btbPredPc(#pc);
           Write "pc" <- #predPc;
-
           Call decEpoch <- (getEpoch "dec")();
           Call exeEpoch <- (getEpoch "exe")();
-
-          Call f2dEnq (STRUCT { "pc" ::= #pc;
-                                "predPc" ::= #predPc;
-                                "decEpoch" ::= #decEpoch;
-                                "exeEpoch" ::= #exeEpoch });
+          Call f2iEnq (
+                 STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
+                                                 "predPc" ::= #predPc;
+                                                 "decEpoch" ::= #decEpoch;
+                                                 "exeEpoch" ::= #exeEpoch };
+                          "iMemReq" ::= STRUCT { "addr" ::= #pc;
+                                                 "op" ::= $$false;
+                                                 "data" ::= $$Default }
+                        });
           Retv
 
         with Rule "redirect" :=
@@ -193,12 +190,8 @@ Section Processor.
               Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
                                       "nextPc" ::= #r!redirectStr@."nextPc" });
               Call (toggleEpoch "dec")();
-              Retv
-            else
-              Retv
-            as _;
-            Retv
-          as _;
+              Retv;
+            Retv;
           Call (redirSetInvalid "exe")();
           Call (redirSetInvalid "dec")();
           Retv
@@ -207,4 +200,35 @@ Section Processor.
   End Fetch.
 
 End Processor.
+
+Hint Unfold btb redirect epoch fetch : ModuleDefs.
+Hint Unfold getIndex getTag BtbUpdateStr btbPredPc btbUpdate
+     redirectStr RedirectK redirGet redirSetInvalid redirSetValid
+     getEpoch toggleEpoch
+     F2D F2I f2iEnq : MethDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+  Variable indexSize tagSize: nat.
+  Hypothesis (Haddr: indexSize + tagSize = addrSize).
+
+  Lemma btb_ModEquiv:
+    ModPhoasWf (btb indexSize tagSize Haddr).
+  Proof. kequiv. Qed.
+
+  Lemma redirect_ModEquiv:
+    forall redirName, ModPhoasWf (redirect addrSize redirName).
+  Proof. kequiv. Qed.
+
+  Lemma epoch_ModEquiv:
+    forall epochName, ModPhoasWf (epoch epochName).
+  Proof. kequiv. Qed.
+
+  Lemma fetch_ModEquiv:
+    forall f2iName, ModPhoasWf (fetch addrSize dataBytes f2iName).
+  Proof. kequiv. Qed.
+
+End Wf.
+
+Hint Resolve btb_ModEquiv redirect_ModEquiv epoch_ModEquiv fetch_ModEquiv.
 

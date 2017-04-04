@@ -4,7 +4,7 @@ Require Import Ex.MemTypes.
 Set Implicit Arguments.
 
 Section AbstractIsa.
-  Variables (addrSize dataBytes rfIdx: nat).
+  Variables (addrSize dataBytes rfIdx csrIdx: nat).
 
   Section Decode.
 
@@ -49,7 +49,7 @@ Section AbstractIsa.
                "dst" :: Bit rfIdx; "hasDst" :: Bool;
                "src1" :: Bit rfIdx; "hasSrc1" :: Bool;
                "src2" :: Bit rfIdx; "hasSrc2" :: Bool;
-               (* csr :: Bit csrIdx; hasCsr :: Bool; *) (* TODO: later *)
+               (* "csr" :: Bit csrIdx; "hasCsr" :: Bool; *)
                "imm" :: Data dataBytes; "hasImm" :: Bool
              }.
 
@@ -65,7 +65,7 @@ Section AbstractIsa.
     Definition execInst :=
       STRUCT { "iType" :: IType;
                "dst" :: Bit rfIdx; "hasDst" :: Bool;
-               (* csr :: Bit csrIdx; hasCsr :: Bool; *) (* TODO: later *)
+               (* "csr" :: Bit csrIdx; "hasCsr" :: Bool; *)
                "data" :: Data dataBytes;
                "addr" :: Bit addrSize;
                "mispredict" :: Bool;
@@ -79,10 +79,21 @@ Section AbstractIsa.
                                      fullType ty (SyntaxKind (Data dataBytes)) -> (* rVal2 *)
                                      fullType ty (SyntaxKind (Bit addrSize)) -> (* pc *)
                                      fullType ty (SyntaxKind (Bit addrSize)) -> (* predPc *)
-                                     (* fullType ty (Data dataBytes) -> (* csrVal *) *)
+                                     (* fullType ty (SyntaxKind (Data dataBytes)) -> (* csrVal *) *)
                                      Expr ty (SyntaxKind ExecInst).
 
   End Execute.
+
+  (* Better to define like "(UniBit (Trunc 2 _) #addr == $0", but it requires "addrSize >= 2" *)
+  Definition isAligned {ty} (addr: fullType ty (SyntaxKind (Bit addrSize))) :=
+    ((#addr >> $$(natToWord 2 2)) << $$(natToWord 2 2) == #addr)%kami_expr.
   
 End AbstractIsa.
+
+Hint Unfold IType iTypeUnsupported iTypeAlu iTypeLd iTypeSt
+     iTypeJ iTypeJr iTypeBr iTypeCsrr iTypeCsrw iTypeAuipc
+     AluFunc aluAdd aluSub aluAnd aluOr aluXor aluSlt aluSltu
+     aluSll aluSra aluSrl
+     BrFunc brEq brNeq brLt brLtu brGe brGeu brAT brNT
+     decodedInst DecodedInst DecodeT : MethDefs.
 

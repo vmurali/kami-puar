@@ -9,24 +9,27 @@ Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
 
   Section Mem.
-    Variables (e2mName m2wName dMemReqName: string).
+    Variables (e2mName m2dName: string).
     
     Definition e2mDeq := MethodSig (e2mName -- "deq")(): Struct (E2M addrSize dataBytes rfIdx).
 
     Definition M2W := E2M addrSize dataBytes rfIdx.
-    Definition m2wEnq := MethodSig (m2wName -- "enq")(Struct M2W): Void.
 
-    Definition dMemReq := MethodSig dMemReqName(Struct (RqFromProc dataBytes (Bit addrSize))): Void.
+    Definition M2D :=
+      STRUCT { "m2wOrig" :: Struct M2W;
+               "dMemReq" :: Struct (RqFromProc dataBytes (Bit addrSize)) }.
+    
+    Definition m2dEnq := MethodSig (m2dName -- "enq")(Struct M2D): Void.
 
     Definition mem :=
       MODULE {
-        Rule "passMemory" :=
-          Call e2m <- e2mDeq();
-          Assert (#e2m!(E2M addrSize dataBytes rfIdx)@."poisoned");
-          Call m2wEnq(#e2m);
-          Retv
+        (* Rule "passMemory" := *)
+        (*   Call e2m <- e2mDeq(); *)
+        (*   Assert (#e2m!(E2M addrSize dataBytes rfIdx)@."poisoned"); *)
+        (*   Call m2wEnq(#e2m); *)
+        (*   Retv *)
 
-        with Rule "doMemory" :=
+        Rule "doMemory" :=
           Call e2m <- e2mDeq();
           Assert (!#e2m!(E2M addrSize dataBytes rfIdx)@."poisoned");
 
@@ -35,24 +38,25 @@ Section Processor.
 
           If (#iType == $$iTypeLd)
           then
-            Call dMemReq(STRUCT { "addr" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
-                                  "op" ::= $$false;
-                                  "data" ::= $$Default });
+            Call m2dEnq (
+              STRUCT { "m2wOrig" ::= #e2m;
+                       "dMemReq" ::=
+                          STRUCT { "addr" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
+                                   "op" ::= $$false;
+                                   "data" ::= $$Default } });
             Retv
           else
             If (#iType == $$iTypeSt)
             then
-              Call dMemReq(STRUCT { "addr" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
-                                    "op" ::= $$true;
-                                    "data" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."data" });
-              Retv
-            else
-              Retv
-            as _;
-            Retv
-          as _;
-
-          Call m2wEnq(#e2m);
+              Call m2dEnq (
+                STRUCT { "m2wOrig" ::= #e2m;
+                         "dMemReq" ::=
+                            STRUCT { "addr" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."addr";
+                                     "op" ::= $$true;
+                                     "data" ::= #eInst!(execInst addrSize dataBytes rfIdx)@."data"
+                                   } });
+              Retv;
+            Retv;
           Retv
 
       }.
@@ -61,3 +65,17 @@ Section Processor.
     
 End Processor.
 
+Hint Unfold mem : ModuleDefs.
+Hint Unfold e2mDeq M2W M2D m2dEnq : MethDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+
+  Lemma mem_ModEquiv:
+    forall e2mName m2dName, ModPhoasWf (mem addrSize dataBytes rfIdx e2mName m2dName).
+  Proof. kequiv. Qed.
+
+End Wf.
+
+Hint Resolve mem_ModEquiv.
+                                            
