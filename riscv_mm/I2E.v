@@ -13,40 +13,40 @@ Section I2E.
   Variable prog: Addr -> Inst.
   Variable pc: State -> Addr.
 
-  Inductive Event: Set :=
-  | EventLoad: Addr -> Data -> Event
-  | EventStore: Addr -> Data -> Event
-  | EventRMW: Addr -> Data -> Data -> Event
-  | EventFence: FenceT -> Event.
+  Inductive Exec: Set :=
+  | ExecLoad: Addr -> Data -> Exec
+  | ExecStore: Addr -> Data -> Exec
+  | ExecRMW: Addr -> Data -> Data -> Exec
+  | ExecFence: FenceT -> Exec.
 
   Section ProcI2E_step.
     Variable s: State.
-    Inductive ProcI2E_step: option Event -> State -> Prop :=
+    Inductive ProcI2E_step: option Exec -> State -> Prop :=
     | NmExec op:
         prog (pc s) = Nm op ->
         ProcI2E_step None (op s)
     | LoadExec addr ret v:
         prog (pc s) = Load addr ret ->
-        ProcI2E_step (Some (EventLoad (addr s) v)) (ret v s)
+        ProcI2E_step (Some (ExecLoad (addr s) v)) (ret v s)
     | StoreExec addr data op:
         prog (pc s) = Store addr data op ->
-        ProcI2E_step (Some (EventStore (addr s) (data s))) (op s)
+        ProcI2E_step (Some (ExecStore (addr s) (data s))) (op s)
     | RMWExec addr data ret v:
         prog (pc s) = RMW addr data ret ->
-        ProcI2E_step (Some (EventRMW (addr s) (data s) v)) (ret v s)
+        ProcI2E_step (Some (ExecRMW (addr s) (data s) v)) (ret v s)
     | FenceExec f op:
         prog (pc s) = Fence f op ->
-        ProcI2E_step (Some (EventFence f)) (op s).
+        ProcI2E_step (Some (ExecFence f)) (op s).
   End ProcI2E_step.
 
   Variable initState: State.
 
-  Inductive ProcI2E_execution: list Event -> State -> Prop :=
+  Inductive ProcI2E_execution: list Exec -> State -> Prop :=
   | Init: ProcI2E_execution nil initState
-  | Step events s nextEvent nextState:
+  | Step events s nextExec nextState:
       ProcI2E_execution events s ->
-      ProcI2E_step s nextEvent nextState ->
-      ProcI2E_execution match nextEvent with
+      ProcI2E_step s nextExec nextState ->
+      ProcI2E_execution match nextExec with
                           | None => events
                           | Some e => e :: events
                         end nextState.
@@ -54,69 +54,71 @@ Section I2E.
   Section ImplTrace.
     Variable loadResult: Addr -> nat -> Data.
 
-    Inductive ImplEvent: Set :=
-    | ExecEvent: Event -> ImplEvent
-    | CommitLoadMem: nat -> ImplEvent
-    | CommitLoadStoreBypass: nat -> ImplEvent
-    | CommitLoadRMWBypass: nat -> ImplEvent
-    | CommitStore: nat -> ImplEvent
-    | CommitRMW: nat -> ImplEvent
-    | CommitFence: nat -> ImplEvent.
+    Inductive ImplExec: Set :=
+    | DoExec: Exec -> ImplExec
+    | CommitLoadMem: nat -> ImplExec
+    | CommitLoadStoreBypass: nat -> ImplExec
+    | CommitLoadRMWBypass: nat -> ImplExec
+    | CommitStore: nat -> ImplExec
+    | CommitRMW: nat -> ImplExec
+    | CommitFence: nat -> ImplExec.
 
-    Definition ImplEvents := list ImplEvent.
+    Definition ImplExecs := list ImplExec.
 
-    Definition ImplEvents_well_formed ls :=
+    Definition ImplExecs_well_formed ls :=
       forall pos e,
         nth_error ls pos = Some e ->
         match e with
-          | ExecEvent e => True
-          | CommitLoadMem n => n <= pos /\ exists a d, nth_error ls n = Some (ExecEvent (EventLoad a d))
+          | DoExec e => True
+          | CommitLoadMem n => n <= pos /\ exists a d, nth_error ls n = Some (DoExec (ExecLoad a d))
           | CommitLoadStoreBypass n => n < pos /\ exists n', nth_error ls n = Some (CommitStore n')
           | CommitLoadRMWBypass n => n < pos /\ exists n', nth_error ls n = Some (CommitRMW n')
-          | CommitStore n => n <= pos /\ exists a d, nth_error ls n = Some (ExecEvent (EventStore a d))
-          | CommitRMW n => n <= pos /\ exists a d ret, nth_error ls n = Some (ExecEvent (EventRMW a d ret))
-          | CommitFence n => n <= pos /\ exists f, nth_error ls n = Some (ExecEvent (EventFence f))
+          | CommitStore n => n <= pos /\ exists a d, nth_error ls n = Some (DoExec (ExecStore a d))
+          | CommitRMW n => n <= pos /\ exists a d ret, nth_error ls n = Some (DoExec (ExecRMW a d ret))
+          | CommitFence n => n <= pos /\ exists f, nth_error ls n = Some (DoExec (ExecFence f))
         end.
 
-    Definition ImplEvents_match_loadResult ls :=
+    Definition ImplExecs_match_loadResult ls :=
       forall a pos,
         nth_error (filter (fun e => match e with
-                                      | ExecEvent (EventLoad a d) => true
+                                      | DoExec (ExecLoad a d) => true
                                       | _ => false
-                                    end) ls) pos = Some (ExecEvent (EventLoad a (loadResult a pos))).
+                                    end) ls) pos = Some (DoExec (ExecLoad a (loadResult a pos))).
 
-    Definition ImplEvents_store_bypass_correct ls :=
+    Definition ImplExecs_store_bypass_correct ls :=
       forall curr storeCommitPos storePos a d1,
         nth_error ls curr = Some (CommitLoadStoreBypass storeCommitPos) ->
         nth_error ls storeCommitPos = Some (CommitStore storePos) ->
-        nth_error ls storePos = Some (ExecEvent (EventStore a d1)) ->
+        nth_error ls storePos = Some (DoExec (ExecStore a d1)) ->
          forall n,
            storeCommitPos < n < curr ->
            forall n', ((nth_error ls n = Some (CommitStore n') ->
-                        forall d2, nth_error ls n' <> Some (ExecEvent (EventStore a d2))) /\
+                        forall a2 d2, nth_error ls n' = Some (DoExec (ExecStore a2 d2)) ->
+                                      a2 <> a) /\
                        (nth_error ls n = Some (CommitRMW n') ->
-                        forall d2 ret, nth_error ls n' <> Some (ExecEvent (EventRMW a d2 ret)))).
+                        forall a2 d2 ret, nth_error ls n' <> Some (DoExec (ExecRMW a d2 ret)) ->
+                                          a2 <> a)).
 
-    Definition ImplEvents_rmw_bypass_correct ls :=
+    Definition ImplExecs_rmw_bypass_correct ls :=
       forall curr storeCommitPos storePos a d1 ret,
         nth_error ls curr = Some (CommitLoadRMWBypass storeCommitPos) ->
         nth_error ls storeCommitPos = Some (CommitRMW storePos) ->
-        nth_error ls storePos = Some (ExecEvent (EventRMW a d1 ret)) ->
+        nth_error ls storePos = Some (DoExec (ExecRMW a d1 ret)) ->
          forall n,
            storeCommitPos < n < curr ->
            forall n', ((nth_error ls n = Some (CommitStore n') ->
-                        forall d2, nth_error ls n' <> Some (ExecEvent (EventStore a d2))) /\
+                        forall a2 d2, nth_error ls n' = Some (DoExec (ExecStore a2 d2)) ->
+                                      a2 <> a) /\
                        (nth_error ls n = Some (CommitRMW n') ->
-                        forall d2 ret, nth_error ls n' <> Some (ExecEvent (EventRMW a d2 ret)))).
+                        forall a2 d2 ret, nth_error ls n' <> Some (DoExec (ExecRMW a d2 ret)) ->
+                                          a2 <> a)).
 
-    Variable impl: (Addr -> Inst) -> (Addr -> nat -> Data) -> ImplEvents.
+    Definition ImplExecs_syntactic_check ls :=
+      ImplExecs_well_formed ls /\
+      ImplExecs_match_loadResult ls /\
+      ImplExecs_store_bypass_correct ls /\
+      ImplExecs_rmw_bypass_correct ls.
 
-    Definition implTrace := impl prog loadResult.
-
-    Definition goodImplTrace :=
-      ImplEvents_well_formed implTrace /\
-      ImplEvents_match_loadResult implTrace /\
-      ImplEvents_store_bypass_correct implTrace /\
-      ImplEvents_rmw_bypass_correct implTrace.
   End ImplTrace.
 End I2E.
+
