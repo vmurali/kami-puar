@@ -32,7 +32,7 @@ Section Processor.
       MODULE {
         Rule "killExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- (getEpoch "exe")();
+          Call exeEpoch <- exeGetEpoch3();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" != #exeEpoch);
 
@@ -41,7 +41,7 @@ Section Processor.
 
         with Rule "doExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- (getEpoch "exe")();
+          Call exeEpoch <- exeGetEpoch3();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" == #exeEpoch);
 
@@ -79,4 +79,26 @@ Section Processor.
   End Execute.
 
 End Processor.
+
+Hint Unfold r2eDeq E2M e2mEnq bhtTrainEnq execInst bpInsertE : MethDefs.
+Hint Unfold execute : ModuleDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+  Variable exec: ExecT addrSize dataBytes rfIdx.
+    
+  Lemma execute_ModEquiv:
+    forall r2eName e2mName bhtTrainName,
+      ModPhoasWf (execute r2eName e2mName bhtTrainName exec).
+  Proof. kequiv. Qed.
+
+  Lemma execute_ModRegsWf:
+    forall r2eName e2mName bhtTrainName,
+      ModRegsWf (execute r2eName e2mName bhtTrainName exec).
+  Proof. kvr. Qed.
+
+End Wf.
+
+Hint Resolve execute_ModEquiv.
+Hint Resolve execute_ModRegsWf.
 

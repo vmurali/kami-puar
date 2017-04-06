@@ -30,10 +30,13 @@ Section FetchBtb.
     | [H: context[inlineF ?m] |- _] => set m as origm in H at 2
     end.
     kinline_compute_in Him.
+    cbn in Him.
     unfold origm in *.
     specialize (Him eq_refl).
     exact (existT _ _ Him).
   Defined.
 
 End FetchBtb.
+
+Hint Unfold fetchBtb fetchBtbInl : ModuleDefs.
 

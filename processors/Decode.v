@@ -106,8 +106,8 @@ Section Processor.
           LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
-          Call decEpoch <- (getEpoch "dec")();
-          Call exeEpoch <- (getEpoch "exe")();
+          Call decEpoch <- decGetEpoch2();
+          Call exeEpoch <- exeGetEpoch2();
 
           If (#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
               && #decEpoch == #f2d!(F2D addrSize)@."decEpoch")
@@ -222,7 +222,20 @@ Section Wf.
     forall i2dName d2rName, ModPhoasWf (decode addrSize i2dName d2rName decodeInst).
   Proof. kequiv. Qed.
 
+  Lemma bht_ModRegsWf:
+    ModRegsWf (bht addrSize indexSize).
+  Proof. kvr. Qed.
+
+  Lemma bhtTrain_ModRegsWf:
+    forall bhtTrainName, ModRegsWf (bhtTrain addrSize bhtTrainName).
+  Proof. kvr. Qed.
+
+  Lemma decode_ModRegsWf:
+    forall i2dName d2rName, ModRegsWf (decode addrSize i2dName d2rName decodeInst).
+  Proof. kvr. Qed.
+
 End Wf.
 
 Hint Resolve bht_ModEquiv bhtTrain_ModEquiv decode_ModEquiv.
+Hint Resolve bht_ModRegsWf bhtTrain_ModRegsWf decode_ModRegsWf.
 

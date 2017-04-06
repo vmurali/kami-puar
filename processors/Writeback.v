@@ -82,3 +82,24 @@ Section Processor.
           
 End Processor.
 
+Hint Unfold csrfStr csrfRd csrfWr d2wDeq : MethDefs.
+Hint Unfold csrf writeback : ModuleDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+
+  Lemma writeback_ModEquiv:
+    forall d2wName,
+      ModPhoasWf (writeback addrSize dataBytes rfIdx d2wName).
+  Proof. kequiv. Qed.
+
+  Lemma writeback_ModRegsWf:
+    forall d2wName,
+      ModRegsWf (writeback addrSize dataBytes rfIdx d2wName).
+  Proof. kvr. Qed.
+
+End Wf.
+
+Hint Resolve writeback_ModEquiv.
+Hint Resolve writeback_ModRegsWf.
+     

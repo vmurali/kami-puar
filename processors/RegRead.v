@@ -78,3 +78,24 @@ Section Processor.
         
 End Processor.
 
+Hint Unfold regRead : ModuleDefs.
+Hint Unfold d2rDeq D2R R2E r2eEnq rfrd1 rfrd2 bpSearch1 bpSearch2 : MethDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+
+  Lemma regRead_ModEquiv:
+    forall d2rName r2eName,
+      ModPhoasWf (regRead addrSize dataBytes rfIdx d2rName r2eName).
+  Proof. kequiv. Qed.
+
+  Lemma regRead_ModRegsWf:
+    forall d2rName r2eName,
+      ModRegsWf (regRead addrSize dataBytes rfIdx d2rName r2eName).
+  Proof. kvr. Qed.
+
+End Wf.
+
+Hint Resolve regRead_ModEquiv.
+Hint Resolve regRead_ModRegsWf.
+

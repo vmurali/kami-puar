@@ -75,7 +75,12 @@ Section Wf.
     forall e2mName m2dName, ModPhoasWf (mem addrSize dataBytes rfIdx e2mName m2dName).
   Proof. kequiv. Qed.
 
+  Lemma mem_ModRegsWf:
+    forall e2mName m2dName, ModRegsWf (mem addrSize dataBytes rfIdx e2mName m2dName).
+  Proof. kvr. Qed.
+
 End Wf.
 
 Hint Resolve mem_ModEquiv.
+Hint Resolve mem_ModRegsWf.
                                             

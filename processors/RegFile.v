@@ -76,18 +76,18 @@ Section Processor.
           Write "bpStatus" <- #vals@[#idx <- #value];
           Retv
           
-        with Method "bpInsertM"(v: Struct rfStr): Void :=
-          LET idx <- #v!rfStr@."idx";
-          LET value <- #v!rfStr@."value";
-          Read st <- "bpStatus";
-          LET bst <- #st@[#idx];
-          If #bst != $$bypassStBypassE
-          then
-            Write "bpStatus" <- #st@[#idx <- $$bypassStBypassM];
-            Read vals <- "bpValuesM";
-            Write "bpStatus" <- #vals@[#idx <- #value];
-            Retv;
-          Retv
+        (* with Method "bpInsertM"(v: Struct rfStr): Void := *)
+        (*   LET idx <- #v!rfStr@."idx"; *)
+        (*   LET value <- #v!rfStr@."value"; *)
+        (*   Read st <- "bpStatus"; *)
+        (*   LET bst <- #st@[#idx]; *)
+        (*   If #bst != $$bypassStBypassE *)
+        (*   then *)
+        (*     Write "bpStatus" <- #st@[#idx <- $$bypassStBypassM]; *)
+        (*     Read vals <- "bpValuesM"; *)
+        (*     Write "bpStatus" <- #vals@[#idx <- #value]; *)
+        (*     Retv; *)
+        (*   Retv *)
               
         with Method "bpSearch1"(idx: Bit rfIdx): Struct BypassStr :=
           Read st : Vector BypassSt rfIdx <- "bpStatus";
@@ -122,7 +122,7 @@ Section Processor.
     Definition bpRegisterM := MethodSig "bpRegisterM"(Bit rfIdx) : Void.
     Definition bpRemove := MethodSig "bpRemove"(Bit rfIdx) : Void.
     Definition bpInsertE := MethodSig "bpInsertE"(Struct rfStr) : Void.
-    Definition bpInsertM := MethodSig "bpInsertM"(Struct rfStr) : Void.
+    (* Definition bpInsertM := MethodSig "bpInsertM"(Struct rfStr) : Void. *)
     Definition bpSearch1 := MethodSig "bpSearch1"(Bit rfIdx) : Struct BypassStr.
     Definition bpSearch2 := MethodSig "bpSearch2"(Bit rfIdx) : Struct BypassStr.
 

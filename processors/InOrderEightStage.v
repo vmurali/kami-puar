@@ -10,7 +10,6 @@ Open Scope string.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
-  Variables iExecName dExecName: string.
 
   Variable decodeInst: DecodeT dataBytes rfIdx.
   Variable execInst: ExecT addrSize dataBytes rfIdx.
@@ -25,6 +24,8 @@ Section Processor.
   Definition decName := "dec".
   Definition exeName := "exe".
   Definition bhtTrainName := "bhtTrain".
+  Definition iExecName := "exec".
+  Definition dExecName := "exec".
 
   Variables btbIndexSize btbTagSize bhtIndexSize bhtTrainSize: nat.
   Hypothesis (Hbtb: btbIndexSize + btbTagSize = addrSize).
@@ -34,8 +35,6 @@ Section Processor.
   Definition btb := btb btbIndexSize btbTagSize Hbtb.
   Definition decRedir := redirect addrSize decName.
   Definition exeRedir := redirect addrSize exeName.
-  Definition decEpoch := epoch decName.
-  Definition exeEpoch := epoch exeName.
   Definition f2i := @nativeFifo f2iName (Struct (F2I addrSize dataBytes)) Default.
 
   (** IMem related *)
@@ -80,4 +79,11 @@ Section Processor.
            writeback)%kami.
 
 End Processor.
+
+Hint Unfold fetch btb decRedir exeRedir
+     f2i iMem i2d decode bht bhtTrain d2r
+     regRead rf bypass r2e execute e2m mem m2d dMem d2w
+     writeback inOrderEight : ModuleDefs.
+Hint Unfold f2iName i2dName d2rName r2eName e2mName
+     m2dName d2wName decName exeName bhtTrainName : MethDefs.
 

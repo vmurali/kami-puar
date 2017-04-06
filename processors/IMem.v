@@ -46,7 +46,13 @@ Section Wf.
       ModPhoasWf (iMem addrSize dataBytes f2iName i2dName iExecName).
   Proof. kequiv. Qed.
 
+  Lemma iMem_ModRegsWf:
+    forall f2iName i2dName iExecName,
+      ModRegsWf (iMem addrSize dataBytes f2iName i2dName iExecName).
+  Proof. kvr. Qed.
+
 End Wf.
 
 Hint Resolve iMem_ModEquiv.
+Hint Resolve iMem_ModRegsWf.
 
