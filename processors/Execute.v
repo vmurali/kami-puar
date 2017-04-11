@@ -15,7 +15,7 @@ Section Processor.
     Variables (r2eName e2mName bhtTrainName: string).
     Variable exec: ExecT addrSize dataBytes rfIdx.
     
-    Definition r2eDeq := MethodSig (r2eName -- "enq")(): Struct (R2E addrSize dataBytes rfIdx).
+    Definition r2eDeq := MethodSig (r2eName -- "deq")(): Struct (R2E addrSize dataBytes rfIdx).
 
     Definition E2M :=
       STRUCT { "eInst" :: Struct (execInst addrSize dataBytes rfIdx);
@@ -76,12 +76,57 @@ Section Processor.
           Retv
       }.
 
+    Definition executeNondet :=
+      MODULE {
+        Rule "killExecute" :=
+          Call r2e <- r2eDeq();
+          Call exeEpoch <- exeGetEpoch3();
+
+          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" != #exeEpoch);
+
+          Call e2mEnq(STRUCT { "eInst" ::= $$Default; "poisoned" ::= $$true });
+          Retv
+
+        with Rule "doExecute" :=
+          Call r2e <- r2eDeq();
+          Call exeEpoch <- exeGetEpoch3();
+
+          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" == #exeEpoch);
+
+          LET dInst <- #r2e!(R2E addrSize dataBytes rfIdx)@."dInst";
+          LET iType <- #dInst!(decodedInst dataBytes rfIdx)@."iType";
+          LET rVal1 <- #r2e!(R2E addrSize dataBytes rfIdx)@."rVal1";
+          LET rVal2 <- #r2e!(R2E addrSize dataBytes rfIdx)@."rVal2";
+          LET pc <- #r2e!(R2E addrSize dataBytes rfIdx)@."pc";
+          LET predPc <- #r2e!(R2E addrSize dataBytes rfIdx)@."predPc";
+
+          LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
+
+          (* Value bypassing related *)
+          If (#eInst!execInst@."hasDst")
+          then
+            Call bpInsertE(STRUCT { "idx" ::= #eInst!execInst@."dst";
+                                    "value" ::= #eInst!execInst@."data" });
+            Retv;
+              
+          (* To redirect a mispredicted pc *)
+          If (#eInst!execInst@."mispredict")
+          then
+            Call (redirSetValid addrSize "exe")(
+                   STRUCT { "pc" ::= #pc;
+                            "nextPc" ::= #eInst!execInst@."addr" });
+            Retv;
+
+          Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
+          Retv
+      }.
+    
   End Execute.
 
 End Processor.
 
 Hint Unfold r2eDeq E2M e2mEnq bhtTrainEnq execInst bpInsertE : MethDefs.
-Hint Unfold execute : ModuleDefs.
+Hint Unfold execute executeNondet : ModuleDefs.
 
 Section Wf.
   Variables addrSize dataBytes rfIdx: nat.
@@ -92,13 +137,23 @@ Section Wf.
       ModPhoasWf (execute r2eName e2mName bhtTrainName exec).
   Proof. kequiv. Qed.
 
+  Lemma executeNondet_ModEquiv:
+    forall r2eName e2mName,
+      ModPhoasWf (executeNondet r2eName e2mName exec).
+  Proof. kequiv. Qed.
+
   Lemma execute_ModRegsWf:
     forall r2eName e2mName bhtTrainName,
       ModRegsWf (execute r2eName e2mName bhtTrainName exec).
   Proof. kvr. Qed.
 
+  Lemma executeNondet_ModRegsWf:
+    forall r2eName e2mName,
+      ModRegsWf (executeNondet r2eName e2mName exec).
+  Proof. kvr. Qed.
+
 End Wf.
 
-Hint Resolve execute_ModEquiv.
-Hint Resolve execute_ModRegsWf.
+Hint Resolve execute_ModEquiv executeNondet_ModEquiv.
+Hint Resolve execute_ModRegsWf executeNondet_ModRegsWf.
 
