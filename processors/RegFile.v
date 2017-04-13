@@ -130,3 +130,33 @@ Section Processor.
 
 End Processor.
 
+Hint Unfold rfStr rfrd1 rfrd2 rfwr
+     BypassSt bypassStClean bypassStStallE bypassStStallM
+     bypassStBypassE bypassStBypassM BypassStr
+     bpRegisterE bpRegisterM bpRemove bpInsertE bpSearch1 bpSearch2 : MethDefs.
+Hint Unfold regFile bypass : ModuleDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+
+  Lemma regFile_ModEquiv:
+    ModPhoasWf (regFile dataBytes rfIdx).
+  Proof. kequiv. Qed.
+
+  Lemma bypass_ModEquiv:
+    ModPhoasWf (bypass dataBytes rfIdx).
+  Proof. kequiv. Qed.
+
+  Lemma regFile_ModRegsWf:
+    ModRegsWf (regFile dataBytes rfIdx).
+  Proof. kvr. Qed.
+
+  Lemma bypass_ModRegsWf:
+    ModRegsWf (bypass dataBytes rfIdx).
+  Proof. kvr. Qed.
+
+End Wf.
+
+Hint Resolve regFile_ModEquiv bypass_ModEquiv.
+Hint Resolve regFile_ModRegsWf bypass_ModRegsWf.
+

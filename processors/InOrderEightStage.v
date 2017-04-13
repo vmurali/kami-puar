@@ -30,11 +30,14 @@ Section Processor.
   Definition dExecName := "exec".
 
   Variables btbIndexSize btbTagSize bhtIndexSize bhtTrainSize: nat.
-  Hypothesis (Hbtb: btbIndexSize + btbTagSize = addrSize).
+  Variables (getIndex: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                    Expr ty (SyntaxKind (Bit btbIndexSize)))
+            (getTag: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                  Expr ty (SyntaxKind (Bit btbTagSize))).
 
   (** Fetch related *)
   Definition fetch := fetch addrSize dataBytes f2iName.
-  Definition btb := btb btbIndexSize btbTagSize Hbtb.
+  Definition btb := btb getIndex getTag.
   Definition decRedir := redirect addrSize decName.
   Definition exeRedir := redirect addrSize exeName.
   Definition f2i := @nativeSimpleFifo f2iName (Struct (F2I addrSize dataBytes)) Default.
@@ -89,4 +92,29 @@ Hint Unfold fetch btb decRedir exeRedir
      writeback inOrderEight : ModuleDefs.
 Hint Unfold f2iName i2dName d2rName r2eName e2mName
      m2dName d2wName decName exeName bhtTrainName : MethDefs.
+
+Section Wf.
+  Variables addrSize dataBytes rfIdx: nat.
+
+  Variable decodeInst: DecodeT dataBytes rfIdx.
+  Variable execInst: ExecT addrSize dataBytes rfIdx.
+
+  Variables btbIndexSize btbTagSize bhtIndexSize bhtTrainSize: nat.
+  Variables (getIndex: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                    Expr ty (SyntaxKind (Bit btbIndexSize)))
+            (getTag: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                  Expr ty (SyntaxKind (Bit btbTagSize))).
+
+  Lemma inOrderEight_ModEquiv:
+    ModPhoasWf (inOrderEight decodeInst execInst bhtIndexSize bhtTrainSize getIndex getTag).
+  Proof. kequiv. Qed.
+
+  Lemma inOrderEight_ModRegsWf:
+    ModRegsWf (inOrderEight decodeInst execInst bhtIndexSize bhtTrainSize getIndex getTag).
+  Proof. kvr. Qed.
+
+End Wf.
+
+Hint Resolve inOrderEight_ModEquiv.
+Hint Resolve inOrderEight_ModRegsWf.
 

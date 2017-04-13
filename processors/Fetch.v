@@ -12,22 +12,11 @@ Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
 
   Section BTB.
-    Variable indexSize tagSize: nat.
-    Hypothesis (Haddr: indexSize + tagSize = addrSize).
-
-    Definition getIndex {ty} (pcv: fullType ty (SyntaxKind (Bit addrSize))):
-      Expr ty (SyntaxKind (Bit indexSize)) :=
-      UniBit (Trunc _ _)
-             (eq_rect_r (fun n => Expr ty (SyntaxKind (Bit n)))
-                        (#pcv >> $$(natToWord 2 2))%kami_expr
-                        Haddr).
-
-    Definition getTag {ty} (pcv: fullType ty (SyntaxKind (Bit addrSize))):
-      Expr ty (SyntaxKind (Bit tagSize)) :=
-      UniBit (TruncLsb _ _)
-             (eq_rect_r (fun n => Expr ty (SyntaxKind (Bit n)))
-                        (#pcv)%kami_expr
-                        Haddr).
+    Variables indexSize tagSize: nat. (* should satisfy [indexSize + tagSize = addrSize] *)
+    Variables (getIndex: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                      Expr ty (SyntaxKind (Bit indexSize)))
+              (getTag: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                    Expr ty (SyntaxKind (Bit tagSize))).
 
     Definition BtbUpdateStr :=
       STRUCT { "curPc" :: Bit addrSize; "nextPc" :: Bit addrSize }.
@@ -42,8 +31,8 @@ Section Processor.
           with Register "btbValid" : Vector Bool indexSize <- Default
 
           with Method "btbPredPc" (pc: Bit addrSize): Bit addrSize :=
-            LET index <- getIndex pc;
-            LET tag <- getTag pc;
+            LET index <- getIndex _ pc;
+            LET tag <- getTag _ pc;
 
             Read targets <- "btbTargets";
             Read valid <- "btbValid";
@@ -59,8 +48,8 @@ Section Processor.
           with Method "btbUpdate" (upd: Struct BtbUpdateStr): Void :=
             LET curPc <- #upd ! BtbUpdateStr @."curPc";
             LET nextPc <- #upd ! BtbUpdateStr @."nextPc";
-            LET index <- getIndex curPc;
-            LET tag <- getTag curPc;
+            LET index <- getIndex _ curPc;
+            LET tag <- getTag _ curPc;
 
             Read targets: Vector (Bit addrSize) indexSize <- "btbTargets";
             Read valid: Vector Bool indexSize <- "btbValid";
@@ -278,7 +267,7 @@ Section Processor.
 End Processor.
 
 Hint Unfold btb redirect decEpoch exeEpoch fetch fetchNondet : ModuleDefs.
-Hint Unfold getIndex getTag BtbUpdateStr btbPredPc btbUpdate
+Hint Unfold BtbUpdateStr btbPredPc btbUpdate
      redirectStr RedirectK redirGet redirSetInvalid redirSetValid
      decGetEpoch1 decGetEpoch2 decToggleEpoch
      exeGetEpoch1 exeGetEpoch2 exeGetEpoch3 exeToggleEpoch
@@ -287,10 +276,13 @@ Hint Unfold getIndex getTag BtbUpdateStr btbPredPc btbUpdate
 Section Wf.
   Variables addrSize dataBytes rfIdx: nat.
   Variable indexSize tagSize: nat.
-  Hypothesis (Haddr: indexSize + tagSize = addrSize).
+  Variables (getIndex: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                    Expr ty (SyntaxKind (Bit indexSize)))
+            (getTag: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
+                                  Expr ty (SyntaxKind (Bit tagSize))).
 
   Lemma btb_ModEquiv:
-    ModPhoasWf (btb indexSize tagSize Haddr).
+    ModPhoasWf (btb getIndex getTag).
   Proof. kequiv. Qed.
 
   Lemma redirect_ModEquiv:
@@ -314,7 +306,7 @@ Section Wf.
   Proof. kequiv. Qed.
 
   Lemma btb_ModRegsWf:
-    ModRegsWf (btb indexSize tagSize Haddr).
+    ModRegsWf (btb getIndex getTag).
   Proof. kvr. Qed.
 
   Lemma redirect_ModRegsWf:
