@@ -55,11 +55,9 @@ Section Processor.
           LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
 
           (* Value bypassing related *)
-          If (#eInst!execInst@."hasDst")
-          then
-            Call bpInsertE(STRUCT { "idx" ::= #eInst!execInst@."dst";
-                                    "value" ::= #eInst!execInst@."data" });
-            Retv;
+          Call bpInsertE(STRUCT { "hasDst" ::= #eInst!execInst@."hasDst";
+                                  "dst" ::= #eInst!execInst@."dst";
+                                  "value" ::= #eInst!execInst@."data" });
               
           (* To redirect a mispredicted pc *)
           If (#eInst!execInst@."mispredict")
@@ -103,11 +101,9 @@ Section Processor.
           LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
 
           (* Value bypassing related *)
-          If (#eInst!execInst@."hasDst")
-          then
-            Call bpInsertE(STRUCT { "idx" ::= #eInst!execInst@."dst";
-                                    "value" ::= #eInst!execInst@."data" });
-            Retv;
+          Call bpInsertE(STRUCT { "hasDst" ::= #eInst!execInst@."hasDst";
+                                  "dst" ::= #eInst!execInst@."dst";
+                                  "value" ::= #eInst!execInst@."data" });
               
           (* To redirect a mispredicted pc *)
           If (#eInst!execInst@."mispredict")

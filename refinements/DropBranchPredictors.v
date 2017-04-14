@@ -1,6 +1,6 @@
 Require Import Kami.
 Require Import Lib.CommonTactics Lib.Indexer.
-Require Import Kami.Decomposition.
+Require Import Kami.Decomposition Kami.ModuleBoundEx.
 Require Import Ex.MemTypes Ex.OneEltFifo.
 Require Import Proc.AbstractIsa Proc.Fetch Proc.Decode Proc.Execute Proc.InOrderEightStage.
 
@@ -47,6 +47,8 @@ Section Processor.
                                   Expr ty (SyntaxKind (Bit btbTagSize))).
 
   (** Fetch related *)
+  Definition fetch := fetch addrSize dataBytes.
+  Definition btb := btb getIndex getTag.
   Definition fetchNondet := fetchNondet addrSize dataBytes f2iName.
   Definition decRedir := decRedir addrSize.
   Definition exeRedir := exeRedir addrSize.
@@ -57,6 +59,11 @@ Section Processor.
   Definition i2d := i2d addrSize dataBytes.
 
   (** Decode related *)
+  Definition decode := decode addrSize decodeInst.
+  Definition bht := bht addrSize bhtIndexSize.
+  Definition bhtTrain := bhtTrain addrSize.
+  Definition bhtTrainQ := bhtTrainQ addrSize bhtTrainSize.
+  Definition bhtFrontEnd := bhtFrontEnd addrSize dataBytes rfIdx.
   Definition decodeNondet := decodeNondet addrSize i2dName d2rName decodeInst.
   Definition d2r := d2r addrSize dataBytes rfIdx.
 
@@ -67,6 +74,7 @@ Section Processor.
   Definition r2e := r2e addrSize dataBytes rfIdx.
 
   (** Execute related *)
+  Definition execute := execute execInst.
   Definition executeNondet := executeNondet r2eName e2mName execInst.
   Definition e2m := e2m addrSize dataBytes rfIdx.
 
@@ -81,55 +89,64 @@ Section Processor.
   (** Writeback related *)
   Definition writeback := writeback addrSize dataBytes rfIdx.
 
-  (* inOrderEight :=
-     (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
-     iMem ++ i2d ++
-     decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ d2r ++
-     regRead ++ rf ++ bypass ++ r2e ++
-     execute ++ e2m ++
-     mem ++ m2d ++
-     dMem ++ d2w ++
-     writeback)%kami.
-   *)
   Definition inOrderEight :=
     inOrderEight decodeInst execInst bhtIndexSize bhtTrainSize getIndex getTag.
 
   Definition inOrderEight0 :=
-    (fetchNondet ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
-                 iMem ++ i2d ++
-                 decodeNondet ++ d2r ++
-                 regRead ++ rf ++ bypass ++ r2e ++
-                 executeNondet ++ e2m ++
-                 mem ++ m2d ++
-                 dMem ++ d2w ++
-                 writeback)%kami.
+    ((fetch ++ btb)
+       ++ (decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ bhtFrontEnd ++ execute)
+       ++ (decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+                    iMem ++ i2d ++ d2r ++
+                    regRead ++ rf ++ bypass ++ r2e ++ e2m ++
+                    mem ++ m2d ++
+                    dMem ++ d2w ++
+                    writeback))%kami.
 
-  Section Refinement.
+  Definition inOrderEight1 :=
+    (fetchNondet
+       ++ (decodeNondet ++ executeNondet)
+       ++ (decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+                    iMem ++ i2d ++ d2r ++
+                    regRead ++ rf ++ bypass ++ r2e ++ e2m ++
+                    mem ++ m2d ++
+                    dMem ++ d2w ++
+                    writeback))%kami.
 
-    (* Eval compute in (Struct.namesOf (getRegInits inOrderEight)). *)
-    (* Eval compute in (Struct.namesOf (getRegInits inOrderEight0)). *)
+  Section Refinement0.
 
-    Local Definition dropRegs : list string :=
-      ["full.bhtTrain"; "empty.bhtTrain"; "deqP.bhtTrain"; "enqP.bhtTrain"; "elt.bhtTrain";
-         "satCnt"; "btbValid"; "btbTags"; "btbTargets"].
+    Theorem inOrderEight_inOrderEight0: inOrderEight <<== inOrderEight0.
+    Proof.
+      ksimilar; equivList_app_tac.
+    Qed.
 
-    Local Definition theta (s: RegsT) : RegsT := M.complement s dropRegs.
+  End Refinement0.
+          
+  Section Refinement1.
 
-    (* Eval compute in (getDefs inOrderEight). *)
-    (* Eval compute in (getDefs inOrderEight0). *)
+    Local Definition dropRegsF : list string :=
+      ["btbValid"; "btbTags"; "btbTargets"].
+    Local Definition dropRegsD : list string :=
+      ["full.bhtTrain"; "empty.bhtTrain";
+         "deqP.bhtTrain"; "enqP.bhtTrain"; "elt.bhtTrain";
+           "satCnt"].
 
-    Local Definition dropMeths : list string :=
-      ["firstElt.bhtTrain"; "deq.bhtTrain"; "enq.bhtTrain"; "update"; "predTaken";
-         "btbUpdate"; "btbPredPc"].
-    (* pose (getDefs inOrderEight) as pdefs; compute in pdefs. *)
-    (* pose (getDefs inOrderEight0) as ndefs; compute in ndefs. *)
-    (* pose (fold_left (fun nl e => *)
-    (*                    if in_dec string_dec e ndefs then nl else e :: nl) pdefs nil) as ddefs. *)
-    (* compute in ddefs. *)
+    Local Definition thetaF (s: RegsT) : RegsT := M.complement s dropRegsF.
+    Local Definition thetaD (s: RegsT) : RegsT := M.complement s dropRegsD.
 
-    Local Definition p := dropMeths_vp dropMeths.
+    Local Definition dropMethsF : list string :=
+      ["btbUpdate"; "btbPredPc"].
+    Local Definition dropMethsD : list string :=
+      ["firstElt.bhtTrain"; "deq.bhtTrain"; "enq.bhtTrain"; "update"; "predTaken"; "bhtPredPc"].
 
-    Local Definition ruleMap (o: RegsT) (n: string) : option string := Some n.
+    Local Definition pF := dropMeths_vp dropMethsF.
+    Local Definition pD := dropMeths_vp dropMethsD.
+
+    Local Definition dropRulesD : list string :=
+      ["trainBht"].
+
+    Local Definition ruleMapF (o: RegsT) (n: string) : option string := Some n.
+    Local Definition ruleMapD (o: RegsT) (n: string) : option string :=
+      if in_dec string_dec n dropRulesD then None else Some n.
 
     Ltac equiv_label_map :=
       repeat
@@ -142,43 +159,148 @@ Section Processor.
         | [H: False |- _] => inversion H
         end; try reflexivity.
 
-    Theorem inOrderEight_inOrderEight0: inOrderEight <<== inOrderEight0.
+    Ltac kinv_constr_light :=
+      repeat
+        match goal with
+        | |- exists _, _ /\ _ => eexists; split
+        | |- Substep _ _ _ _ _ => econstructor
+        | |- In _ _ => simpl; tauto
+        | |- SemAction _ _ _ _ _ => econstructor
+        | |- _ = _ => reflexivity
+        end; kinv_red.
+
+    Ltac kinv_constr_light_false :=
+      repeat
+        match goal with
+        | |- exists _, _ /\ _ => eexists; split
+        | |- Substep _ _ _ _ _ => econstructor
+        | |- In _ _ => simpl; tauto
+        | |- SemAction _ (IfElse _ _ _ _) _ _ _ => eapply SemIfElseFalse
+        | |- SemAction _ _ _ _ _ => econstructor
+        | |- _ = _ => reflexivity
+        end; kinv_red.
+
+    Ltac kinv_constr_light_unit :=
+      match goal with
+      | |- exists _, _ /\ _ => eexists; split
+      | |- Substep _ _ _ _ _ => econstructor
+      | |- In _ _ => simpl; tauto
+      | |- SemAction _ _ _ _ _ => econstructor
+      | |- _ = _ => reflexivity
+      end.
+
+    Ltac meqReify_light :=
+      simpl; apply M.elements_eq_leibniz; simpl; meqReify_eq_tac.
+    
+    Ltac kinv_eq_light :=
+      repeat (first [ meqReify_light | fin_func_eq | apply existT_eq | apply pair_eq ]);
+      try reflexivity.
+
+    Ltac kmodular_ex :=
+      try (unfold MethsT; rewrite <-SemFacts.idElementwiseId);
+      apply traceRefines_modular_interacting with (vp:= (@idElementwise _));
+      [kequiv|kequiv|kequiv|kequiv
+       |kdisj_regs_ex O|kdisj_regs_ex O|kvr|kvr
+       |kdisj_dms_ex O|kdisj_cms_ex O|kdisj_dms_ex O|kdisj_cms_ex O
+       |kdisj_edms_cms_ex O|kdisj_ecms_dms_ex O|kinteracting| |].
+
+    Ltac kdrop p t r :=
+      apply traceRefines_labelMap_weakening with (vp:= p); [kequiv| |equiv_label_map];
+      apply decompositionDrop with (theta:= t) (ruleMap:= r);
+      [kequiv
+      |vm_compute; tauto|vm_compute; tauto
+      | |meqReify|meqReify
+      | | | |].
+
+    Theorem inOrderEight0_inOrderEight1: inOrderEight0 <<== inOrderEight1.
     Proof.
-      apply traceRefines_labelMap_weakening with (vp:= p);
-        [kequiv| |equiv_label_map].
+      kmodular_ex.
+      
+      - (** BTB drop *)
+        kdrop pF thetaF ruleMapF.
+        + intros.
+          unfold pF.
+          pose proof (dropMeths_vp_p dropMethsF); rewrite H0.
+          apply M.complement_Disj; auto.
+        + intros; apply M.complement_union.
+        + intros; apply M.complement_Disj; auto.
+        + intros.
+          kinvert.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_constr_light; kinv_eq_light.
+            unfold thetaF; rewrite M.complement_find; simpl; auto.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_constr_light; kinv_eq_light; kinv_finish.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_constr_light; kinv_eq_light; kinv_finish.
+        + intros.
+          kinvert.
+          * simpl; kinv_action_dest; econstructor.
+          * simpl; kinv_action_dest; econstructor.
 
-      apply decompositionDrop with (theta:= theta) (ruleMap:= ruleMap).
-      - kequiv.
-      - vm_compute; tauto.
-      - vm_compute; tauto.
-      - intros.
-        unfold p.
-        pose proof (dropMeths_vp_p dropMeths); rewrite H0.
-        apply M.complement_Disj; auto.
-      - meqReify.
-      - meqReify.
-      - intros; apply M.complement_union.
-      - intros; apply M.complement_Disj; auto.
-      - (** TODO: just need one trivial invariant: a state always has register 
-         * values initially defined. *)
-        admit.
+      - kmodular_ex; [|krefl].
 
-        (* With the above invariant, below should work. *)
-        (* intros. *)
-        (* kinvert. *)
-        (* + kinv_action_dest; *)
-        (*     kinv_custom idtac; *)
-        (*     kinv_regmap_red; *)
-        (*     kinv_constr; *)
-        (*     kinv_eq. *)
-      - (** TODO: just need one trivial invariant: a state always has register 
-         * values initially defined. *)
-
-        (* Confirmed kinv_magic works fast enough for drop cases *)
-        admit.
-    Admitted.
-
-  End Refinement.
+        (** BHT drop *)
+        kdrop pD thetaD ruleMapD.
+        + intros.
+          unfold pD.
+          pose proof (dropMeths_vp_p dropMethsD); rewrite H0.
+          apply M.complement_Disj; auto.
+        + intros; apply M.complement_union.
+        + intros; apply M.complement_Disj; auto.
+        + intros.
+          kinvert.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_constr_light; kinv_eq_light; kinv_finish.
+          * kinv_action_dest.
+            -- kinv_red.
+               kinv_constr_light; kinv_eq_light.
+               ++ simpl.
+                  destruct (bool_dec _ _); auto.
+                  destruct (bool_dec _ _); auto.
+               ++ simpl; destruct (weq _ WO~0~0~0~0); auto.
+               ++ mdisj.
+               ++ mdisj.
+            -- kinv_red.
+               kinv_constr_light_false; kinv_eq_light.
+               ++ simpl.
+                  destruct (bool_dec _ _); auto.
+                  destruct (bool_dec _ _); auto.
+               ++ simpl; destruct (weq _ WO~0~0~0~0); auto.
+               ++ mdisj.
+               ++ mdisj.
+          * simpl; kinv_action_dest; econstructor.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_constr_light; kinv_eq_light; kinv_finish.
+            destruct (bool_dec _ _); auto.
+          * kinv_action_dest.
+            -- kinv_red.
+               kinv_constr_light; kinv_eq_light.
+               ++ simpl; destruct (bool_dec _ _); auto.
+               ++ mdisj.
+               ++ mdisj.
+               ++ simpl; auto.
+            -- kinv_red.
+               kinv_constr_light_false; kinv_eq_light.
+               ++ simpl; destruct (bool_dec _ _); auto.
+               ++ mdisj.
+               ++ mdisj.
+               ++ simpl; auto.
+        + intros.
+          kinvert.
+          * simpl; kinv_action_dest; econstructor.
+          * simpl; kinv_action_dest; econstructor.
+          * simpl; kinv_action_dest; econstructor.
+          * simpl; kinv_action_dest; econstructor.
+          * simpl; kinv_action_dest; econstructor.
+    Qed.
+    
+  End Refinement1.
   
 End Processor.
 

@@ -45,6 +45,12 @@ Section Processor.
     Definition bypassStBypassM := WO~1~0~0.
     
     Definition BypassStr := STRUCT { "state" :: BypassSt; "value" :: Data dataBytes }.
+    Definition BypassRegStr := STRUCT { "hasDst" :: Bool;
+                                        "dst" :: Bit rfIdx;
+                                        "isLd" :: Bool }.
+    Definition BypassInsStr := STRUCT { "hasDst" :: Bool;
+                                        "dst" :: Bit rfIdx;
+                                        "value" :: Data dataBytes }.
 
     Definition bypass :=
       MODULE {
@@ -52,30 +58,36 @@ Section Processor.
         with Register "bpValuesM" : Vector (Data dataBytes) rfIdx <- Default
         with Register "bpStatus" : Vector BypassSt rfIdx <- Default
           
-        with Method "bpRegisterE"(idx: Bit rfIdx): Void :=
-          Read st <- "bpStatus";
-          Write "bpStatus" <- #st@[#idx <- $$bypassStStallE];
+        with Method "bpRegister"(r: Struct BypassRegStr): Void :=
+          LET hasDst <- #r!BypassRegStr@."hasDst";
+          LET dst <- #r!BypassRegStr@."dst";
+          LET isLd <- #r!BypassRegStr@."isLd";
+
+          If #hasDst then
+            Read st <- "bpStatus";
+            Write "bpStatus" <- #st@[#dst <- (IF #isLd then $$bypassStStallM
+                                                       else $$bypassStStallE)];
+            Retv;
           Retv
 
-        with Method "bpRegisterM"(idx: Bit rfIdx): Void :=
-          Read st <- "bpStatus";
-          Write "bpStatus" <- #st@[#idx <- $$bypassStStallM];
-          Retv
-            
         with Method "bpRemove"(idx: Bit rfIdx): Void :=
           Read st <- "bpStatus";
           Write "bpStatus" <- #st@[#idx <- $$bypassStClean];
           Retv
 
-        with Method "bpInsertE"(v: Struct rfStr): Void :=
-          LET idx <- #v!rfStr@."idx";
-          LET value <- #v!rfStr@."value";
-          Read st <- "bpStatus";
-          Write "bpStatus" <- #st@[#idx <- $$bypassStBypassE];
-          Read vals <- "bpValuesE";
-          Write "bpStatus" <- #vals@[#idx <- #value];
+        with Method "bpInsertE"(v: Struct BypassInsStr): Void :=
+          LET hasDst <- #v!BypassInsStr@."hasDst";
+          LET dst <- #v!BypassInsStr@."dst";
+          LET value <- #v!BypassInsStr@."value";
+
+          If #hasDst then
+            Read st <- "bpStatus";
+            Write "bpStatus" <- #st@[#dst <- $$bypassStBypassE];
+            Read vals <- "bpValuesE";
+            Write "bpStatus" <- #vals@[#dst <- #value];
+            Retv;
           Retv
-          
+
         (* with Method "bpInsertM"(v: Struct rfStr): Void := *)
         (*   LET idx <- #v!rfStr@."idx"; *)
         (*   LET value <- #v!rfStr@."value"; *)
@@ -118,10 +130,9 @@ Section Processor.
           Ret #ret
       }.
 
-    Definition bpRegisterE := MethodSig "bpRegisterE"(Bit rfIdx) : Void.
-    Definition bpRegisterM := MethodSig "bpRegisterM"(Bit rfIdx) : Void.
+    Definition bpRegister := MethodSig "bpRegister"(Struct BypassRegStr) : Void.
     Definition bpRemove := MethodSig "bpRemove"(Bit rfIdx) : Void.
-    Definition bpInsertE := MethodSig "bpInsertE"(Struct rfStr) : Void.
+    Definition bpInsertE := MethodSig "bpInsertE"(Struct BypassInsStr) : Void.
     (* Definition bpInsertM := MethodSig "bpInsertM"(Struct rfStr) : Void. *)
     Definition bpSearch1 := MethodSig "bpSearch1"(Bit rfIdx) : Struct BypassStr.
     Definition bpSearch2 := MethodSig "bpSearch2"(Bit rfIdx) : Struct BypassStr.
@@ -133,7 +144,7 @@ End Processor.
 Hint Unfold rfStr rfrd1 rfrd2 rfwr
      BypassSt bypassStClean bypassStStallE bypassStStallM
      bypassStBypassE bypassStBypassM BypassStr
-     bpRegisterE bpRegisterM bpRemove bpInsertE bpSearch1 bpSearch2 : MethDefs.
+     bpRegister bpRemove bpInsertE bpSearch1 bpSearch2 : MethDefs.
 Hint Unfold regFile bypass : ModuleDefs.
 
 Section Wf.

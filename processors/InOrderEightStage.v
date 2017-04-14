@@ -51,6 +51,7 @@ Section Processor.
   Definition bht := bht addrSize bhtIndexSize.
   Definition bhtTrain := bhtTrain addrSize bhtTrainName.
   Definition bhtTrainQ := simpleFifo bhtTrainName bhtTrainSize (Struct (bhtUpdateStr addrSize)).
+  Definition bhtFrontEnd := bhtFrontEnd addrSize dataBytes rfIdx.
   Definition d2r := @nativeSimpleFifo d2rName (Struct (D2R addrSize dataBytes rfIdx)) Default.
 
   (** RegRead related *)
@@ -77,7 +78,7 @@ Section Processor.
   Definition inOrderEight :=
     (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
            iMem ++ i2d ++
-           decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ d2r ++
+           decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ bhtFrontEnd ++ d2r ++
            regRead ++ rf ++ bypass ++ r2e ++
            execute ++ e2m ++
            mem ++ m2d ++
@@ -87,7 +88,7 @@ Section Processor.
 End Processor.
 
 Hint Unfold fetch btb decRedir exeRedir
-     f2i iMem i2d decode bht bhtTrain d2r
+     f2i iMem i2d decode bht bhtTrain bhtTrainQ bhtFrontEnd d2r
      regRead rf bypass r2e execute e2m mem m2d dMem d2w
      writeback inOrderEight : ModuleDefs.
 Hint Unfold f2iName i2dName d2rName r2eName e2mName

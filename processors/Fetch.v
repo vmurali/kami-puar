@@ -193,28 +193,28 @@ Section Processor.
                         });
           Retv
 
-        with Rule "redirect" :=
+        with Rule "redirectExe" :=
           Call exeRedir <- (redirGet "exe")();
-          If (#exeRedir!(Maybe (Struct redirectStr))@."isValid")
-          then
-            LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
-            Write "pc" <- #r!redirectStr@."nextPc";
-            Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
-                                    "nextPc" ::= #r!redirectStr@."nextPc" });
-            Call exeToggleEpoch();
-            Retv
-          else
-            Call decRedir <- (redirGet "dec")();
-            If (#decRedir!(Maybe (Struct redirectStr))@."isValid")
-            then
-              LET r <- #decRedir!(Maybe (Struct redirectStr))@."value";
-              Write "pc" <- #r!redirectStr@."nextPc";
-              Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
-                                      "nextPc" ::= #r!redirectStr@."nextPc" });
-              Call decToggleEpoch();
-              Retv;
-            Retv;
+          Assert (#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
+          Write "pc" <- #r!redirectStr@."nextPc";
+          Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
+                                  "nextPc" ::= #r!redirectStr@."nextPc" });
+          Call exeToggleEpoch();
           Call (redirSetInvalid "exe")();
+          Call (redirSetInvalid "dec")();
+          Retv
+
+        with Rule "redirectDec" :=
+          Call exeRedir <- (redirGet "exe")();
+          Assert !(#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          Call decRedir <- (redirGet "dec")();
+          Assert (#decRedir!(Maybe (Struct redirectStr))@."isValid");
+          LET r <- #decRedir!(Maybe (Struct redirectStr))@."value";
+          Write "pc" <- #r!redirectStr@."nextPc";
+          Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
+                                  "nextPc" ::= #r!redirectStr@."nextPc" });
+          Call decToggleEpoch();
           Call (redirSetInvalid "dec")();
           Retv
       }.
@@ -240,24 +240,24 @@ Section Processor.
                         });
           Retv
 
-        with Rule "redirect" :=
+        with Rule "redirectExe" :=
           Call exeRedir <- (redirGet "exe")();
-          If (#exeRedir!(Maybe (Struct redirectStr))@."isValid")
-          then
-            LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
-            Write "pc" <- #r!redirectStr@."nextPc";
-            Call exeToggleEpoch();
-            Retv
-          else
-            Call decRedir <- (redirGet "dec")();
-            If (#decRedir!(Maybe (Struct redirectStr))@."isValid")
-            then
-              LET r <- #decRedir!(Maybe (Struct redirectStr))@."value";
-              Write "pc" <- #r!redirectStr@."nextPc";
-              Call decToggleEpoch();
-              Retv;
-            Retv;
+          Assert (#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
+          Write "pc" <- #r!redirectStr@."nextPc";
+          Call exeToggleEpoch();
           Call (redirSetInvalid "exe")();
+          Call (redirSetInvalid "dec")();
+          Retv
+
+        with Rule "redirectDec" :=
+          Call exeRedir <- (redirGet "exe")();
+          Assert !(#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          Call decRedir <- (redirGet "dec")();
+          Assert (#decRedir!(Maybe (Struct redirectStr))@."isValid");
+          LET r <- #decRedir!(Maybe (Struct redirectStr))@."value";
+          Write "pc" <- #r!redirectStr@."nextPc";
+          Call decToggleEpoch();
           Call (redirSetInvalid "dec")();
           Retv
       }.
