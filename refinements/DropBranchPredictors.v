@@ -34,6 +34,53 @@ Section DropMeths.
 
 End DropMeths.
 
+(** TODO: merge into the Kami master branch. *)
+
+Ltac kinv_constr_light :=
+  repeat
+    match goal with
+    | |- exists _, _ /\ _ => eexists; split
+    | |- Substep _ _ _ _ _ => econstructor
+    | |- In _ _ => simpl; tauto
+    | |- SemAction _ _ _ _ _ => econstructor
+    | |- _ = _ => reflexivity
+    end; kinv_red.
+
+Ltac kinv_constr_light_false :=
+  repeat
+    match goal with
+    | |- exists _, _ /\ _ => eexists; split
+    | |- Substep _ _ _ _ _ => econstructor
+    | |- In _ _ => simpl; tauto
+    | |- SemAction _ (IfElse _ _ _ _) _ _ _ => eapply SemIfElseFalse
+    | |- SemAction _ _ _ _ _ => econstructor
+    | |- _ = _ => reflexivity
+    end; kinv_red.
+
+Ltac kinv_constr_light_unit :=
+  match goal with
+  | |- exists _, _ /\ _ => eexists; split
+  | |- Substep _ _ _ _ _ => econstructor
+  | |- In _ _ => simpl; tauto
+  | |- SemAction _ _ _ _ _ => econstructor
+  | |- _ = _ => reflexivity
+  end.
+
+Ltac meqReify_light :=
+  simpl; apply M.elements_eq_leibniz; simpl; meqReify_eq_tac.
+
+Ltac kinv_eq_light :=
+  repeat (first [ meqReify_light | fin_func_eq | apply existT_eq | apply pair_eq ]);
+  try reflexivity.
+
+Ltac kmodular_ex :=
+  try (unfold MethsT; rewrite <-SemFacts.idElementwiseId);
+  apply traceRefines_modular_interacting with (vp:= (@idElementwise _));
+  [kequiv|kequiv|kequiv|kequiv
+   |kdisj_regs_ex O|kdisj_regs_ex O|kvr|kvr
+   |kdisj_dms_ex O|kdisj_cms_ex O|kdisj_dms_ex O|kdisj_cms_ex O
+   |kdisj_edms_cms_ex O|kdisj_ecms_dms_ex O|kinteracting| |].
+
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
 
@@ -158,51 +205,6 @@ Section Processor.
         | [H: _ \/ _ |- _] => destruct H; subst
         | [H: False |- _] => inversion H
         end; try reflexivity.
-
-    Ltac kinv_constr_light :=
-      repeat
-        match goal with
-        | |- exists _, _ /\ _ => eexists; split
-        | |- Substep _ _ _ _ _ => econstructor
-        | |- In _ _ => simpl; tauto
-        | |- SemAction _ _ _ _ _ => econstructor
-        | |- _ = _ => reflexivity
-        end; kinv_red.
-
-    Ltac kinv_constr_light_false :=
-      repeat
-        match goal with
-        | |- exists _, _ /\ _ => eexists; split
-        | |- Substep _ _ _ _ _ => econstructor
-        | |- In _ _ => simpl; tauto
-        | |- SemAction _ (IfElse _ _ _ _) _ _ _ => eapply SemIfElseFalse
-        | |- SemAction _ _ _ _ _ => econstructor
-        | |- _ = _ => reflexivity
-        end; kinv_red.
-
-    Ltac kinv_constr_light_unit :=
-      match goal with
-      | |- exists _, _ /\ _ => eexists; split
-      | |- Substep _ _ _ _ _ => econstructor
-      | |- In _ _ => simpl; tauto
-      | |- SemAction _ _ _ _ _ => econstructor
-      | |- _ = _ => reflexivity
-      end.
-
-    Ltac meqReify_light :=
-      simpl; apply M.elements_eq_leibniz; simpl; meqReify_eq_tac.
-    
-    Ltac kinv_eq_light :=
-      repeat (first [ meqReify_light | fin_func_eq | apply existT_eq | apply pair_eq ]);
-      try reflexivity.
-
-    Ltac kmodular_ex :=
-      try (unfold MethsT; rewrite <-SemFacts.idElementwiseId);
-      apply traceRefines_modular_interacting with (vp:= (@idElementwise _));
-      [kequiv|kequiv|kequiv|kequiv
-       |kdisj_regs_ex O|kdisj_regs_ex O|kvr|kvr
-       |kdisj_dms_ex O|kdisj_cms_ex O|kdisj_dms_ex O|kdisj_cms_ex O
-       |kdisj_edms_cms_ex O|kdisj_ecms_dms_ex O|kinteracting| |].
 
     Ltac kdrop p t r :=
       apply traceRefines_labelMap_weakening with (vp:= p); [kequiv| |equiv_label_map];

@@ -26,8 +26,8 @@ Section Processor.
   Definition bhtTrainName := "bhtTrain".
 
   (** TODO: need to differentiate below interfaces to memory *)
-  Definition iExecName := "exec".
-  Definition dExecName := "exec".
+  Definition iExecName := "exec0".
+  Definition dExecName := "exec1".
 
   Variables btbIndexSize btbTagSize bhtIndexSize bhtTrainSize: nat.
   Variables (getIndex: forall {ty}, fullType ty (SyntaxKind (Bit addrSize)) ->
