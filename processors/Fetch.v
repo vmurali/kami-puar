@@ -262,11 +262,49 @@ Section Processor.
           Retv
       }.
 
+    Definition fetchNondetD :=
+      MODULE {
+        Register "pc" : Bit addrSize <- Default
+
+        with Rule "doFetch" :=
+          Read pc <- "pc";
+          Nondet predPc : SyntaxKind (Bit addrSize);
+          Write "pc" <- #predPc;
+          Nondet decEpoch : SyntaxKind Bool;
+          Call exeEpoch <- exeGetEpoch1();
+          Call f2iEnq (
+                 STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
+                                                 "predPc" ::= #predPc;
+                                                 "decEpoch" ::= #decEpoch;
+                                                 "exeEpoch" ::= #exeEpoch };
+                          "iMemReq" ::= STRUCT { "addr" ::= #pc;
+                                                 "op" ::= $$false;
+                                                 "data" ::= $$Default }
+                        });
+          Retv
+
+        with Rule "redirectExe" :=
+          Call exeRedir <- (redirGet "exe")();
+          Assert (#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
+          Write "pc" <- #r!redirectStr@."nextPc";
+          Call exeToggleEpoch();
+          Call (redirSetInvalid "exe")();
+          Retv
+
+        with Rule "redirectDec" :=
+          Call exeRedir <- (redirGet "exe")();
+          Assert !(#exeRedir!(Maybe (Struct redirectStr))@."isValid");
+          Nondet redirPc : SyntaxKind (Bit addrSize);
+          Write "pc" <- #redirPc;
+          Retv
+      }.
+    
   End Fetch.
 
 End Processor.
 
-Hint Unfold btb redirect decEpoch exeEpoch fetch fetchNondet : ModuleDefs.
+Hint Unfold btb redirect decEpoch exeEpoch fetch fetchNondet fetchNondetD : ModuleDefs.
 Hint Unfold BtbUpdateStr btbPredPc btbUpdate
      redirectStr RedirectK redirGet redirSetInvalid redirSetValid
      decGetEpoch1 decGetEpoch2 decToggleEpoch
@@ -305,6 +343,10 @@ Section Wf.
     forall f2iName, ModPhoasWf (fetchNondet addrSize dataBytes f2iName).
   Proof. kequiv. Qed.
 
+  Lemma fetchNondetD_ModEquiv:
+    forall f2iName, ModPhoasWf (fetchNondetD addrSize dataBytes f2iName).
+  Proof. kequiv. Qed.
+
   Lemma btb_ModRegsWf:
     ModRegsWf (btb getIndex getTag).
   Proof. kvr. Qed.
@@ -329,10 +371,14 @@ Section Wf.
     forall f2iName, ModRegsWf (fetchNondet addrSize dataBytes f2iName).
   Proof. kvr. Qed.
 
+  Lemma fetchNondetD_ModRegsWf:
+    forall f2iName, ModRegsWf (fetchNondetD addrSize dataBytes f2iName).
+  Proof. kvr. Qed.
+
 End Wf.
 
 Hint Resolve btb_ModEquiv redirect_ModEquiv decEpoch_ModEquiv exeEpoch_ModEquiv
-     fetch_ModEquiv fetchNondet_ModEquiv.
+     fetch_ModEquiv fetchNondet_ModEquiv fetchNondetD_ModEquiv.
 Hint Resolve btb_ModRegsWf redirect_ModRegsWf decEpoch_ModRegsWf exeEpoch_ModRegsWf
-     fetch_ModRegsWf fetchNondet_ModRegsWf.
+     fetch_ModRegsWf fetchNondet_ModRegsWf fetchNondetD_ModRegsWf.
 
