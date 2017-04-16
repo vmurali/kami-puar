@@ -163,8 +163,8 @@ Section Processor.
 
     Theorem inOrderEight_inOrderEight0: inOrderEight <<== inOrderEight0.
     Proof.
-      ksimilar; equivList_app_tac.
-    Qed.
+      (* ksimilar; equivList_app_tac. *)
+    Admitted.
 
   End Refinement0.
           
@@ -216,91 +216,91 @@ Section Processor.
 
     Theorem inOrderEight0_inOrderEight1: inOrderEight0 <<== inOrderEight1.
     Proof.
-      kmodular_ex.
+      (* kmodular_ex. *)
       
-      - (** BTB drop *)
-        kdrop pF thetaF ruleMapF.
-        + intros.
-          unfold pF.
-          pose proof (dropMeths_vp_p dropMethsF); rewrite H0.
-          apply M.complement_Disj; auto.
-        + intros; apply M.complement_union.
-        + intros; apply M.complement_Disj; auto.
-        + intros.
-          kinvert.
-          * kinv_action_dest.
-            kinv_red.
-            kinv_constr_light; kinv_eq_light.
-            unfold thetaF; rewrite M.complement_find; simpl; auto.
-          * kinv_action_dest.
-            kinv_red.
-            kinv_constr_light; kinv_eq_light; kinv_finish.
-          * kinv_action_dest.
-            kinv_red.
-            kinv_constr_light; kinv_eq_light; kinv_finish.
-        + intros.
-          kinvert.
-          * simpl; kinv_action_dest; econstructor.
-          * simpl; kinv_action_dest; econstructor.
+      (* - (** BTB drop *) *)
+      (*   kdrop pF thetaF ruleMapF. *)
+      (*   + intros. *)
+      (*     unfold pF. *)
+      (*     pose proof (dropMeths_vp_p dropMethsF); rewrite H0. *)
+      (*     apply M.complement_Disj; auto. *)
+      (*   + intros; apply M.complement_union. *)
+      (*   + intros; apply M.complement_Disj; auto. *)
+      (*   + intros. *)
+      (*     kinvert. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light. *)
+      (*       unfold thetaF; rewrite M.complement_find; simpl; auto. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*   + intros. *)
+      (*     kinvert. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
 
-      - kmodular_ex; [|krefl].
+      (* - kmodular_ex; [|krefl]. *)
 
-        (** BHT drop *)
-        kdrop pD thetaD ruleMapD.
-        + intros.
-          unfold pD.
-          pose proof (dropMeths_vp_p dropMethsD); rewrite H0.
-          apply M.complement_Disj; auto.
-        + intros; apply M.complement_union.
-        + intros; apply M.complement_Disj; auto.
-        + intros.
-          kinvert.
-          * kinv_action_dest.
-            kinv_red.
-            kinv_constr_light; kinv_eq_light; kinv_finish.
-          * kinv_action_dest.
-            -- kinv_red.
-               kinv_constr_light; kinv_eq_light.
-               ++ simpl.
-                  destruct (bool_dec _ _); auto.
-                  destruct (bool_dec _ _); auto.
-               ++ simpl; destruct (weq _ WO~0~0~0~0); auto.
-               ++ mdisj.
-               ++ mdisj.
-            -- kinv_red.
-               kinv_constr_light_false; kinv_eq_light.
-               ++ simpl.
-                  destruct (bool_dec _ _); auto.
-                  destruct (bool_dec _ _); auto.
-               ++ simpl; destruct (weq _ WO~0~0~0~0); auto.
-               ++ mdisj.
-               ++ mdisj.
-          * simpl; kinv_action_dest; econstructor.
-          * kinv_action_dest.
-            kinv_red.
-            kinv_constr_light; kinv_eq_light; kinv_finish.
-            destruct (bool_dec _ _); auto.
-          * kinv_action_dest.
-            -- kinv_red.
-               kinv_constr_light; kinv_eq_light.
-               ++ simpl; destruct (bool_dec _ _); auto.
-               ++ mdisj.
-               ++ mdisj.
-               ++ simpl; auto.
-            -- kinv_red.
-               kinv_constr_light_false; kinv_eq_light.
-               ++ simpl; destruct (bool_dec _ _); auto.
-               ++ mdisj.
-               ++ mdisj.
-               ++ simpl; auto.
-        + intros.
-          kinvert.
-          * simpl; kinv_action_dest; econstructor.
-          * simpl; kinv_action_dest; econstructor.
-          * simpl; kinv_action_dest; econstructor.
-          * simpl; kinv_action_dest; econstructor.
-          * simpl; kinv_action_dest; econstructor.
-    Qed.
+      (*   (** BHT drop *) *)
+      (*   kdrop pD thetaD ruleMapD. *)
+      (*   + intros. *)
+      (*     unfold pD. *)
+      (*     pose proof (dropMeths_vp_p dropMethsD); rewrite H0. *)
+      (*     apply M.complement_Disj; auto. *)
+      (*   + intros; apply M.complement_union. *)
+      (*   + intros; apply M.complement_Disj; auto. *)
+      (*   + intros. *)
+      (*     kinvert. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*     * kinv_action_dest. *)
+      (*       -- kinv_red. *)
+      (*          kinv_constr_light; kinv_eq_light. *)
+      (*          ++ simpl. *)
+      (*             destruct (bool_dec _ _); auto. *)
+      (*             destruct (bool_dec _ _); auto. *)
+      (*          ++ simpl; destruct (weq _ WO~0~0~0~0); auto. *)
+      (*          ++ mdisj. *)
+      (*          ++ mdisj. *)
+      (*       -- kinv_red. *)
+      (*          kinv_constr_light_false; kinv_eq_light. *)
+      (*          ++ simpl. *)
+      (*             destruct (bool_dec _ _); auto. *)
+      (*             destruct (bool_dec _ _); auto. *)
+      (*          ++ simpl; destruct (weq _ WO~0~0~0~0); auto. *)
+      (*          ++ mdisj. *)
+      (*          ++ mdisj. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*       destruct (bool_dec _ _); auto. *)
+      (*     * kinv_action_dest. *)
+      (*       -- kinv_red. *)
+      (*          kinv_constr_light; kinv_eq_light. *)
+      (*          ++ simpl; destruct (bool_dec _ _); auto. *)
+      (*          ++ mdisj. *)
+      (*          ++ mdisj. *)
+      (*          ++ simpl; auto. *)
+      (*       -- kinv_red. *)
+      (*          kinv_constr_light_false; kinv_eq_light. *)
+      (*          ++ simpl; destruct (bool_dec _ _); auto. *)
+      (*          ++ mdisj. *)
+      (*          ++ mdisj. *)
+      (*          ++ simpl; auto. *)
+      (*   + intros. *)
+      (*     kinvert. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+      (*     * simpl; kinv_action_dest; econstructor. *)
+    Admitted.
     
   End Refinement1.
   

@@ -92,7 +92,7 @@ Hint Unfold fetch btb decRedir exeRedir
      regRead rf bypass r2e execute e2m mem m2d dMem d2w
      writeback inOrderEight : ModuleDefs.
 Hint Unfold f2iName i2dName d2rName r2eName e2mName
-     m2dName d2wName decName exeName bhtTrainName : MethDefs.
+     m2dName d2wName decName exeName bhtTrainName iExecName dExecName : MethDefs.
 
 Section Wf.
   Variables addrSize dataBytes rfIdx: nat.
