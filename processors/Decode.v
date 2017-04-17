@@ -270,54 +270,6 @@ Section Processor.
           Retv
       }.
 
-    Definition decodeNondetD :=
-      MODULE {
-        Rule "killDecode" :=
-          Call i2d <- i2dDeq();
-          LET f2d <- #i2d!I2D@."f2dOrig";
-          LET pc <- #f2d!(F2D addrSize)@."pc";
-          LET instStr <- #i2d!I2D@."iMemRep";
-          LET inst <- #instStr!(RsToProc dataBytes)@."data";
-
-          Nondet decEpoch : SyntaxKind Bool;
-          Call exeEpoch <- exeGetEpoch2();
-
-          Assert !(#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
-                   && #decEpoch == #f2d!(F2D addrSize)@."decEpoch");
-          Retv
-
-        with Rule "doDecode" :=
-          Call i2d <- i2dDeq();
-          LET f2d <- #i2d!I2D@."f2dOrig";
-          LET pc <- #f2d!(F2D addrSize)@."pc";
-          LET instStr <- #i2d!I2D@."iMemRep";
-          LET inst <- #instStr!(RsToProc dataBytes)@."data";
-
-          Call exeEpoch <- exeGetEpoch2();
-
-          Assert (#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch");
-
-          LET predPc <- #f2d!(F2D addrSize)@."predPc";
-          LET dInst <- decodeInst _ inst;
-          LET iType <- #dInst!DecodedInst@."iType";
-            
-          Assert (#iType != $$iTypeUnsupported);
-
-          (* Value bypassing related, may have some other iType's that need registration *)
-          Call bpRegister(STRUCT { "hasDst" ::= #dInst!DecodedInst@."hasDst";
-                                   "dst" ::= #dInst!DecodedInst@."dst";
-                                   "isLd" ::= #iType == $$iTypeLd });
-
-          Nondet predPcN : SyntaxKind (Bit addrSize);
-          Nondet isValid : SyntaxKind Bool;
-
-          Call d2rEnq(STRUCT { "pc" ::= #pc;
-                               "predPc" ::= #predPcN;
-                               "dInst" ::= #dInst;
-                               "exeEpoch" ::= #exeEpoch });
-          Retv
-      }.
-
   End Decode.
 
 End Processor.
