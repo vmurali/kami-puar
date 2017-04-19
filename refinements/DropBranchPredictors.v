@@ -142,7 +142,7 @@ Section Processor.
   Definition inOrderEight0 :=
     ((fetch ++ btb)
        ++ (decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ bhtFrontEnd ++ execute)
-       ++ (decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+       ++ (decRedir ++ exeRedir ++ exeEpoch ++ f2i ++
                     iMem ++ i2d ++ d2r ++
                     regRead ++ rf ++ bypass ++ r2e ++ e2m ++
                     mem ++ m2d ++
@@ -152,7 +152,7 @@ Section Processor.
   Definition inOrderEight1 :=
     (fetchNondet
        ++ (decodeNondet ++ executeNondet)
-       ++ (decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+       ++ (decRedir ++ exeRedir ++ exeEpoch ++ f2i ++
                     iMem ++ i2d ++ d2r ++
                     regRead ++ rf ++ bypass ++ r2e ++ e2m ++
                     mem ++ m2d ++
@@ -183,7 +183,8 @@ Section Processor.
     Local Definition dropMethsF : list string :=
       ["btbUpdate"; "btbPredPc"].
     Local Definition dropMethsD : list string :=
-      ["firstElt.bhtTrain"; "deq.bhtTrain"; "enq.bhtTrain"; "update"; "predTaken"; "bhtPredPc"].
+      ["firstElt.bhtTrain"; "deq.bhtTrain"; "enq.bhtTrain";
+         "update"; "predTaken"; "bhtPredPc"].
 
     Local Definition pF := dropMeths_vp dropMethsF.
     Local Definition pD := dropMeths_vp dropMethsD.
@@ -231,13 +232,17 @@ Section Processor.
       (*     * kinv_action_dest. *)
       (*       kinv_red. *)
       (*       kinv_constr_light; kinv_eq_light. *)
+      (*       -- unfold thetaF; rewrite M.complement_find; simpl; auto. *)
+      (*       -- unfold thetaF; rewrite M.complement_find; simpl; auto. *)
+      (*       -- unfold thetaF; rewrite M.complement_find; simpl; auto. *)
+      (*     * kinv_action_dest. *)
+      (*       kinv_red. *)
+      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
       (*       unfold thetaF; rewrite M.complement_find; simpl; auto. *)
       (*     * kinv_action_dest. *)
       (*       kinv_red. *)
       (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
-      (*     * kinv_action_dest. *)
-      (*       kinv_red. *)
-      (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*       unfold thetaF; rewrite M.complement_find; simpl; auto. *)
       (*   + intros. *)
       (*     kinvert. *)
       (*     * simpl; kinv_action_dest; econstructor. *)
@@ -258,9 +263,11 @@ Section Processor.
       (*     * kinv_action_dest. *)
       (*       kinv_red. *)
       (*       kinv_constr_light; kinv_eq_light; kinv_finish. *)
+      (*       unfold thetaD; rewrite M.complement_find; simpl; auto. *)
       (*     * kinv_action_dest. *)
       (*       -- kinv_red. *)
       (*          kinv_constr_light; kinv_eq_light. *)
+      (*          ++ unfold thetaD; rewrite M.complement_find; simpl; auto. *)
       (*          ++ simpl. *)
       (*             destruct (bool_dec _ _); auto. *)
       (*             destruct (bool_dec _ _); auto. *)
@@ -269,6 +276,7 @@ Section Processor.
       (*          ++ mdisj. *)
       (*       -- kinv_red. *)
       (*          kinv_constr_light_false; kinv_eq_light. *)
+      (*          ++ unfold thetaD; rewrite M.complement_find; simpl; eauto. *)
       (*          ++ simpl. *)
       (*             destruct (bool_dec _ _); auto. *)
       (*             destruct (bool_dec _ _); auto. *)
@@ -305,4 +313,11 @@ Section Processor.
   End Refinement1.
   
 End Processor.
+
+Hint Unfold fetch btb fetchNondet decRedir exeRedir f2i
+     iMem i2d decode bht bhtTrain bhtTrainQ bhtFrontEnd
+     decodeNondet d2r regRead rf bypass r2e
+     execute executeNondet e2m
+     mem m2d dMem d2w writeback
+     inOrderEight inOrderEight0 inOrderEight1 : ModuleDefs.
 

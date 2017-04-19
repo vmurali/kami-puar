@@ -102,35 +102,9 @@ Section Processor.
 
   End Redirect.
 
-  Section DecEpoch.
-    Definition decGetEpoch1 := MethodSig "decGetEpoch1"() : Bool.
-    Definition decGetEpoch2 := MethodSig "decGetEpoch2"() : Bool.
-    Definition decToggleEpoch := MethodSig "decToggleEpoch"() : Void.
-
-    Definition decEpoch :=
-      MODULE {
-        Register "decEpoch" : Bool <- false
-
-        with Method "decGetEpoch1" () : Bool :=
-          Read epoch <- "decEpoch";
-          Ret #epoch
-
-        with Method "decGetEpoch2" () : Bool :=
-          Read epoch <- "decEpoch";
-          Ret #epoch
-
-        with Method "decToggleEpoch" () : Void :=
-          Read epoch <- "decEpoch";
-          Write "decEpoch" <- !#epoch;
-          Retv
-      }.
-
-  End DecEpoch.
-
   Section ExeEpoch.
     Definition exeGetEpoch1 := MethodSig "exeGetEpoch1"() : Bool.
     Definition exeGetEpoch2 := MethodSig "exeGetEpoch2"() : Bool.
-    Definition exeGetEpoch3 := MethodSig "exeGetEpoch3"() : Bool.
     Definition exeToggleEpoch := MethodSig "exeToggleEpoch"() : Void.
 
     Definition exeEpoch :=
@@ -142,10 +116,6 @@ Section Processor.
           Ret #epoch
 
         with Method "exeGetEpoch2" () : Bool :=
-          Read epoch <- "exeEpoch";
-          Ret #epoch
-
-        with Method "exeGetEpoch3" () : Bool :=
           Read epoch <- "exeEpoch";
           Ret #epoch
 
@@ -175,13 +145,15 @@ Section Processor.
     Definition fetch :=
       MODULE {
         Register "pc" : Bit addrSize <- Default
-
+        with Register "fetchEpochD" : Bool <- Default
+        with Register "fetchEpochE" : Bool <- Default
+                            
         with Rule "doFetch" :=
           Read pc <- "pc";
           Call predPc <- btbPredPc(#pc);
           Write "pc" <- #predPc;
-          Call decEpoch <- decGetEpoch1();
-          Call exeEpoch <- exeGetEpoch1();
+          Read decEpoch <- "fetchEpochD";
+          Read exeEpoch <- "fetchEpochE";
           Call f2iEnq (
                  STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
                                                  "predPc" ::= #predPc;
@@ -200,7 +172,8 @@ Section Processor.
           Write "pc" <- #r!redirectStr@."nextPc";
           Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
                                   "nextPc" ::= #r!redirectStr@."nextPc" });
-          Call exeToggleEpoch();
+          Read fetchEpochE <- "fetchEpochE";
+          Write "fetchEpochE" <- !#fetchEpochE;
           Call (redirSetInvalid "exe")();
           Call (redirSetInvalid "dec")();
           Retv
@@ -214,7 +187,9 @@ Section Processor.
           Write "pc" <- #r!redirectStr@."nextPc";
           Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
                                   "nextPc" ::= #r!redirectStr@."nextPc" });
-          Call decToggleEpoch();
+
+          Read fetchEpochD <- "fetchEpochD";
+          Write "fetchEpochD" <- !#fetchEpochD;
           Call (redirSetInvalid "dec")();
           Retv
       }.
@@ -222,13 +197,15 @@ Section Processor.
     Definition fetchNondet :=
       MODULE {
         Register "pc" : Bit addrSize <- Default
+        with Register "fetchEpochD" : Bool <- Default
+        with Register "fetchEpochE" : Bool <- Default
 
         with Rule "doFetch" :=
           Read pc <- "pc";
           Nondet predPc : SyntaxKind (Bit addrSize);
           Write "pc" <- #predPc;
-          Call decEpoch <- decGetEpoch1();
-          Call exeEpoch <- exeGetEpoch1();
+          Read decEpoch <- "fetchEpochD";
+          Read exeEpoch <- "fetchEpochE";
           Call f2iEnq (
                  STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
                                                  "predPc" ::= #predPc;
@@ -245,7 +222,8 @@ Section Processor.
           Assert (#exeRedir!(Maybe (Struct redirectStr))@."isValid");
           LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
           Write "pc" <- #r!redirectStr@."nextPc";
-          Call exeToggleEpoch();
+          Read fetchEpochE <- "fetchEpochE";
+          Write "fetchEpochE" <- !#fetchEpochE;
           Call (redirSetInvalid "exe")();
           Call (redirSetInvalid "dec")();
           Retv
@@ -257,8 +235,31 @@ Section Processor.
           Assert (#decRedir!(Maybe (Struct redirectStr))@."isValid");
           LET r <- #decRedir!(Maybe (Struct redirectStr))@."value";
           Write "pc" <- #r!redirectStr@."nextPc";
-          Call decToggleEpoch();
+          Read fetchEpochD <- "fetchEpochD";
+          Write "fetchEpochD" <- !#fetchEpochD;
           Call (redirSetInvalid "dec")();
+          Retv
+      }.
+
+    Definition fetchNondetNR :=
+      MODULE {
+        Register "pc" : Bit addrSize <- Default
+
+        with Rule "doFetch" :=
+          Read pc <- "pc";
+          Nondet predPc : SyntaxKind (Bit addrSize);
+          Write "pc" <- #predPc;
+          Nondet decEpoch : SyntaxKind Bool;
+          Nondet exeEpoch : SyntaxKind Bool;
+          Call f2iEnq (
+                 STRUCT { "f2dOrig" ::= STRUCT { "pc" ::= #pc;
+                                                 "predPc" ::= #predPc;
+                                                 "decEpoch" ::= #decEpoch;
+                                                 "exeEpoch" ::= #exeEpoch };
+                          "iMemReq" ::= STRUCT { "addr" ::= #pc;
+                                                 "op" ::= $$false;
+                                                 "data" ::= $$Default }
+                        });
           Retv
       }.
     
@@ -266,11 +267,10 @@ Section Processor.
 
 End Processor.
 
-Hint Unfold btb redirect decEpoch exeEpoch fetch fetchNondet : ModuleDefs.
+Hint Unfold btb redirect exeEpoch fetch fetchNondet fetchNondetNR : ModuleDefs.
 Hint Unfold BtbUpdateStr btbPredPc btbUpdate
      redirectStr RedirectK redirGet redirSetInvalid redirSetValid
-     decGetEpoch1 decGetEpoch2 decToggleEpoch
-     exeGetEpoch1 exeGetEpoch2 exeGetEpoch3 exeToggleEpoch
+     exeGetEpoch1 exeGetEpoch2 exeToggleEpoch
      F2D F2I f2iEnq : MethDefs.
 
 Section Wf.
@@ -289,10 +289,6 @@ Section Wf.
     forall redirName, ModPhoasWf (redirect addrSize redirName).
   Proof. kequiv. Qed.
 
-  Lemma decEpoch_ModEquiv:
-    ModPhoasWf decEpoch.
-  Proof. kequiv. Qed.
-
   Lemma exeEpoch_ModEquiv:
     ModPhoasWf exeEpoch.
   Proof. kequiv. Qed.
@@ -305,16 +301,16 @@ Section Wf.
     forall f2iName, ModPhoasWf (fetchNondet addrSize dataBytes f2iName).
   Proof. kequiv. Qed.
 
+  Lemma fetchNondetNR_ModEquiv:
+    forall f2iName, ModPhoasWf (fetchNondetNR addrSize dataBytes f2iName).
+  Proof. kequiv. Qed.
+
   Lemma btb_ModRegsWf:
     ModRegsWf (btb getIndex getTag).
   Proof. kvr. Qed.
 
   Lemma redirect_ModRegsWf:
     forall redirName, ModRegsWf (redirect addrSize redirName).
-  Proof. kvr. Qed.
-
-  Lemma decEpoch_ModRegsWf:
-    ModRegsWf decEpoch.
   Proof. kvr. Qed.
 
   Lemma exeEpoch_ModRegsWf:
@@ -329,10 +325,14 @@ Section Wf.
     forall f2iName, ModRegsWf (fetchNondet addrSize dataBytes f2iName).
   Proof. kvr. Qed.
 
+  Lemma fetchNondetNR_ModRegsWf:
+    forall f2iName, ModRegsWf (fetchNondetNR addrSize dataBytes f2iName).
+  Proof. kvr. Qed.
+
 End Wf.
 
-Hint Resolve btb_ModEquiv redirect_ModEquiv decEpoch_ModEquiv exeEpoch_ModEquiv
-     fetch_ModEquiv fetchNondet_ModEquiv.
-Hint Resolve btb_ModRegsWf redirect_ModRegsWf decEpoch_ModRegsWf exeEpoch_ModRegsWf
-     fetch_ModRegsWf fetchNondet_ModRegsWf.
+Hint Resolve btb_ModEquiv redirect_ModEquiv exeEpoch_ModEquiv
+     fetch_ModEquiv fetchNondet_ModEquiv fetchNondetNR_ModEquiv.
+Hint Resolve btb_ModRegsWf redirect_ModRegsWf exeEpoch_ModRegsWf
+     fetch_ModRegsWf fetchNondet_ModRegsWf fetchNondetNR_ModRegsWf.
 

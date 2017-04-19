@@ -32,7 +32,7 @@ Section Processor.
       MODULE {
         Rule "killExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- exeGetEpoch3();
+          Call exeEpoch <- exeGetEpoch2();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" != #exeEpoch);
 
@@ -41,7 +41,7 @@ Section Processor.
 
         with Rule "doExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- exeGetEpoch3();
+          Call exeEpoch <- exeGetEpoch2();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" == #exeEpoch);
 
@@ -68,6 +68,7 @@ Section Processor.
             Call bhtTrainEnq(
                    STRUCT { "pc" ::= #pc;
                             "taken" ::= #eInst!execInst@."brTaken" });
+            Call exeToggleEpoch();
             Retv;
 
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
@@ -78,7 +79,7 @@ Section Processor.
       MODULE {
         Rule "killExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- exeGetEpoch3();
+          Call exeEpoch <- exeGetEpoch2();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" != #exeEpoch);
 
@@ -87,7 +88,7 @@ Section Processor.
 
         with Rule "doExecute" :=
           Call r2e <- r2eDeq();
-          Call exeEpoch <- exeGetEpoch3();
+          Call exeEpoch <- exeGetEpoch2();
 
           Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."exeEpoch" == #exeEpoch);
 
@@ -111,7 +112,48 @@ Section Processor.
             Call (redirSetValid addrSize "exe")(
                    STRUCT { "pc" ::= #pc;
                             "nextPc" ::= #eInst!execInst@."addr" });
+            Call exeToggleEpoch();
             Retv;
+
+          Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
+          Retv
+      }.
+
+    Definition executeNondetNR :=
+      MODULE {
+        Register "archPc" : Bit addrSize <- Default
+          
+        with Rule "killExecute" :=
+          Call r2e <- r2eDeq();
+          Read pc <- "archPc";
+
+          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."archPc" != #pc);
+
+          Call e2mEnq(STRUCT { "eInst" ::= $$Default; "poisoned" ::= $$true });
+          Retv
+
+        with Rule "doExecute" :=
+          Call r2e <- r2eDeq();
+          Read pc <- "archPc";
+
+          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."pc" == #pc);
+
+          LET dInst <- #r2e!(R2E addrSize dataBytes rfIdx)@."dInst";
+          LET iType <- #dInst!(decodedInst dataBytes rfIdx)@."iType";
+          LET rVal1 <- #r2e!(R2E addrSize dataBytes rfIdx)@."rVal1";
+          LET rVal2 <- #r2e!(R2E addrSize dataBytes rfIdx)@."rVal2";
+          LET pc <- #r2e!(R2E addrSize dataBytes rfIdx)@."pc";
+          LET predPc <- #r2e!(R2E addrSize dataBytes rfIdx)@."predPc";
+
+          LET eInst <- exec _ dInst rVal1 rVal2 pc predPc;
+
+          (* Value bypassing related *)
+          Call bpInsertE(STRUCT { "hasDst" ::= #eInst!execInst@."hasDst";
+                                  "dst" ::= #eInst!execInst@."dst";
+                                  "value" ::= #eInst!execInst@."data" });
+              
+          (* To update pc, which is the right one, but no redirection! *)
+          Write "archPc" <- #eInst!execInst@."addr";
 
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
           Retv
@@ -121,8 +163,8 @@ Section Processor.
 
 End Processor.
 
+Hint Unfold execute executeNondet executeNondetNR : ModuleDefs.
 Hint Unfold r2eDeq E2M e2mEnq bhtTrainEnq execInst bpInsertE : MethDefs.
-Hint Unfold execute executeNondet : ModuleDefs.
 
 Section Wf.
   Variables addrSize dataBytes rfIdx: nat.
@@ -138,6 +180,11 @@ Section Wf.
       ModPhoasWf (executeNondet r2eName e2mName exec).
   Proof. kequiv. Qed.
 
+  Lemma executeNondetNR_ModEquiv:
+    forall r2eName e2mName,
+      ModPhoasWf (executeNondetNR r2eName e2mName exec).
+  Proof. kequiv. Qed.
+
   Lemma execute_ModRegsWf:
     forall r2eName e2mName bhtTrainName,
       ModRegsWf (execute r2eName e2mName bhtTrainName exec).
@@ -148,8 +195,13 @@ Section Wf.
       ModRegsWf (executeNondet r2eName e2mName exec).
   Proof. kvr. Qed.
 
+  Lemma executeNondetNR_ModRegsWf:
+    forall r2eName e2mName,
+      ModRegsWf (executeNondetNR r2eName e2mName exec).
+  Proof. kvr. Qed.
+  
 End Wf.
 
-Hint Resolve execute_ModEquiv executeNondet_ModEquiv.
-Hint Resolve execute_ModRegsWf executeNondet_ModRegsWf.
+Hint Resolve execute_ModEquiv executeNondet_ModEquiv executeNondetNR_ModEquiv.
+Hint Resolve execute_ModRegsWf executeNondet_ModRegsWf executeNondetNR_ModRegsWf.
 

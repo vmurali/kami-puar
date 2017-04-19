@@ -157,15 +157,17 @@ Section Processor.
 
     Definition decode :=
       MODULE {
-        Rule "killDecode" :=
+        Register "decEpoch" : Bool <- Default
+          
+        with Rule "killDecode" :=
           Call i2d <- i2dDeq();
           LET f2d <- #i2d!I2D@."f2dOrig";
           LET pc <- #f2d!(F2D addrSize)@."pc";
           LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
-          Call decEpoch <- decGetEpoch2();
-          Call exeEpoch <- exeGetEpoch2();
+          Read decEpoch <- "decEpoch";
+          Call exeEpoch <- exeGetEpoch1();
 
           Assert !(#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
                    && #decEpoch == #f2d!(F2D addrSize)@."decEpoch");
@@ -178,8 +180,8 @@ Section Processor.
           LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
-          Call decEpoch <- decGetEpoch2();
-          Call exeEpoch <- exeGetEpoch2();
+          Read decEpoch <- "decEpoch";
+          Call exeEpoch <- exeGetEpoch1();
 
           Assert (#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
                   && #decEpoch == #f2d!(F2D addrSize)@."decEpoch");
@@ -210,21 +212,24 @@ Section Processor.
             Call (redirSetValid addrSize "dec")(
                    STRUCT { "pc" ::= #pc;
                             "nextPc" ::= #predPc!(Maybe (Bit addrSize))@."value" });
+            Write "decEpoch" <- !#decEpoch;
             Retv;
           Retv
       }.
 
     Definition decodeNondet :=
       MODULE {
-        Rule "killDecode" :=
+        Register "decEpoch" : Bool <- Default
+
+        with Rule "killDecode" :=
           Call i2d <- i2dDeq();
           LET f2d <- #i2d!I2D@."f2dOrig";
           LET pc <- #f2d!(F2D addrSize)@."pc";
           LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
-          Call decEpoch <- decGetEpoch2();
-          Call exeEpoch <- exeGetEpoch2();
+          Read decEpoch <- "decEpoch";
+          Call exeEpoch <- exeGetEpoch1();
 
           Assert !(#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
                    && #decEpoch == #f2d!(F2D addrSize)@."decEpoch");
@@ -237,8 +242,8 @@ Section Processor.
           LET instStr <- #i2d!I2D@."iMemRep";
           LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
-          Call decEpoch <- decGetEpoch2();
-          Call exeEpoch <- exeGetEpoch2();
+          Read decEpoch <- "decEpoch";
+          Call exeEpoch <- exeGetEpoch1();
 
           Assert (#exeEpoch == #f2d!(F2D addrSize)@."exeEpoch"
                   && #decEpoch == #f2d!(F2D addrSize)@."decEpoch");
@@ -266,19 +271,50 @@ Section Processor.
             Call (redirSetValid addrSize "dec")(
                    STRUCT { "pc" ::= #pc;
                             "nextPc" ::= #predPcN });
+            Write "decEpoch" <- !#decEpoch;
             Retv;
           Retv
       }.
 
+    Definition decodeNondetNR :=
+      MODULE {
+        Rule "doDecode" :=
+          Call i2d <- i2dDeq();
+          LET f2d <- #i2d!I2D@."f2dOrig";
+          LET pc <- #f2d!(F2D addrSize)@."pc";
+          LET instStr <- #i2d!I2D@."iMemRep";
+          LET inst <- #instStr!(RsToProc dataBytes)@."data";
+
+          LET predPc <- #f2d!(F2D addrSize)@."predPc";
+          LET dInst <- decodeInst _ inst;
+          LET iType <- #dInst!DecodedInst@."iType";
+            
+          Assert (#iType != $$iTypeUnsupported);
+
+          (* Value bypassing related, may have some other iType's that need registration *)
+          Call bpRegister(STRUCT { "hasDst" ::= #dInst!DecodedInst@."hasDst";
+                                   "dst" ::= #dInst!DecodedInst@."dst";
+                                   "isLd" ::= #iType == $$iTypeLd });
+
+          Nondet predPcN : SyntaxKind (Bit addrSize);
+          Nondet exeEpoch : SyntaxKind Bool;
+
+          Call d2rEnq(STRUCT { "pc" ::= #pc;
+                               "predPc" ::= #predPcN;
+                               "dInst" ::= #dInst;
+                               "exeEpoch" ::= #exeEpoch });
+
+          Retv
+      }.
+    
   End Decode.
 
 End Processor.
 
-Hint Unfold bht bhtTrain bhtFrontEnd decode decodeNondet : ModuleDefs.
-
+Hint Unfold bht bhtTrain bhtFrontEnd decode decodeNondet decodeNondetNR : ModuleDefs.
 Hint Unfold satCntInit getIndex getTaken nextSatCnt bhtUpdateStr
-     bhtPredTaken bhtUpdate bhtTrainDeq bhtPredPcStr
-     I2D i2dDeq DecodedInst D2R d2rEnq : MethDefs.
+     bhtPredTaken bhtUpdate bhtTrainDeq bhtPredPcStr bhtPredPc
+     I2D i2dDeq DecodedInst D2R d2rEnq bpRegister : MethDefs.
 
 Section Wf.
   Variables addrSize indexSize dataBytes rfIdx: nat.
@@ -304,6 +340,10 @@ Section Wf.
     forall i2dName d2rName, ModPhoasWf (decodeNondet addrSize i2dName d2rName decodeInst).
   Proof. kequiv. Qed.
 
+  Lemma decodeNondetNR_ModEquiv:
+    forall i2dName d2rName, ModPhoasWf (decodeNondetNR addrSize i2dName d2rName decodeInst).
+  Proof. kequiv. Qed.
+
   Lemma bht_ModRegsWf:
     ModRegsWf (bht addrSize indexSize).
   Proof. kvr. Qed.
@@ -324,10 +364,14 @@ Section Wf.
     forall i2dName d2rName, ModRegsWf (decodeNondet addrSize i2dName d2rName decodeInst).
   Proof. kvr. Qed.
 
+  Lemma decodeNondetNR_ModRegsWf:
+    forall i2dName d2rName, ModRegsWf (decodeNondetNR addrSize i2dName d2rName decodeInst).
+  Proof. kvr. Qed.
+
 End Wf.
 
 Hint Resolve bht_ModEquiv bhtTrain_ModEquiv bhtFrontEnd_ModEquiv
-     decode_ModEquiv decodeNondet_ModEquiv.
+     decode_ModEquiv decodeNondet_ModEquiv decodeNondetNR_ModEquiv.
 Hint Resolve bht_ModRegsWf bhtTrain_ModRegsWf bhtFrontEnd_ModRegsWf
-     decode_ModRegsWf decodeNondet_ModRegsWf.
+     decode_ModRegsWf decodeNondet_ModRegsWf decodeNondetNR_ModRegsWf.
 

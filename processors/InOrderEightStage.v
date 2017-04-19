@@ -76,7 +76,7 @@ Section Processor.
   Definition writeback := writeback addrSize dataBytes rfIdx d2wName.
 
   Definition inOrderEight :=
-    (fetch ++ btb ++ decRedir ++ exeRedir ++ decEpoch ++ exeEpoch ++ f2i ++
+    (fetch ++ btb ++ decRedir ++ exeRedir ++ exeEpoch ++ f2i ++
            iMem ++ i2d ++
            decode ++ bht ++ bhtTrain ++ bhtTrainQ ++ bhtFrontEnd ++ d2r ++
            regRead ++ rf ++ bypass ++ r2e ++
