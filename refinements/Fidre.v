@@ -50,7 +50,17 @@ Section Processor.
   Lemma fidreComb_ModEquiv: ModPhoasWf fidreComb.
   Proof. kequiv. Qed.
 
-  (* Definition fidreInl: sigT (fun m: Modules => fidreComb <<== m). *)
+  (* Definition fidreInl: Modules * bool. *)
+  (* Proof. *)
+  (*   remember (inlineF fidreComb) as inlined. *)
+  (*   kinline_compute_in Heqinlined. *)
+  (*   match goal with *)
+  (*   | [H: inlined = ?m |- _] => *)
+  (*     exact m *)
+  (*   end. *)
+  (* Defined. *)
+
+  (* Definition fidreInl : sigT (fun m: Modules => fidreComb <<== m). *)
   (* Proof. *)
   (*   pose proof (inlineF_refines *)
   (*                 (fidreComb_ModEquiv type typeUT) *)
@@ -60,7 +70,7 @@ Section Processor.
   (*   match goal with *)
   (*   | [H: context[inlineF ?m] |- _] => set m as origm in H at 2 *)
   (*   end. *)
-  (*   time kinline_compute_in Him. *)
+  (*   kinline_compute_in Him. *)
   (*   unfold origm in *. *)
   (*   specialize (Him eq_refl). *)
   (*   exact (existT _ _ Him). *)

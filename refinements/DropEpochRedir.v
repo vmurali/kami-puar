@@ -6,6 +6,8 @@ Require Import Proc.AbstractIsa Proc.Fetch Proc.Decode Proc.RegRead Proc.Execute
         Proc.InOrderEightStage.
 Require Import DropBranchPredictors Fidre.
 
+Require Import StepDet. (* TODO: should move to Kami *)
+
 Set Implicit Arguments.
 Open Scope string.
 
@@ -130,35 +132,39 @@ Section Processor.
         >>= (getArchPcF2I decEpoch exeEpoch f2i)
         >>= pcv.
 
+    Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
+      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
     Definition f2iFilter (decEpoch exeEpoch: bool)
                (f2i: list (type (Struct F2I)))
       : fullType type (@NativeKind (list (type (Struct F2I))) nil) :=
-      filter
-        (fun e : type (Struct F2I) =>
-           eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-               eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch) f2i.
+      filter (f2iValid decEpoch exeEpoch) f2i.
+
+    Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
+      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
 
     Definition i2dFilter (decEpoch exeEpoch: bool)
                (i2d: list (type (Struct I2D)))
       : fullType type (@NativeKind (list (type (Struct I2D))) nil) :=
-      filter
-        (fun e : type (Struct I2D) =>
-           eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-               eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch) i2d.
+      filter (i2dValid decEpoch exeEpoch) i2d.
+
+    Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
+      eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
 
     Definition d2rFilter (exeEpoch: bool)
                (d2r: list (type (Struct D2R)))
       : fullType type (@NativeKind (list (type (Struct D2R))) nil) :=
-      filter
-        (fun e : type (Struct D2R) =>
-           eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch) d2r.
+      filter (d2rValid exeEpoch) d2r.
+
+    Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
+      eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
 
     Definition r2eFilter (exeEpoch: bool)
                (r2e: list (type (Struct R2E)))
       : fullType type (@NativeKind (list (type (Struct R2E))) nil) :=
-      filter
-        (fun e : type (Struct R2E) =>
-           eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch) r2e.
+      filter (r2eValid exeEpoch) r2e.
 
     Local Definition thetaR (ir sr: RegsT): Prop.
     Proof.
@@ -181,21 +187,62 @@ Section Processor.
     Defined.
 
     Hint Unfold F2I I2D D2R R2E : MethDefs.
-    Hint Unfold getArchPcF2I getArchPcI2D getArchPcD2R getArchPcR2E otake getArchPc
-         f2iFilter i2dFilter d2rFilter r2eFilter thetaR : MapDefs.
-
-    (* TODO *)
-    Local Definition ruleMap (o: RegsT) (n: string) := Some n.
-    Hint Unfold ruleMap : MethDefs.
+    (* Hint Unfold getArchPcF2I getArchPcI2D getArchPcD2R getArchPcR2E otake getArchPc *)
+    (*      f2iFilter i2dFilter d2rFilter r2eFilter thetaR : MapDefs. *)
 
     Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
     Proof.
-      (* apply stepRefinementR with (ruleMap:= ruleMap) (thetaR:= thetaR). *)
+      apply stepRefinementR with (thetaR:= thetaR).
 
-      (* - kdecompose_regrel_init. *)
-      (*   meqReify. *)
+      - kdecompose_regrel_init.
+        meqReify.
 
-      (* - intros. *)
+      - intros.
+
+        apply step_consistent_det in H0; [|kequiv|repeat (constructor || reflexivity)].
+        inv H0; simpl.
+
+        + do 2 eexists; split.
+          * apply SemFacts.step_empty; auto.
+          * auto.
+        + exists None; eexists; split.
+          * apply SemFacts.step_empty; auto.
+          * auto.
+
+        + unfold thetaR in H1; dest; subst; subst.
+          kinvert.
+          * kinv_action_dest.
+            kinv_red.
+            kinv_regmap_red.
+            cbn in *.
+            inv H3.
+            inv H5.
+            inv H7.
+            inv Hsig.
+            destruct f as [mn ma]; simpl in *; subst.
+            repeat
+              match goal with
+              | [H: _ \/ _ |- _] => destruct H; try discriminate
+              | [H: False |- _] => elim H
+              end.
+            inv H0.
+            kinv_action_dest.
+
+            exists (Some "doFetch"); eexists; split.
+            -- apply step_consistent_det; [kequiv|repeat (constructor || reflexivity)|].
+
+               econstructor.
+               ++ kinv_constr.
+               ++ cbn.
+                  econstructor; [constructor| |mdisj].
+                  kinv_constr_light; kinv_eq_light.
+               ++ mdisj.
+               ++ reflexivity.
+               ++ reflexivity.
+
+            -- admit.
+
+          * 
     Admitted.
 
   End RefinementNR.

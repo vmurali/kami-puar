@@ -95,5 +95,5 @@ Hint Unfold IType iTypeUnsupported iTypeAlu iTypeLd iTypeSt
      AluFunc aluAdd aluSub aluAnd aluOr aluXor aluSlt aluSltu
      aluSll aluSra aluSrl
      BrFunc brEq brNeq brLt brLtu brGe brGeu brAT brNT
-     decodedInst DecodedInst DecodeT : MethDefs.
+  (* decodedInst DecodedInst DecodeT *) : MethDefs.
 
