@@ -193,44 +193,50 @@ Section Processor.
     Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
     Proof.
       apply stepRefinementR with (thetaR:= thetaR).
-
       - kdecompose_regrel_init.
         meqReify.
 
       - intros.
-
-        apply step_consistent_det in H0; [|kequiv|repeat (constructor || reflexivity)].
+        apply step_implies_stepDet in H0;
+          [|kequiv|repeat (constructor || reflexivity)|reflexivity].
         inv H0; simpl.
 
-        + do 2 eexists; split.
+        + (* Empty rule *)
+          do 2 eexists; split.
           * apply SemFacts.step_empty; auto.
           * auto.
-        + exists None; eexists; split.
+        + (* Empty meth *)
+          exists None; eexists; split.
           * apply SemFacts.step_empty; auto.
           * auto.
 
-        + unfold thetaR in H1; dest; subst; subst.
+        + (* Rule *)
+          unfold thetaR in H1; dest; subst; subst.
+
           kinvert.
           * kinv_action_dest.
-            kinv_red.
+            kinv_custom idtac.
             kinv_regmap_red.
-            cbn in *.
-            inv H3.
-            inv H5.
-            inv H7.
-            inv Hsig.
-            destruct f as [mn ma]; simpl in *; subst.
+
             repeat
               match goal with
-              | [H: _ \/ _ |- _] => destruct H; try discriminate
-              | [H: False |- _] => elim H
+              | [H: SubstepMeths _ _ _ _ |- _] => inv H
+              | [H: Substep _ _ _ (Meth (Some _)) _ |- _] => inv H
+              | [H: (_ :: _)%struct = (_ :: _)%struct |- _] => inv H
+              | [H1: In ?f (getDefsBodies _), H2: _ = Struct.attrName ?f |- _] =>
+                let fn := fresh "fn" in
+                let fa := fresh "fa" in
+                destruct f as [fn fa]; simpl in *; subst;
+                  repeat
+                    match goal with
+                    | [H: _ \/ _ |- _] => destruct H; try discriminate
+                    | [H: False |- _] => elim H
+                    end
               end.
-            inv H0.
             kinv_action_dest.
 
             exists (Some "doFetch"); eexists; split.
-            -- apply step_consistent_det; [kequiv|repeat (constructor || reflexivity)|].
-
+            -- apply stepDet_implies_step; [kequiv|repeat (constructor || reflexivity)|].
                econstructor.
                ++ kinv_constr.
                ++ cbn.
@@ -240,9 +246,20 @@ Section Processor.
                ++ reflexivity.
                ++ reflexivity.
 
-            -- admit.
+            -- admit. (* [thetaR] consistency *)
 
-          * 
+          * admit.
+          * admit.
+          * admit.
+          * admit.
+          * admit.
+          * admit.
+          * admit.
+          * admit.
+
+        + (* Meth *)
+          inv H3.
+          
     Admitted.
 
   End RefinementNR.
