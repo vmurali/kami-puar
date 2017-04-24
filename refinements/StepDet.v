@@ -7,34 +7,46 @@ Set Implicit Arguments.
 Set Asymmetric Patterns.
 
 Lemma elements_cons:
-  forall {A} (k: string) (v: A) m l,
+  forall {A} m (k: string) (v: A) l,
     (k, v) :: l = M.elements m ->
     exists pm,
       m = M.add k v pm /\ M.find k pm = None /\
       l = M.elements pm.
 Proof.
   intros.
-  case_eq (M.find k m); intros.
-  - pose proof H0.
-    rewrite M.F.P.F.elements_o in H0.
-    rewrite <-H in H0.
-    simpl in H0.
-    unfold M.F.P.F.eqb in H0.
-    destruct (M.F.P.F.eq_dec k k); [|elim n; auto].
-    inv H0.
+  exists (M.remove k m); repeat split.
+  - case_eq (M.find k m); intros.
+    + pose proof H0.
+      rewrite M.F.P.F.elements_o in H0.
+      rewrite <-H in H0.
+      simpl in H0.
+      unfold M.F.P.F.eqb in H0.
+      destruct (M.F.P.F.eq_dec k k); [|elim n; auto].
+      inv H0.
+      meq.
+    + rewrite M.F.P.F.elements_o in H0.
+      rewrite <-H in H0.
+      simpl in H0.
+      unfold M.F.P.F.eqb in H0.
+      destruct (M.F.P.F.eq_dec k k); try discriminate.
+      elim n; auto.
+  - findeq.
+  - unfold M.elements, M.Raw.elements in *.
+    unfold M.remove; simpl.
+    rewrite <-H; simpl.
+    pose proof (@M.F.ME.elim_compare_eq k k eq_refl); dest.
+    rewrite H0; auto.
+Qed.
 
-    apply M.find_add_3 in H1; dest; subst.
-    eexists; repeat split.
-    + findeq.
-    + admit.
-    
-  - rewrite M.F.P.F.elements_o in H0.
-    rewrite <-H in H0.
-    simpl in H0.
-    unfold M.F.P.F.eqb in H0.
-    destruct (M.F.P.F.eq_dec k k); try discriminate.
-    elim n; auto.
-Admitted.
+Lemma eqlistA_eqke_eq_compat:
+  forall {A} l1 l2,
+    SetoidList.eqlistA (M.F.O.eqke (elt:=A)) l1 l2 ->
+    SetoidList.eqlistA eq l1 l2.
+Proof.
+  induction 1; simpl; intros; [constructor|].
+  constructor; auto.
+  destruct x, x'; inv H; simpl in *; subst; auto.
+Qed.
 
 Section NoCalls.
   Fixpoint actionNoCalls {retT} (a: ActionT typeUT retT) :=
@@ -416,10 +428,8 @@ Section OneDepth.
       - apply substepMeths_pull_hd.
         rewrite <-M.F.elements_split; auto.
       - apply eq_sym, M.eq_leibniz_list.
-        clear -H2.
-
-        admit. (* where is it? *)
-    Admitted.
+        apply eqlistA_eqke_eq_compat; auto.
+    Qed.
 
     Theorem step_implies_stepDet:
       forall o u l ,
