@@ -261,6 +261,11 @@ Section Processor.
                                                  "data" ::= $$Default }
                         });
           Retv
+
+        with Rule "killFetch" :=
+          Nondet predPc : SyntaxKind (Bit addrSize);
+          Write "pc" <- #predPc;
+          Retv
       }.
     
   End Fetch.
