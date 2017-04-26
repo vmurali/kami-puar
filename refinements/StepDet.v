@@ -507,3 +507,52 @@ Section OneDepth.
 
 End OneDepth.
 
+(** Some Ltacs for inversion and construction *)
+(** TODO: Move to Tactics.v *)
+Require Import Kami.Tactics.
+
+Lemma Attribute_inv:
+  forall {A} (n1 n2: string) (v1 v2: A),
+    ((n1 :: v1) = (n2 :: v2))%struct -> n1 = n2 /\ v1 = v2.
+Proof.
+  intros; inv H; auto.
+Qed.
+
+Ltac kinvert_det_unit :=
+  match goal with
+  | [H: SubstepMeths _ _ _ _ |- _] => inv H
+  | [H: Substep _ _ _ (Meth (Some _)) _ |- _] => inv H
+  | [H: (_ :: _)%struct = (_ :: _)%struct |- _] =>
+    apply Attribute_inv in H; destruct H; subst
+  | [H1: In ?f (getDefsBodies _), H2: _ = Struct.attrName ?f |- _] =>
+    let fn := fresh "fn" in
+    let fa := fresh "fa" in
+    destruct f as [fn fa]; simpl in H1, H2; subst;
+    repeat
+      match goal with
+      | [H: _ \/ _ |- _] => destruct H; try discriminate
+      | [H: False |- _] => elim H
+      end
+  (* Below inversion mechanism for [existT] should be at the end of this Ltac *)
+  | [H: existT _ _ _ = existT _ _ _ |- _] => destruct_existT
+  end.
+
+Ltac kinvert_det := repeat kinvert_det_unit.
+
+Ltac kinv_constr_det_unit :=
+  match goal with
+  | [ |- exists _, _ /\ _ ] => eexists; split
+  | [ |- Step _ _ _ _ ] =>
+    apply stepDet_implies_step; [kequiv|repeat (constructor || reflexivity)|]
+  | [ |- StepDet _ _ _ _ ] => econstructor
+  | [ |- SubstepMeths _ _ _ _ ] => econstructor
+  | [ |- Substep _ _ _ (Meth (Some (?fn :: _)%struct)) _ ] =>
+    eapply SingleMeth with (f:= (fn :: _)%struct)
+  | [ |- Substep _ _ _ _ _ ] => econstructor
+  | [ |- In _ _ ] => simpl; tauto
+  | [ |- SemAction _ _ _ _ _ ] => econstructor
+  | [ |- _ = _ ] => reflexivity
+  end.
+
+Ltac kinv_constr_det := repeat kinv_constr_det_unit.
+
