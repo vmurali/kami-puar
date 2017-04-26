@@ -135,12 +135,12 @@ Section OneDepth.
     Inductive SubstepMeths : list (string * {x : SignatureT & SignT x}) -> UpdatesT -> Prop :=
     | SmsNil: SubstepMeths nil (M.empty _)
     | SmsCons:
-        forall pms pu,
-          SubstepMeths pms pu ->
-          forall mn mar u cs,
-            Substep m o u (Meth (Some (mn :: mar)%struct)) cs ->
-            M.Disj pu u ->
-            SubstepMeths ((mn, mar) :: pms) (M.union pu u).
+        forall mn mar u cs,
+          Substep m o u (Meth (Some (mn :: mar)%struct)) cs ->
+          forall pms pu,
+            SubstepMeths pms pu ->
+            M.Disj u pu ->
+            SubstepMeths ((mn, mar) :: pms) (M.union u pu).
 
     Inductive StepDet : UpdatesT -> LabelT -> Prop :=
     | SbEmptyRule:
@@ -180,7 +180,7 @@ Section OneDepth.
         apply M.empty_canon in H0; subst.
         constructor.
       - assert (cs = M.empty _).
-        { inv H0; inv Hsig.
+        { inv H; inv Hsig.
           eapply dmNoCalls_Substep; eauto.
           { unfold ModEquiv in Hequiv; destruct Hequiv.
             eapply MethsEquiv_in in H4; eauto.
@@ -195,7 +195,7 @@ Section OneDepth.
           eapply M.KeysSubset_add_1; eauto.
         + eassumption.
         + unfold CanCombineUUL; cbn; repeat split; [mdisj|mdisj|findeq].
-        + reflexivity.
+        + meq.
         + reflexivity.
     Qed.
 
@@ -384,11 +384,11 @@ Section OneDepth.
     Proof.
       induction ms1; simpl; intros; auto.
       inv H.
-      inv H2.
-      assert (SubstepMeths o ((mn, mar) :: (ms1 ++ ms2)) (M.union pu0 u0))
+      inv H3.
+      assert (SubstepMeths o ((mn, mar) :: (ms1 ++ ms2)) (M.union u0 pu0))
         by (econstructor; eauto).
       specialize (IHms1 _ _ _ H).
-      replace (M.union (M.union pu0 u) u0) with (M.union (M.union pu0 u0) u) by meq.
+      replace (M.union u0 (M.union u pu0)) with (M.union u (M.union u0 pu0)) by meq.
       econstructor; eauto.
     Qed.
     
@@ -414,7 +414,7 @@ Section OneDepth.
       replace (M.union (M.add mn mar (M.empty _)) pds)
       with (M.add mn mar pds) by meq.
 
-      assert (SubstepMeths o ((mn, mar) :: (M.elements pds)) (M.union u su)).
+      assert (SubstepMeths o ((mn, mar) :: (M.elements pds)) (M.union su u)).
       { econstructor; eauto.
         inv H1; auto.
       }
@@ -426,7 +426,9 @@ Section OneDepth.
       with ((M.F.elements_lt (mn, mar) pds)
               ++ (mn, mar) :: M.F.elements_ge (mn, mar) pds).
       - apply substepMeths_pull_hd.
-        rewrite <-M.F.elements_split; auto.
+        rewrite <-M.F.elements_split.
+        replace (M.union u su) with (M.union su u) by (inv H1; dest; meq).
+        auto.
       - apply eq_sym, M.eq_leibniz_list.
         apply eqlistA_eqke_eq_compat; auto.
     Qed.

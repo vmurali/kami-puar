@@ -11,6 +11,87 @@ Require Import StepDet. (* TODO: should move to Kami *)
 Set Implicit Arguments.
 Open Scope string.
 
+(** TODO: move to SemFacts.v *)
+Section StepToInvariant.
+  Variable m: Modules.
+  Variable P: RegsT -> Prop.
+  Hypothesis HinitP: P (initRegs (getRegInits m)).
+
+  Hypothesis HstepP:
+    forall o u l,
+      P o -> Step m o u l -> P (M.union u o).
+
+  Lemma multistep_P:
+    forall init n ll,
+      init = initRegs (getRegInits m) ->
+      Multistep m init n ll ->
+      P n.
+  Proof.
+    induction 2; [repeat subst; auto|].
+    specialize (IHMultistep H).
+    eauto.
+  Qed.
+
+  Lemma stepInv:
+    forall o, reachable o m -> P o.
+  Proof.
+    intros; inv H; inv H0.
+    eapply multistep_P; eauto.
+  Qed.
+      
+End StepToInvariant.
+
+
+(** Some utilities for [thetaR] preservation *)
+
+Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
+Notation "'_STRUCT_SIG_'" := (forall i : Fin.t _, _).
+
+Lemma Attribute_inv:
+  forall {A} (n1 n2: string) (v1 v2: A),
+    ((n1 :: v1) = (n2 :: v2))%struct -> n1 = n2 /\ v1 = v2.
+Proof.
+  intros; inv H; auto.
+Qed.
+
+Ltac kinvert_det_unit :=
+  match goal with
+  | [H: SubstepMeths _ _ _ _ |- _] => inv H
+  | [H: Substep _ _ _ (Meth (Some _)) _ |- _] => inv H
+  | [H: (_ :: _)%struct = (_ :: _)%struct |- _] =>
+    apply Attribute_inv in H; destruct H; subst
+  | [H1: In ?f (getDefsBodies _), H2: _ = Struct.attrName ?f |- _] =>
+    let fn := fresh "fn" in
+    let fa := fresh "fa" in
+    destruct f as [fn fa]; simpl in H1, H2; subst;
+    repeat
+      match goal with
+      | [H: _ \/ _ |- _] => destruct H; try discriminate
+      | [H: False |- _] => elim H
+      end
+  (* Below inversion mechanism for [existT] should be at the end of this Ltac *)
+  | [H: existT _ _ _ = existT _ _ _ |- _] => destruct_existT
+  end.
+
+Ltac kinvert_det := repeat kinvert_det_unit.
+
+Ltac kinv_constr_det_unit :=
+  match goal with
+  | [ |- exists _, _ /\ _ ] => eexists; split
+  | [ |- Step _ _ _ _ ] =>
+    apply stepDet_implies_step; [kequiv|repeat (constructor || reflexivity)|]
+  | [ |- StepDet _ _ _ _ ] => econstructor
+  | [ |- SubstepMeths _ _ _ _ ] => econstructor
+  | [ |- Substep _ _ _ (Meth (Some (?fn :: _)%struct)) _ ] =>
+    eapply SingleMeth with (f:= (fn :: _)%struct)
+  | [ |- Substep _ _ _ _ _ ] => econstructor
+  | [ |- In _ _ ] => simpl; tauto
+  | [ |- SemAction _ _ _ _ _ ] => econstructor
+  | [ |- _ = _ ] => reflexivity
+  end.
+
+Ltac kinv_constr_det := repeat kinv_constr_det_unit.
+
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
 
@@ -64,6 +145,184 @@ Section Processor.
                    ++ regRead ++ r2e
                    ++ executeNondetNR)%kami.
 
+  Section Invariant.
+
+    Record epoch_invariant (o: RegsT) : Prop :=
+      { fetchEpochDv : fullType type (SyntaxKind Bool);
+        Hfed: M.find "fetchEpochD" o = Some (existT _ _ fetchEpochDv);
+        fetchEpochEv : fullType type (SyntaxKind Bool);
+        Hfee: M.find "fetchEpochE" o = Some (existT _ _ fetchEpochEv);
+        decEpochv : fullType type (SyntaxKind Bool);
+        Hde: M.find "decEpoch" o = Some (existT _ _ decEpochv);
+        exeEpochv : fullType type (SyntaxKind Bool);
+        Hee: M.find "exeEpoch" o = Some (existT _ _ exeEpochv);
+
+        decRedirv : fullType type (SyntaxKind (RedirectK addrSize));
+        Hdr : M.find "dec" o = Some (existT _ _ decRedirv);
+        exeRedirv : fullType type (SyntaxKind (RedirectK addrSize));
+        Her : M.find "exe" o = Some (existT _ _ exeRedirv);
+
+        HdeSpec1: fetchEpochDv = decEpochv -> decRedirv Fin.F1 (* isValid *) = false;
+        HdeSpec2: decRedirv Fin.F1 = false -> fetchEpochDv = decEpochv;
+
+        HeeSpec1: fetchEpochEv = exeEpochv -> exeRedirv Fin.F1 = false;
+        HeeSpec2: exeRedirv Fin.F1 = false -> fetchEpochEv = exeEpochv }.
+
+    Lemma fidreComb_epoch_invariant_ok:
+      forall o, reachable o fidreComb -> epoch_invariant o.
+    Proof.
+      (* intros; apply stepInv with (m:= fidreComb); auto. *)
+
+      (* - econstructor; *)
+      (*     try (findReify; (reflexivity || eassumption); fail); *)
+      (*     auto. *)
+
+      (* - clear H o; intros. *)
+
+      (*   apply step_implies_stepDet in H0; *)
+      (*     [|kequiv|repeat (constructor || reflexivity)|reflexivity]. *)
+      (*   inv H0; simpl; try mred. *)
+
+      (*   kinvert. *)
+
+      (*   + (* doFetch *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+
+      (*   + (* redirectExe *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+
+      (*     * destruct (x5 Fin.F1); auto. *)
+      (*     * inv H1. *)
+      (*       destruct (x6 Fin.F1); auto. *)
+      (*       destruct x0, decEpochv; auto. *)
+      (*       specialize (HdeSpec1 eq_refl); discriminate. *)
+      (*     * intros; reflexivity. *)
+      (*     * inv H6; rewrite H4 in *. *)
+      (*       destruct x2, exeEpochv; auto. *)
+      (*       specialize (HeeSpec1 eq_refl); discriminate. *)
+          
+      (*   + (* redirectDec *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+
+      (*     * intros; reflexivity. *)
+      (*     * inv H1; rewrite H6 in *. *)
+      (*       destruct x3, decEpochv; auto. *)
+      (*       specialize (HdeSpec1 eq_refl); discriminate. *)
+          
+      (*   + (* doIMem *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+          
+      (*   + (* killDecode *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+          
+      (*   + (* doDecode *) *)
+      (*     kinv_action_dest; *)
+      (*       kinv_red; kregmap_red; *)
+      (*         kinvert_det; kinv_action_dest. *)
+          
+      (*     * destruct H. *)
+      (*       kinv_red; kregmap_red; kinv_red. *)
+      (*       econstructor; *)
+      (*         try (findReify; try (reflexivity || eassumption); fail); *)
+      (*         try assumption. *)
+      (*       { specialize (HdeSpec2 e). *)
+      (*         subst; intros. *)
+      (*         exfalso; eapply no_fixpoint_negb; eauto. *)
+      (*       } *)
+      (*       { intros; discriminate. } *)
+
+      (*     * destruct H. *)
+      (*       kinv_red; kregmap_red; kinv_red. *)
+      (*       econstructor; *)
+      (*         try (findReify; try (reflexivity || eassumption); fail); *)
+      (*         try assumption. *)
+
+      (*   + (* doRegRead *) *)
+      (*     kinv_action_dest; *)
+      (*       kinv_red; kregmap_red; *)
+      (*         kinvert_det; kinv_action_dest; *)
+      (*           abstract (destruct H; *)
+      (*                     kinv_red; kregmap_red; kinv_red; *)
+      (*                     econstructor; *)
+      (*                     try (findReify; try (reflexivity || eassumption); fail); *)
+      (*                     try assumption). *)
+          
+      (*   + (* killExecute *) *)
+      (*     kinv_action_dest. *)
+      (*     kinv_red; kregmap_red. *)
+      (*     kinvert_det; kinv_action_dest. *)
+
+      (*     destruct H. *)
+      (*     kinv_red; kregmap_red; kinv_red. *)
+      (*     econstructor; *)
+      (*       try (findReify; try (reflexivity || eassumption); fail); *)
+      (*       try assumption. *)
+
+      (*   + (* doExecute *) *)
+      (*     kinv_action_dest; *)
+      (*       kinv_red; kregmap_red; *)
+      (*         kinvert_det; kinv_action_dest. *)
+          
+      (*     * destruct H. *)
+      (*       kinv_red; kregmap_red; kinv_red. *)
+      (*       econstructor; *)
+      (*         try (findReify; try (reflexivity || eassumption); fail); *)
+      (*         try assumption. *)
+      (*       { specialize (HeeSpec2 e). *)
+      (*         subst; intros. *)
+      (*         exfalso; eapply no_fixpoint_negb; eauto. *)
+      (*       } *)
+      (*       { intros; discriminate. } *)
+
+      (*     * destruct H. *)
+      (*       kinv_red; kregmap_red; kinv_red. *)
+      (*       econstructor; *)
+      (*         try (findReify; try (reflexivity || eassumption); fail); *)
+      (*         try assumption. *)
+    Admitted.
+
+  End Invariant.
+  
   Section RefinementNR.
 
     Definition F2I := F2I addrSize dataBytes.
@@ -71,13 +330,26 @@ Section Processor.
     Definition D2R := D2R addrSize dataBytes rfIdx.
     Definition R2E := R2E addrSize dataBytes rfIdx.
 
+    Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
+      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+    Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
+      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+    Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
+      eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+    Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
+      eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
+
     Fixpoint getArchPcF2I (decEpoch exeEpoch: bool) (f2i: list (type (Struct F2I)))
       : option (fullType type (SyntaxKind (Bit addrSize))) :=
       match f2i with
       | nil => None
       | e :: f2i' =>
-        if (eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-                eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
+        if f2iValid decEpoch exeEpoch e
         then Some (e Fin.F1 Fin.F1)
         else getArchPcF2I decEpoch exeEpoch f2i'
       end.
@@ -92,8 +364,7 @@ Section Processor.
     Proof.
       induction f2iv1; intros; auto.
       simpl.
-      destruct ((eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv)
-                  && (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv)); auto.
+      destruct (f2iValid decEpochv exeEpochv a); auto.
     Qed.
 
     Fixpoint getArchPcI2D (decEpoch exeEpoch: bool) (i2d: list (type (Struct I2D)))
@@ -101,8 +372,7 @@ Section Processor.
       match i2d with
       | nil => None
       | e :: i2d' =>
-        if (eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-                eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
+        if i2dValid decEpoch exeEpoch e
         then Some (e Fin.F1 Fin.F1)
         else getArchPcI2D decEpoch exeEpoch i2d'
       end.
@@ -112,7 +382,7 @@ Section Processor.
       match d2r with
       | nil => None
       | e :: d2r' =>
-        if (eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
+        if d2rValid exeEpoch e
         then Some (e Fin.F1)
         else getArchPcD2R exeEpoch d2r'
       end.
@@ -122,7 +392,7 @@ Section Processor.
       match r2e with
       | nil => None
       | e :: r2e' =>
-        if (eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch)
+        if r2eValid exeEpoch e
         then Some (e Fin.F1)
         else getArchPcR2E exeEpoch r2e'
       end.
@@ -134,57 +404,39 @@ Section Processor.
       end.
     Infix ">>=" := otake (at level 0, right associativity).
 
+    Definition maybeToOption {k} (mb: fullType type (SyntaxKind (Struct (Maybe k))))
+      : option (fullType type (SyntaxKind k)) :=
+      if mb Fin.F1 then Some (mb (Fin.FS Fin.F1)) else None.
+
+    Definition getPcRedir (redir: fullType type (SyntaxKind (RedirectK addrSize)))
+      : option (fullType type (SyntaxKind (Bit addrSize))) :=
+      match maybeToOption redir with
+      | Some rd => Some (rd (Fin.FS Fin.F1))
+      | None => None
+      end.
+
     Definition getArchPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
                (decEpoch exeEpoch: fullType type (SyntaxKind Bool))
+               (decRedir exeRedir: fullType type (SyntaxKind (RedirectK addrSize)))
                (f2i: fullType type (@NativeKind (list (type (Struct F2I))) nil))
                (i2d: fullType type (@NativeKind (list (type (Struct I2D))) nil))
                (d2r: fullType type (@NativeKind (list (type (Struct D2R))) nil))
                (r2e: fullType type (@NativeKind (list (type (Struct R2E))) nil)) :=
-      (getArchPcR2E exeEpoch r2e)
+      (getPcRedir exeRedir)
+        >>= (getPcRedir decRedir)
+        >>= (getArchPcR2E exeEpoch r2e)
         >>= (getArchPcD2R exeEpoch d2r)
         >>= (getArchPcI2D decEpoch exeEpoch i2d)
         >>= (getArchPcF2I decEpoch exeEpoch f2i)
         >>= pcv.
-
-    Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
-      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-    Definition f2iFilter (decEpoch exeEpoch: bool)
-               (f2i: list (type (Struct F2I)))
-      : fullType type (@NativeKind (list (type (Struct F2I))) nil) :=
-      filter (f2iValid decEpoch exeEpoch) f2i.
-
-    Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
-      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-    Definition i2dFilter (decEpoch exeEpoch: bool)
-               (i2d: list (type (Struct I2D)))
-      : fullType type (@NativeKind (list (type (Struct I2D))) nil) :=
-      filter (i2dValid decEpoch exeEpoch) i2d.
-
-    Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
-      eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-    Definition d2rFilter (exeEpoch: bool)
-               (d2r: list (type (Struct D2R)))
-      : fullType type (@NativeKind (list (type (Struct D2R))) nil) :=
-      filter (d2rValid exeEpoch) d2r.
-
-    Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
-      eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
-
-    Definition r2eFilter (exeEpoch: bool)
-               (r2e: list (type (Struct R2E)))
-      : fullType type (@NativeKind (list (type (Struct R2E))) nil) :=
-      filter (r2eValid exeEpoch) r2e.
 
     Local Definition thetaR (ir sr: RegsT): Prop.
     Proof.
       kexistnv "pc" pcv ir (SyntaxKind (Bit addrSize)).
       kexistnv "decEpoch" decEpochv ir (SyntaxKind Bool).
       kexistnv "exeEpoch" exeEpochv ir (SyntaxKind Bool).
+      kexistnv "dec" decRedirv ir (SyntaxKind (RedirectK addrSize)).
+      kexistnv "exe" exeRedirv ir (SyntaxKind (RedirectK addrSize)).
       kexistnv (f2iName -- Names.elt) f2iv ir (@NativeKind (list (type (Struct F2I))) nil).
       kexistnv (i2dName -- Names.elt) i2dv ir (@NativeKind (list (type (Struct I2D))) nil).
       kexistnv (d2rName -- Names.elt) d2rv ir (@NativeKind (list (type (Struct D2R))) nil).
@@ -192,118 +444,16 @@ Section Processor.
 
       exact (sr =
              ["pc" <- existT _ _ pcv]
-             +[(f2iName -- Names.elt) <- existT _ _ (f2iFilter decEpochv exeEpochv f2iv)]
-             +[(i2dName -- Names.elt) <- existT _ _ (i2dFilter decEpochv exeEpochv i2dv)]
-             +[(d2rName -- Names.elt) <- existT _ _ (d2rFilter exeEpochv d2rv)]
-             +[(r2eName -- Names.elt) <- existT _ _ (r2eFilter exeEpochv r2ev)]
-             +["archPc" <- existT _ _ (getArchPc pcv decEpochv exeEpochv
+             +[(f2iName -- Names.elt) <- existT _ _ f2iv]
+             +[(i2dName -- Names.elt) <- existT _ _ i2dv]
+             +[(d2rName -- Names.elt) <- existT _ _ d2rv]
+             +[(r2eName -- Names.elt) <- existT _ _ r2ev]
+             +["archPc" <- existT _ _ (getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv
                                                  f2iv i2dv d2rv r2ev)])%fmap.
     Defined.
 
     Hint Unfold F2I I2D D2R R2E : MethDefs.
     Hint Unfold thetaR : InvDefs.
-
-    (** Some utilities for [thetaR] preservation *)
-    
-    Definition f2i_enq_pc (pcv: fullType type (SyntaxKind (Bit addrSize)))
-               (f2ie: type (Struct F2I)) :=
-      f2ie Fin.F1 Fin.F1 = pcv.
-
-    Lemma f2i_valid_enq_getArchPc_preserved:
-      forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev f2ie,
-        f2iValid decEpochv exeEpochv f2ie = true ->
-        f2i_enq_pc pcv f2ie ->
-        forall pcv',
-          getArchPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev =
-          getArchPc pcv' decEpochv exeEpochv (f2iv ++ [f2ie])%list i2dv d2rv r2ev.
-    Proof.
-      unfold f2iValid, f2i_enq_pc, getArchPc; intros.
-      unfold otake.
-
-      destruct (getArchPcR2E exeEpochv r2ev); auto.
-      destruct (getArchPcD2R exeEpochv d2rv); auto.
-      destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto.
-
-      rewrite getArchPcF2I_app.
-      destruct (getArchPcF2I decEpochv exeEpochv f2iv); auto.
-      simpl; rewrite H; auto.
-    Qed.
-
-    Lemma f2iFilter_app:
-      forall decEpochv exeEpochv f2iv1 f2iv2,
-        f2iFilter decEpochv exeEpochv (f2iv1 ++ f2iv2) =
-        ((f2iFilter decEpochv exeEpochv f2iv1)
-           ++ (f2iFilter decEpochv exeEpochv f2iv2))%list.
-    Proof.
-      intros; apply filter_app.
-    Qed.
-
-    Lemma f2iFilter_valid_consistent:
-      forall decEpochv exeEpochv f2iv f2ie,
-        f2iValid decEpochv exeEpochv f2ie = true ->
-        NativeFifo.listEnq f2ie (f2iFilter decEpochv exeEpochv f2iv) =
-        f2iFilter decEpochv exeEpochv (f2iv ++ [f2ie]).
-    Proof.
-      intros.
-      rewrite f2iFilter_app.
-      unfold NativeFifo.listEnq.
-      f_equal.
-      simpl; rewrite H; auto.
-    Qed.
-
-    Lemma f2iValid_invalid_f2iFilter:
-      forall decEpochv exeEpochv f2iv f2ie,
-        f2iValid decEpochv exeEpochv f2ie = false ->
-        f2iFilter decEpochv exeEpochv f2iv =
-        f2iFilter decEpochv exeEpochv (f2iv ++ [f2ie]).
-    Proof.
-      intros; rewrite f2iFilter_app; simpl.
-      rewrite H, app_nil_r; reflexivity.
-    Qed.
-
-    Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
-    Notation "'_STRUCT_SIG_'" := (forall i : Fin.t _, _).
-
-    Lemma Attribute_inv:
-      forall {A} (n1 n2: string) (v1 v2: A),
-        ((n1 :: v1) = (n2 :: v2))%struct -> n1 = n2 /\ v1 = v2.
-    Proof.
-      intros; inv H; auto.
-    Qed.
-
-    Ltac kinvert_det :=
-      repeat
-        match goal with
-        | [H: SubstepMeths _ _ _ _ |- _] => inv H
-        | [H: Substep _ _ _ (Meth (Some _)) _ |- _] => inv H
-        | [H: (_ :: _)%struct = (_ :: _)%struct |- _] =>
-          apply Attribute_inv in H; destruct H; subst
-        | [H1: In ?f (getDefsBodies _), H2: _ = Struct.attrName ?f |- _] =>
-          let fn := fresh "fn" in
-          let fa := fresh "fa" in
-          destruct f as [fn fa]; simpl in *; subst;
-          repeat
-            match goal with
-            | [H: _ \/ _ |- _] => destruct H; try discriminate
-            | [H: False |- _] => elim H
-            end
-        (* Below inversion mechanism for [existT] should be at the end of this Ltac *)
-        | [H: existT _ _ _ = existT _ _ _ |- _] => destruct_existT
-        end.
-
-    Ltac kinv_constr_det :=
-      repeat
-        match goal with
-        | [ |- exists _, _ /\ _ ] => eexists; split
-        | [ |- Step _ _ _ _ ] =>
-          apply stepDet_implies_step; [kequiv|repeat (constructor || reflexivity)|]
-        | [ |- StepDet _ _ _ _ ] => econstructor
-        | [ |- SubstepMeths _ _ _ _ ] => econstructor
-        | [ |- Substep _ _ _ _ _ ] => econstructor
-        | [ |- In _ _ ] => simpl; tauto
-        | [ |- SemAction _ _ _ _ _ ] => econstructor
-        | [ |- _ = _ ] => reflexivity
-        end.
 
     Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
     Proof.
@@ -312,6 +462,8 @@ Section Processor.
         meqReify.
 
       - intros.
+        apply fidreComb_epoch_invariant_ok in H.
+        
         apply step_implies_stepDet in H0;
           [|kequiv|repeat (constructor || reflexivity)|reflexivity].
 
@@ -327,32 +479,76 @@ Section Processor.
           kinv_action_dest.
           kinv_red; kregmap_red.
           kinvert_det; kinv_action_dest.
+          destruct H.
           kinv_red; kregmap_red; kinv_red.
 
-          case_eq (f2iValid x0 x1 argV); intros.
-          * exists (Some "doFetch").
-            kinv_constr_det; kinv_eq_light; auto.
-            -- apply f2i_valid_enq_getArchPc_preserved; auto.
-               inv H3; reflexivity.
-            -- inv H3.
-               apply f2iFilter_valid_consistent; auto.
-          * exists (Some "killFetch").
-            kinv_constr_det; kinv_eq_light; auto.
-            -- admit. (* TODO: need an invariant saying that there exists 
-                       * _a valid element_ in the fifos if we can find 
-                       * an invalid element in the fifos.
-                       *)
-            -- apply f2iValid_invalid_f2iFilter; auto.
+          exists (Some "doFetch").
+          kinv_constr_det; kinv_eq_light; auto.
+          * admit. (* INVARIANT:
+                    * - fetchEpochD = decEpoch <-> redirDec = None
+                    * - fetchEpochE = exeEpoch <-> redirExe = None
+                    *)
+          * inv H3; reflexivity.
 
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
+        + (* redirectExe *)
+          kinv_action_dest.
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          kinv_red; kregmap_red; kinv_red.
 
+          exists (Some "killFetch").
+          kinv_constr_det; kinv_eq_light; auto.
+
+          admit. (* INVARIANT: at this time, all elements in fifos are invalid
+                  * in terms of two epoch comparisons
+                  *)
+
+        + (* redirectDec *)
+          kinv_action_dest.
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          kinv_red; kregmap_red; kinv_red.
+
+          exists (Some "killFetch").
+          kinv_constr_det; kinv_eq_light; auto.
+
+          admit. (* INVARIANT: at this time, all elements in fifos are invalid
+                  * in terms of two epoch comparisons
+                  *)
+
+        + (* doIMem *)
+          kinv_action_dest.
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          kinv_red; kregmap_red; kinv_red.
+
+          exists (Some "doIMem").
+          kinv_constr_det; kinv_eq_light; auto.
+
+          * destruct x12; try discriminate.
+            reflexivity.
+          * inv H3; reflexivity.
+          * admit. (* TODO: [getArchPc] consistency *)
+          * inv H3; inv H13; reflexivity.
+
+        + (* killDecode *)
+          kinv_action_dest.
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          kinv_red; kregmap_red; kinv_red.
+
+          exists (Some "killDecode").
+          kinv_constr_det; kinv_eq_light; auto.
+          * destruct x9; try discriminate.
+            reflexivity.
+          * admit. (* TODO: [getArchPc] consistency *)
+
+        + (* doDecode *)
+          admit. (* TODO: need to deal with "If" in [doDecode] *)
+        + admit.
+        + admit.
+        + admit.
+            
     Admitted.
 
   End RefinementNR.
