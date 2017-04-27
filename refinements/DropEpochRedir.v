@@ -10,6 +10,7 @@ Require Import StepDet. (* TODO: should move to Kami *)
 
 Set Implicit Arguments.
 Open Scope string.
+Open Scope list.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
@@ -99,6 +100,19 @@ Section Processor.
       else getArchPcI2D decEpoch exeEpoch i2d'
     end.
 
+  Lemma getArchPcI2D_app:
+    forall decEpochv exeEpochv (i2dv1 i2dv2: list (type (Struct I2D))),
+      getArchPcI2D decEpochv exeEpochv (i2dv1 ++ i2dv2) =
+      match getArchPcI2D decEpochv exeEpochv i2dv1 with
+      | Some v => Some v
+      | None => getArchPcI2D decEpochv exeEpochv i2dv2
+      end.
+  Proof.
+    induction i2dv1; intros; auto.
+    simpl.
+    destruct (i2dValid decEpochv exeEpochv a); auto.
+  Qed.
+
   Fixpoint getArchPcD2R (exeEpoch: bool) (d2r: list (type (Struct D2R)))
     : option (fullType type (SyntaxKind (Bit addrSize))) :=
     match d2r with
@@ -145,12 +159,107 @@ Section Processor.
              (d2r: fullType type (@NativeKind (list (type (Struct D2R))) nil))
              (r2e: fullType type (@NativeKind (list (type (Struct R2E))) nil)) :=
     (getPcRedir exeRedir)
-      >>= (getPcRedir decRedir)
       >>= (getArchPcR2E exeEpoch r2e)
       >>= (getArchPcD2R exeEpoch d2r)
+      >>= (getPcRedir decRedir)
       >>= (getArchPcI2D decEpoch exeEpoch i2d)
       >>= (getArchPcF2I decEpoch exeEpoch f2i)
       >>= pcv.
+
+  Lemma getArchPc_f2i_valid:
+    forall pcv pcv' decEpochv exeEpochv decRedirv exeRedirv
+           f2iv (f2ie: fullType type (SyntaxKind (Struct F2I))) i2dv d2rv r2ev,
+      f2ie Fin.F1 Fin.F1 = pcv ->
+      f2iValid decEpochv exeEpochv f2ie = true ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv exeEpochv decRedirv exeRedirv (f2iv ++ [f2ie]) i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    destruct (getPcRedir exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    destruct (getPcRedir decRedirv); auto; simpl.
+    destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto; simpl.
+    rewrite getArchPcF2I_app.
+    destruct (getArchPcF2I decEpochv exeEpochv f2iv); auto; simpl.
+    rewrite H0; auto.
+  Qed.
+
+  Lemma getArchPc_exeRedir:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           pcv' decEpochv' exeEpochv' decRedirv' f2iv' i2dv' d2rv' r2ev',
+      maybeToOption exeRedirv <> None ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv' exeEpochv' decRedirv' exeRedirv f2iv' i2dv' d2rv' r2ev'.
+  Proof.
+    unfold getArchPc, getPcRedir; intros.
+    destruct (maybeToOption exeRedirv); auto; simpl.
+    elim H; reflexivity.
+  Qed.
+
+  Lemma getArchPc_decRedir:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           pcv' decEpochv' f2iv' i2dv',
+      maybeToOption decRedirv <> None ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv' exeEpochv decRedirv exeRedirv f2iv' i2dv' d2rv r2ev.
+  Proof.
+    unfold getArchPc, getPcRedir; intros.
+    destruct (maybeToOption exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    destruct (maybeToOption decRedirv); auto; simpl.
+    elim H; reflexivity.
+  Qed.
+
+  Lemma getArchPc_exe_redirected:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           (decRedirv' exeRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
+      consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev ->
+      exeRedirv' Fin.F1 = false -> decRedirv' Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc (exeRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
+                decRedirv' exeRedirv' f2iv i2dv d2rv r2ev.
+  Proof.
+  Admitted.
+
+  Lemma getArchPc_dec_redirected:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           (decRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
+      consistentDecEpoch (negb decEpochv) f2iv i2dv ->
+      decRedirv' Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
+                decRedirv' exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+  Admitted.
+
+  Lemma getArchPc_iMem_pass:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv (f2ie: fullType type (SyntaxKind (Struct F2I)))
+           i2dv (i2de: fullType type (SyntaxKind (Struct I2D))) d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv (f2ie :: f2iv) i2dv d2rv r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2dv ++ [i2de]) d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    rewrite getArchPcI2D_app; simpl.
+    unfold f2iValid, i2dValid.
+    rewrite H.
+    destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto; simpl.
+    destruct (eqb _ _ && eqb _ _); auto.
+  Qed.
+
+  Lemma getArchPc_decode_killed:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv i2dv (i2de: fullType type (SyntaxKind (Struct I2D))) d2rv r2ev,
+      i2dValid decEpochv exeEpochv i2de = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2de :: i2dv) d2rv r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    simpl; rewrite H; reflexivity.
+  Qed.
 
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
@@ -176,6 +285,9 @@ Section Processor.
   Hint Unfold F2I I2D D2R R2E : MethDefs.
   Hint Unfold thetaR : InvDefs.
 
+  Local Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
+  Local Notation "'_STRUCT_SIG_'" := (forall i : Fin.t _, _).
+
   Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
   Proof.
     apply stepRefinementR with (thetaR:= thetaR).
@@ -195,7 +307,7 @@ Section Processor.
 
       unfold thetaR in H1; dest; subst; subst.
       kinvert.
-
+      
       + (* doFetch *)
         kinv_action_dest.
         kinv_red; kregmap_red.
@@ -205,42 +317,54 @@ Section Processor.
 
         exists (Some "doFetch").
         kinv_constr_det; kinv_eq_light; auto.
-        * admit. (* INVARIANT:
-                  * - fetchEpochD = decEpoch <-> redirDec = None
-                  * - fetchEpochE = exeEpoch <-> redirExe = None
-                  *)
+        * destruct (bool_dec x12 x1); subst.
+          { destruct (bool_dec x11 x0); subst.
+            { inv H3; apply getArchPc_f2i_valid; auto.
+              unfold f2iValid; simpl.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { apply getArchPc_decRedir.
+              unfold maybeToOption.
+              destruct (x2 Fin.F1); auto.
+              discriminate.
+            }
+          }
+          { apply getArchPc_exeRedir.
+            unfold maybeToOption.
+            destruct (x3 Fin.F1); auto.
+            discriminate.
+          }
         * inv H3; reflexivity.
 
       + (* redirectExe *)
         kinv_action_dest.
         kinv_red; kregmap_red.
         kinvert_det; kinv_action_dest.
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
 
         exists (Some "killFetch").
         kinv_constr_det; kinv_eq_light; auto.
-
-        admit. (* INVARIANT: at this time, all elements in fifos are invalid
-                * in terms of two epoch comparisons
-                *)
+        
+        inv H15; apply getArchPc_exe_redirected; auto.
 
       + (* redirectDec *)
         kinv_action_dest.
         kinv_red; kregmap_red.
         kinvert_det; kinv_action_dest.
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
 
         exists (Some "killFetch").
         kinv_constr_det; kinv_eq_light; auto.
 
-        admit. (* INVARIANT: at this time, all elements in fifos are invalid
-                * in terms of two epoch comparisons
-                *)
+        inv H3; apply getArchPc_dec_redirected; auto.
 
       + (* doIMem *)
         kinv_action_dest.
         kinv_red; kregmap_red.
         kinvert_det; kinv_action_dest.
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
 
         exists (Some "doIMem").
@@ -249,26 +373,35 @@ Section Processor.
         * destruct x12; try discriminate.
           reflexivity.
         * inv H3; reflexivity.
-        * admit. (* TODO: [getArchPc] consistency *)
+        * destruct x12 as [|f2id ?]; try discriminate.
+          inv H3; inv H13; apply getArchPc_iMem_pass; auto.
         * inv H3; inv H13; reflexivity.
 
       + (* killDecode *)
         kinv_action_dest.
         kinv_red; kregmap_red.
         kinvert_det; kinv_action_dest.
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
 
         exists (Some "killDecode").
         kinv_constr_det; kinv_eq_light; auto.
         * destruct x9; try discriminate.
           reflexivity.
-        * admit. (* TODO: [getArchPc] consistency *)
+        * destruct x9; try discriminate.
+          inv H3; inv H13; apply getArchPc_decode_killed; auto.
+          unfold i2dValid.
+          destruct x0, x10, (t Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))),
+          (t Fin.F1 (Fin.FS (Fin.FS Fin.F1))); try discriminate; auto.
 
       + (* doDecode *)
-        admit. (* TODO: need to deal with "If" in [doDecode] *)
-      + admit.
-      + admit.
-      + admit.
+        admit.
+      + (* doRegRead *)
+        admit.
+      + (* killExecute *)
+        admit.
+      + (* doExecute *)
+        admit.
         
   Admitted.
   
