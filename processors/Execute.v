@@ -127,7 +127,7 @@ Section Processor.
           Call r2e <- r2eDeq();
           Read pc <- "archPc";
 
-          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."archPc" != #pc);
+          Assert (#r2e!(R2E addrSize dataBytes rfIdx)@."pc" != #pc);
 
           Call e2mEnq(STRUCT { "eInst" ::= $$Default; "poisoned" ::= $$true });
           Retv

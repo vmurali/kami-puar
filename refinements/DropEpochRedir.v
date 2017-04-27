@@ -133,6 +133,19 @@ Section Processor.
       else getArchPcR2E exeEpoch r2e'
     end.
 
+  Lemma getArchPcD2R_app:
+    forall exeEpochv (d2rv1 d2rv2: list (type (Struct D2R))),
+      getArchPcD2R exeEpochv (d2rv1 ++ d2rv2) =
+      match getArchPcD2R exeEpochv d2rv1 with
+      | Some v => Some v
+      | None => getArchPcD2R exeEpochv d2rv2
+      end.
+  Proof.
+    induction d2rv1; intros; auto.
+    simpl.
+    destruct (d2rValid exeEpochv a); auto.
+  Qed.
+
   Local Definition otake {A} (oa: option A) (default: A): A :=
     match oa with
     | Some a => a
@@ -212,27 +225,126 @@ Section Processor.
     elim H; reflexivity.
   Qed.
 
+  Lemma consistentExeEpochF2I_invalid:
+    forall decEpochv exeEpochv f2iv,
+      consistentExeEpochF2I (negb exeEpochv) f2iv ->
+      getArchPcF2I decEpochv exeEpochv f2iv = None.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    unfold f2iValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    rewrite andb_false_r.
+    auto.
+  Qed.
+
+  Lemma consistentExeEpochI2D_invalid:
+    forall decEpochv exeEpochv i2dv,
+      consistentExeEpochI2D (negb exeEpochv) i2dv ->
+      getArchPcI2D decEpochv exeEpochv i2dv = None.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    unfold i2dValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    rewrite andb_false_r.
+    auto.
+  Qed.
+
+  Lemma consistentExeEpochD2R_invalid:
+    forall exeEpochv d2rv,
+      consistentExeEpochD2R (negb exeEpochv) d2rv ->
+      getArchPcD2R exeEpochv d2rv = None.
+  Proof.
+    induction d2rv; simpl; intros; auto.
+    inv H.
+    unfold d2rValid.
+    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    auto.
+  Qed.
+
+  Lemma consistentExeEpochR2E_invalid:
+    forall exeEpochv r2ev,
+      consistentExeEpochR2E (negb exeEpochv) r2ev ->
+      getArchPcR2E exeEpochv r2ev = None.
+  Proof.
+    induction r2ev; simpl; intros; auto.
+    inv H.
+    unfold r2eValid.
+    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpochv) with false
+      by (destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv; auto).
+    auto.
+  Qed.
+
   Lemma getArchPc_exe_redirected:
-    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
-           (decRedirv' exeRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
+           (decRedirv exeRedirv decRedirv' exeRedirv'
+            : fullType type (SyntaxKind (RedirectK addrSize))),
       consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev ->
+      exeRedirv Fin.F1 = true ->
       exeRedirv' Fin.F1 = false -> decRedirv' Fin.F1 = false ->
       getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
       getArchPc (exeRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
                 decRedirv' exeRedirv' f2iv i2dv d2rv r2ev.
   Proof.
-  Admitted.
+    unfold consistentExeEpoch, getArchPc; intros; dest.
+    rewrite consistentExeEpochR2E_invalid by assumption.
+    rewrite consistentExeEpochD2R_invalid by assumption.
+    rewrite consistentExeEpochI2D_invalid by assumption.
+    rewrite consistentExeEpochF2I_invalid by assumption.
+    simpl.
+    unfold getPcRedir, maybeToOption.
+    rewrite H0, H1, H2; simpl.
+    reflexivity.
+  Qed.
+
+  Lemma consistentDecEpochF2I_invalid:
+    forall decEpochv exeEpochv f2iv,
+      consistentDecEpochF2I (negb decEpochv) f2iv ->
+      getArchPcF2I decEpochv exeEpochv f2iv = None.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    unfold f2iValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
+    auto.
+  Qed.
+
+  Lemma consistentDecEpochI2D_invalid:
+    forall decEpochv exeEpochv i2dv,
+      consistentDecEpochI2D (negb decEpochv) i2dv ->
+      getArchPcI2D decEpochv exeEpochv i2dv = None.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    unfold i2dValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
+    auto.
+  Qed.
 
   Lemma getArchPc_dec_redirected:
-    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
-           (decRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
+           (decRedirv exeRedirv decRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
       consistentDecEpoch (negb decEpochv) f2iv i2dv ->
+      decRedirv Fin.F1 = true ->
       decRedirv' Fin.F1 = false ->
       getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
       getArchPc (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
                 decRedirv' exeRedirv f2iv i2dv d2rv r2ev.
   Proof.
-  Admitted.
+    unfold consistentDecEpoch, getArchPc; intros; dest.
+    rewrite consistentDecEpochI2D_invalid by assumption.
+    rewrite consistentDecEpochF2I_invalid by assumption.
+    simpl.
+    unfold getPcRedir, maybeToOption.
+    rewrite H0, H1; simpl.
+    reflexivity.
+  Qed.
 
   Lemma getArchPc_iMem_pass:
     forall pcv decEpochv exeEpochv decRedirv exeRedirv
@@ -250,11 +362,46 @@ Section Processor.
     destruct (eqb _ _ && eqb _ _); auto.
   Qed.
 
+  Lemma getArchPc_decode_pass:
+    forall pcv decEpochv decEpochv' exeEpochv
+           (decRedirv decRedirv' exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv (i2de: fullType type (SyntaxKind (Struct I2D)))
+           d2rv (d2re: fullType type (SyntaxKind (Struct D2R))) r2ev,
+      i2dValid decEpochv exeEpochv i2de = true ->
+      d2rValid exeEpochv d2re = true ->
+      i2de Fin.F1 Fin.F1 = d2re Fin.F1 ->
+      decRedirv Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2de :: i2dv) d2rv r2ev =
+      getArchPc pcv decEpochv' exeEpochv decRedirv' exeRedirv f2iv i2dv (d2rv ++ [d2re]) r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    rewrite getArchPcD2R_app; simpl.
+    rewrite H, H0; simpl.
+    rewrite H1.
+    destruct (getPcRedir exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    unfold getPcRedir, maybeToOption; rewrite H2.
+    reflexivity.
+  Qed.
+
   Lemma getArchPc_decode_killed:
     forall pcv decEpochv exeEpochv decRedirv exeRedirv
            f2iv i2dv (i2de: fullType type (SyntaxKind (Struct I2D))) d2rv r2ev,
       i2dValid decEpochv exeEpochv i2de = false ->
       getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2de :: i2dv) d2rv r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    simpl; rewrite H; reflexivity.
+  Qed.
+
+  Lemma getArchPc_execute_killed:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv i2dv d2rv r2ev
+           (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      r2eValid exeEpochv r2ee = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv (r2ee :: r2ev) =
       getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev.
   Proof.
     unfold getArchPc; intros.
@@ -395,7 +542,55 @@ Section Processor.
           (t Fin.F1 (Fin.FS (Fin.FS Fin.F1))); try discriminate; auto.
 
       + (* doDecode *)
-        admit.
+        kinv_action_dest.
+        * (* case redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x13 as [|i2de ?]; try discriminate.
+          inv H3; inv H13; inv H15; inv H20.
+
+          exists (Some "doDecode").
+          kinv_constr_det; kinv_eq_light; auto.
+          { kinv_finish. }
+          { apply getArchPc_decode_pass; auto.
+            { unfold i2dValid.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { unfold d2rValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+          }
+          
+        * (* case not redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x11 as [|i2de ?]; try discriminate.
+          inv H3; inv H13; inv H15.
+
+          exists (Some "doDecode").
+          kinv_constr_det; kinv_eq_light; auto.
+          { kinv_finish. }
+          { apply getArchPc_decode_pass; auto.
+            { unfold i2dValid.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { unfold d2rValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+            { destruct (x2 Fin.F1); auto.
+              specialize (HdrSpec eq_refl).
+              inv HdrSpec.
+              inv H1.
+              exfalso; eapply negb_eq_false; eauto.
+            }
+          }
+
       + (* doRegRead *)
         admit.
       + (* killExecute *)

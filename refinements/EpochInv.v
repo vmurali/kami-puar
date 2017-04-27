@@ -81,11 +81,11 @@ Section Processor.
   Definition D2R := D2R addrSize dataBytes rfIdx.
   Definition R2E := R2E addrSize dataBytes rfIdx.
 
-  Fixpoint consistentDecEpochF2I (decEpoch: bool) (f2i: list (type (Struct F2I))) :=
+  Definition consistentDecEpochF2I (decEpoch: bool) (f2i: list (type (Struct F2I))) :=
     Forall (fun e : type (Struct F2I) => e Fin.F1 (Fin.FS (Fin.FS Fin.F1))
                                          = decEpoch) f2i.
 
-  Fixpoint consistentDecEpochI2D (decEpoch: bool) (i2d: list (type (Struct I2D))) :=
+  Definition consistentDecEpochI2D (decEpoch: bool) (i2d: list (type (Struct I2D))) :=
     Forall (fun e : type (Struct I2D) => e Fin.F1 (Fin.FS (Fin.FS Fin.F1))
                                          = decEpoch) i2d.
 
@@ -93,18 +93,18 @@ Section Processor.
              (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D))) :=
     consistentDecEpochF2I decEpoch f2i /\ consistentDecEpochI2D decEpoch i2d.
 
-  Fixpoint consistentExeEpochF2I (exeEpoch: bool) (f2i: list (type (Struct F2I))) :=
+  Definition consistentExeEpochF2I (exeEpoch: bool) (f2i: list (type (Struct F2I))) :=
     Forall (fun e : type (Struct F2I) => e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))
                                          = exeEpoch) f2i.
 
-  Fixpoint consistentExeEpochI2D (exeEpoch: bool) (i2d: list (type (Struct I2D))) :=
+  Definition consistentExeEpochI2D (exeEpoch: bool) (i2d: list (type (Struct I2D))) :=
     Forall (fun e : type (Struct I2D) => e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))
                                          = exeEpoch) i2d.
 
-  Fixpoint consistentExeEpochD2R (exeEpoch: bool) (d2r: list (type (Struct D2R))) :=
+  Definition consistentExeEpochD2R (exeEpoch: bool) (d2r: list (type (Struct D2R))) :=
     Forall (fun e : type (Struct D2R) => e (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpoch) d2r.
 
-  Fixpoint consistentExeEpochR2E (exeEpoch: bool) (r2e: list (type (Struct R2E))) :=
+  Definition consistentExeEpochR2E (exeEpoch: bool) (r2e: list (type (Struct R2E))) :=
     Forall (fun e : type (Struct R2E) => e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
                                          = exeEpoch) r2e.
 
@@ -158,170 +158,170 @@ Section Processor.
   Lemma fidreComb_epoch_invariant_ok:
     forall o, reachable o fidreComb -> epoch_invariant o.
   Proof.
-    intros; apply stepInv with (m:= fidreComb); auto;
-      [econstructor;
-       try (findReify; (reflexivity || eassumption); fail);
-       auto; try (intros; inv H0)|].
+    (* intros; apply stepInv with (m:= fidreComb); auto; *)
+    (*   [econstructor; *)
+    (*    try (findReify; (reflexivity || eassumption); fail); *)
+    (*    auto; try (intros; inv H0)|]. *)
 
-    clear H o; intros.
-    apply step_implies_stepDet in H0;
-      [|kequiv|repeat (constructor || reflexivity)|reflexivity].
-    inv H0; simpl; try mred.
+    (* clear H o; intros. *)
+    (* apply step_implies_stepDet in H0; *)
+    (*   [|kequiv|repeat (constructor || reflexivity)|reflexivity]. *)
+    (* inv H0; simpl; try mred. *)
 
-    kinvert.
+    (* kinvert. *)
 
-    - (* doFetch *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
+    (* - (* doFetch *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
       
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
-      + admit.
-      + admit.
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
+    (*   + admit. *)
+    (*   + admit. *)
 
-    - (* redirectExe *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
+    (* - (* redirectExe *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
       
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
 
-      + destruct (x5 Fin.F1); auto.
-      + inv H1.
-        destruct (x6 Fin.F1); auto.
-        destruct x0, decEpochv; auto.
-        specialize (HdeSpec1 eq_refl); discriminate.
-      + intros; reflexivity.
-      + inv H6; rewrite H4 in *.
-        destruct x2, exeEpochv; auto.
-        specialize (HeeSpec1 eq_refl); discriminate.
-      + intros; inv H.
-      + intros; inv H.
+    (*   + destruct (x5 Fin.F1); auto. *)
+    (*   + inv H1. *)
+    (*     destruct (x6 Fin.F1); auto. *)
+    (*     destruct x0, decEpochv; auto. *)
+    (*     specialize (HdeSpec1 eq_refl); discriminate. *)
+    (*   + intros; reflexivity. *)
+    (*   + inv H6; rewrite H4 in *. *)
+    (*     destruct x2, exeEpochv; auto. *)
+    (*     specialize (HeeSpec1 eq_refl); discriminate. *)
+    (*   + intros; inv H. *)
+    (*   + intros; inv H. *)
         
-    - (* redirectDec *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
+    (* - (* redirectDec *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
       
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
 
-      + intros; reflexivity.
-      + inv H1; rewrite H6 in *.
-        destruct x3, decEpochv; auto.
-        specialize (HdeSpec1 eq_refl); discriminate.
-      + intros; inv H.
+    (*   + intros; reflexivity. *)
+    (*   + inv H1; rewrite H6 in *. *)
+    (*     destruct x3, decEpochv; auto. *)
+    (*     specialize (HdeSpec1 eq_refl); discriminate. *)
+    (*   + intros; inv H. *)
         
-    - (* doIMem *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
+    (* - (* doIMem *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
       
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
-      + admit.
-      + admit.
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
+    (*   + admit. *)
+    (*   + admit. *)
       
-    - (* killDecode *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
+    (* - (* killDecode *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
       
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
-      + admit.
-      + admit.
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
+    (*   + admit. *)
+    (*   + admit. *)
       
-    - (* doDecode *)
-      kinv_action_dest;
-        kinv_red; kregmap_red;
-          kinvert_det; kinv_action_dest.
+    (* - (* doDecode *) *)
+    (*   kinv_action_dest; *)
+    (*     kinv_red; kregmap_red; *)
+    (*       kinvert_det; kinv_action_dest. *)
       
-      + destruct H.
-        kinv_red; kregmap_red; kinv_red.
-        econstructor;
-          try (findReify; try (reflexivity || eassumption); fail);
-          try assumption.
-        * specialize (HdeSpec2 e).
-          subst; intros.
-          exfalso; eapply no_fixpoint_negb; eauto.
-        * intros; discriminate.
-        * admit.
-        * admit.
+    (*   + destruct H. *)
+    (*     kinv_red; kregmap_red; kinv_red. *)
+    (*     econstructor; *)
+    (*       try (findReify; try (reflexivity || eassumption); fail); *)
+    (*       try assumption. *)
+    (*     * specialize (HdeSpec2 e). *)
+    (*       subst; intros. *)
+    (*       exfalso; eapply no_fixpoint_negb; eauto. *)
+    (*     * intros; discriminate. *)
+    (*     * admit. *)
+    (*     * admit. *)
 
-      + destruct H.
-        kinv_red; kregmap_red; kinv_red.
-        econstructor;
-          try (findReify; try (reflexivity || eassumption); fail);
-          try assumption.
-        * admit.
-        * admit.
+    (*   + destruct H. *)
+    (*     kinv_red; kregmap_red; kinv_red. *)
+    (*     econstructor; *)
+    (*       try (findReify; try (reflexivity || eassumption); fail); *)
+    (*       try assumption. *)
+    (*     * admit. *)
+    (*     * admit. *)
 
-    - (* doRegRead *)
-      kinv_action_dest;
-        kinv_red; kregmap_red;
-          kinvert_det; kinv_action_dest;
-            abstract (destruct H;
-                      kinv_red; kregmap_red; kinv_red;
-                      econstructor;
-                      try (findReify; try (reflexivity || eassumption); fail);
-                      try assumption;
-                      admit).
+    (* - (* doRegRead *) *)
+    (*   kinv_action_dest; *)
+    (*     kinv_red; kregmap_red; *)
+    (*       kinvert_det; kinv_action_dest; *)
+    (*         abstract (destruct H; *)
+    (*                   kinv_red; kregmap_red; kinv_red; *)
+    (*                   econstructor; *)
+    (*                   try (findReify; try (reflexivity || eassumption); fail); *)
+    (*                   try assumption; *)
+    (*                   admit). *)
       
-    - (* killExecute *)
-      kinv_action_dest.
-      kinv_red; kregmap_red.
-      kinvert_det; kinv_action_dest.
+    (* - (* killExecute *) *)
+    (*   kinv_action_dest. *)
+    (*   kinv_red; kregmap_red. *)
+    (*   kinvert_det; kinv_action_dest. *)
 
-      destruct H.
-      kinv_red; kregmap_red; kinv_red.
-      econstructor;
-        try (findReify; try (reflexivity || eassumption); fail);
-        try assumption.
-      + admit.
-      + admit.
+    (*   destruct H. *)
+    (*   kinv_red; kregmap_red; kinv_red. *)
+    (*   econstructor; *)
+    (*     try (findReify; try (reflexivity || eassumption); fail); *)
+    (*     try assumption. *)
+    (*   + admit. *)
+    (*   + admit. *)
 
-    - (* doExecute *)
-      kinv_action_dest;
-        kinv_red; kregmap_red;
-          kinvert_det; kinv_action_dest.
+    (* - (* doExecute *) *)
+    (*   kinv_action_dest; *)
+    (*     kinv_red; kregmap_red; *)
+    (*       kinvert_det; kinv_action_dest. *)
       
-      + destruct H.
-        kinv_red; kregmap_red; kinv_red.
-        econstructor;
-          try (findReify; try (reflexivity || eassumption); fail);
-          try assumption.
-        * specialize (HeeSpec2 e).
-          subst; intros.
-          exfalso; eapply no_fixpoint_negb; eauto.
-        * intros; discriminate.
-        * admit.
-        * admit.
+    (*   + destruct H. *)
+    (*     kinv_red; kregmap_red; kinv_red. *)
+    (*     econstructor; *)
+    (*       try (findReify; try (reflexivity || eassumption); fail); *)
+    (*       try assumption. *)
+    (*     * specialize (HeeSpec2 e). *)
+    (*       subst; intros. *)
+    (*       exfalso; eapply no_fixpoint_negb; eauto. *)
+    (*     * intros; discriminate. *)
+    (*     * admit. *)
+    (*     * admit. *)
 
-      + destruct H.
-        kinv_red; kregmap_red; kinv_red.
-        econstructor;
-          try (findReify; try (reflexivity || eassumption); fail);
-          try assumption.
-        * admit.
-        * admit.
+    (*   + destruct H. *)
+    (*     kinv_red; kregmap_red; kinv_red. *)
+    (*     econstructor; *)
+    (*       try (findReify; try (reflexivity || eassumption); fail); *)
+    (*       try assumption. *)
+    (*     * admit. *)
+    (*     * admit. *)
   Admitted.
   
 End Processor.
