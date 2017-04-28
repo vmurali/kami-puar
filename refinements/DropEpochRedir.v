@@ -4,12 +4,13 @@ Require Import Kami.Decomposition Kami.ModuleBoundEx.
 Require Import Ex.MemTypes Ex.OneEltFifo.
 Require Import Proc.AbstractIsa Proc.Fetch Proc.Decode Proc.RegRead Proc.Execute
         Proc.InOrderEightStage.
-Require Import DropBranchPredictors Fidre.
+Require Import DropBranchPredictors Fidre EpochInv.
 
 Require Import StepDet. (* TODO: should move to Kami *)
 
 Set Implicit Arguments.
 Open Scope string.
+Open Scope list.
 
 Section Processor.
   Variables addrSize dataBytes rfIdx: nat.
@@ -18,10 +19,7 @@ Section Processor.
   Variable execInst: ExecT addrSize dataBytes rfIdx.
 
   (** Fetch related *)
-  Definition fetchNondet := fetchNondet addrSize dataBytes.
-  Definition fetchNondetNR := fetchNondetNR addrSize dataBytes f2iName.
-  Definition decRedir := decRedir addrSize.
-  Definition exeRedir := exeRedir addrSize.
+  Definition fetchNondetNR := fetchNondetNR addrSize dataBytes.
   Definition f2i := f2i addrSize dataBytes.
 
   (** IMem related *)
@@ -29,31 +27,15 @@ Section Processor.
   Definition i2d := i2d addrSize dataBytes.
 
   (** Decode related *)
-  Definition decodeNondet := decodeNondet addrSize decodeInst.
-  Definition decodeNondetNR := decodeNondetNR addrSize i2dName d2rName decodeInst.
+  Definition decodeNondetNR := decodeNondetNR addrSize decodeInst.
   Definition d2r := d2r addrSize dataBytes rfIdx.
 
   (** RegRead related *)
   Definition regRead := regRead addrSize dataBytes rfIdx.
-  Definition rf := rf dataBytes rfIdx.
-  Definition bypass := bypass dataBytes rfIdx.
   Definition r2e := r2e addrSize dataBytes rfIdx.
 
   (** Execute related *)
-  Definition executeNondet := executeNondet execInst.
-  Definition executeNondetNR := executeNondetNR r2eName e2mName execInst.
-  Definition e2m := e2m addrSize dataBytes rfIdx.
-
-  (** Mem related *)
-  Definition mem := mem addrSize dataBytes rfIdx.
-  Definition m2d := m2d addrSize dataBytes rfIdx.
-
-  (** DMem related *)
-  Definition dMem := dMem addrSize dataBytes rfIdx.
-  Definition d2w := d2w addrSize dataBytes rfIdx.
-
-  (** Writeback related *)
-  Definition writeback := writeback addrSize dataBytes rfIdx.
+  Definition executeNondetNR := executeNondetNR execInst.
 
   Definition fidreComb := fidreComb decodeInst execInst.
   
@@ -64,298 +46,632 @@ Section Processor.
                    ++ regRead ++ r2e
                    ++ executeNondetNR)%kami.
 
-  Section RefinementNR.
+  Definition F2I := F2I addrSize dataBytes.
+  Definition I2D := I2D addrSize dataBytes.
+  Definition D2R := D2R addrSize dataBytes rfIdx.
+  Definition R2E := R2E addrSize dataBytes rfIdx.
 
-    Definition F2I := F2I addrSize dataBytes.
-    Definition I2D := I2D addrSize dataBytes.
-    Definition D2R := D2R addrSize dataBytes rfIdx.
-    Definition R2E := R2E addrSize dataBytes rfIdx.
+  (* Construction of the state relation [thetaR] *)
 
-    Fixpoint getArchPcF2I (decEpoch exeEpoch: bool) (f2i: list (type (Struct F2I)))
-      : option (fullType type (SyntaxKind (Bit addrSize))) :=
-      match f2i with
-      | nil => None
-      | e :: f2i' =>
-        if (eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-                eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
-        then Some (e Fin.F1 Fin.F1)
-        else getArchPcF2I decEpoch exeEpoch f2i'
+  Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
+    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
+    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
+    eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
+    eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
+
+  Fixpoint getArchPcF2I (decEpoch exeEpoch: bool) (f2i: list (type (Struct F2I)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match f2i with
+    | nil => None
+    | e :: f2i' =>
+      if f2iValid decEpoch exeEpoch e
+      then Some (e Fin.F1 Fin.F1)
+      else getArchPcF2I decEpoch exeEpoch f2i'
+    end.
+
+  Lemma getArchPcF2I_app:
+    forall decEpochv exeEpochv (f2iv1 f2iv2: list (type (Struct F2I))),
+      getArchPcF2I decEpochv exeEpochv (f2iv1 ++ f2iv2) =
+      match getArchPcF2I decEpochv exeEpochv f2iv1 with
+      | Some v => Some v
+      | None => getArchPcF2I decEpochv exeEpochv f2iv2
       end.
+  Proof.
+    induction f2iv1; intros; auto.
+    simpl.
+    destruct (f2iValid decEpochv exeEpochv a); auto.
+  Qed.
 
-    Lemma getArchPcF2I_app:
-      forall decEpochv exeEpochv (f2iv1 f2iv2: list (type (Struct F2I))),
-        getArchPcF2I decEpochv exeEpochv (f2iv1 ++ f2iv2) =
-        match getArchPcF2I decEpochv exeEpochv f2iv1 with
-        | Some v => Some v
-        | None => getArchPcF2I decEpochv exeEpochv f2iv2
-        end.
-    Proof.
-      induction f2iv1; intros; auto.
-      simpl.
-      destruct ((eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv)
-                  && (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv)); auto.
-    Qed.
+  Fixpoint getArchPcI2D (decEpoch exeEpoch: bool) (i2d: list (type (Struct I2D)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match i2d with
+    | nil => None
+    | e :: i2d' =>
+      if i2dValid decEpoch exeEpoch e
+      then Some (e Fin.F1 Fin.F1)
+      else getArchPcI2D decEpoch exeEpoch i2d'
+    end.
 
-    Fixpoint getArchPcI2D (decEpoch exeEpoch: bool) (i2d: list (type (Struct I2D)))
-      : option (fullType type (SyntaxKind (Bit addrSize))) :=
-      match i2d with
-      | nil => None
-      | e :: i2d' =>
-        if (eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-                eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
-        then Some (e Fin.F1 Fin.F1)
-        else getArchPcI2D decEpoch exeEpoch i2d'
+  Lemma getArchPcI2D_app:
+    forall decEpochv exeEpochv (i2dv1 i2dv2: list (type (Struct I2D))),
+      getArchPcI2D decEpochv exeEpochv (i2dv1 ++ i2dv2) =
+      match getArchPcI2D decEpochv exeEpochv i2dv1 with
+      | Some v => Some v
+      | None => getArchPcI2D decEpochv exeEpochv i2dv2
       end.
+  Proof.
+    induction i2dv1; intros; auto.
+    simpl.
+    destruct (i2dValid decEpochv exeEpochv a); auto.
+  Qed.
 
-    Fixpoint getArchPcD2R (exeEpoch: bool) (d2r: list (type (Struct D2R)))
-      : option (fullType type (SyntaxKind (Bit addrSize))) :=
-      match d2r with
-      | nil => None
-      | e :: d2r' =>
-        if (eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch)
-        then Some (e Fin.F1)
-        else getArchPcD2R exeEpoch d2r'
+  Fixpoint getArchPcD2R (exeEpoch: bool) (d2r: list (type (Struct D2R)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match d2r with
+    | nil => None
+    | e :: d2r' =>
+      if d2rValid exeEpoch e
+      then Some (e Fin.F1)
+      else getArchPcD2R exeEpoch d2r'
+    end.
+
+  Fixpoint getArchPcR2E (exeEpoch: bool) (r2e: list (type (Struct R2E)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match r2e with
+    | nil => None
+    | e :: r2e' =>
+      if r2eValid exeEpoch e
+      then Some (e Fin.F1)
+      else getArchPcR2E exeEpoch r2e'
+    end.
+
+  Lemma getArchPcD2R_app:
+    forall exeEpochv (d2rv1 d2rv2: list (type (Struct D2R))),
+      getArchPcD2R exeEpochv (d2rv1 ++ d2rv2) =
+      match getArchPcD2R exeEpochv d2rv1 with
+      | Some v => Some v
+      | None => getArchPcD2R exeEpochv d2rv2
       end.
+  Proof.
+    induction d2rv1; intros; auto.
+    simpl.
+    destruct (d2rValid exeEpochv a); auto.
+  Qed.
 
-    Fixpoint getArchPcR2E (exeEpoch: bool) (r2e: list (type (Struct R2E)))
-      : option (fullType type (SyntaxKind (Bit addrSize))) :=
-      match r2e with
-      | nil => None
-      | e :: r2e' =>
-        if (eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch)
-        then Some (e Fin.F1)
-        else getArchPcR2E exeEpoch r2e'
-      end.
+  Local Definition otake {A} (oa: option A) (default: A): A :=
+    match oa with
+    | Some a => a
+    | None => default
+    end.
+  Infix ">>=" := otake (at level 0, right associativity).
 
-    Local Definition otake {A} (oa: option A) (default: A): A :=
-      match oa with
-      | Some a => a
-      | None => default
-      end.
-    Infix ">>=" := otake (at level 0, right associativity).
+  Definition maybeToOption {k} (mb: fullType type (SyntaxKind (Struct (Maybe k))))
+    : option (fullType type (SyntaxKind k)) :=
+    if mb Fin.F1 then Some (mb (Fin.FS Fin.F1)) else None.
 
-    Definition getArchPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
-               (decEpoch exeEpoch: fullType type (SyntaxKind Bool))
-               (f2i: fullType type (@NativeKind (list (type (Struct F2I))) nil))
-               (i2d: fullType type (@NativeKind (list (type (Struct I2D))) nil))
-               (d2r: fullType type (@NativeKind (list (type (Struct D2R))) nil))
-               (r2e: fullType type (@NativeKind (list (type (Struct R2E))) nil)) :=
-      (getArchPcR2E exeEpoch r2e)
-        >>= (getArchPcD2R exeEpoch d2r)
-        >>= (getArchPcI2D decEpoch exeEpoch i2d)
-        >>= (getArchPcF2I decEpoch exeEpoch f2i)
-        >>= pcv.
+  Definition getPcRedir (redir: fullType type (SyntaxKind (RedirectK addrSize)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match maybeToOption redir with
+    | Some rd => Some (rd (Fin.FS Fin.F1))
+    | None => None
+    end.
 
-    Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
-      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+  Definition getArchPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
+             (decEpoch exeEpoch: fullType type (SyntaxKind Bool))
+             (decRedir exeRedir: fullType type (SyntaxKind (RedirectK addrSize)))
+             (f2i: fullType type (@NativeKind (list (type (Struct F2I))) nil))
+             (i2d: fullType type (@NativeKind (list (type (Struct I2D))) nil))
+             (d2r: fullType type (@NativeKind (list (type (Struct D2R))) nil))
+             (r2e: fullType type (@NativeKind (list (type (Struct R2E))) nil)) :=
+    (getPcRedir exeRedir)
+      >>= (getArchPcR2E exeEpoch r2e)
+      >>= (getArchPcD2R exeEpoch d2r)
+      >>= (getPcRedir decRedir)
+      >>= (getArchPcI2D decEpoch exeEpoch i2d)
+      >>= (getArchPcF2I decEpoch exeEpoch f2i)
+      >>= pcv.
 
-    Definition f2iFilter (decEpoch exeEpoch: bool)
-               (f2i: list (type (Struct F2I)))
-      : fullType type (@NativeKind (list (type (Struct F2I))) nil) :=
-      filter (f2iValid decEpoch exeEpoch) f2i.
+  Lemma getArchPc_f2i_valid:
+    forall pcv pcv' decEpochv exeEpochv decRedirv exeRedirv
+           f2iv (f2ie: fullType type (SyntaxKind (Struct F2I))) i2dv d2rv r2ev,
+      f2ie Fin.F1 Fin.F1 = pcv ->
+      f2iValid decEpochv exeEpochv f2ie = true ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv exeEpochv decRedirv exeRedirv (f2iv ++ [f2ie]) i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    destruct (getPcRedir exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    destruct (getPcRedir decRedirv); auto; simpl.
+    destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto; simpl.
+    rewrite getArchPcF2I_app.
+    destruct (getArchPcF2I decEpochv exeEpochv f2iv); auto; simpl.
+    rewrite H0; auto.
+  Qed.
 
-    Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
-      eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-          eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+  Lemma getArchPc_exeRedir:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           pcv' decEpochv' exeEpochv' decRedirv' f2iv' i2dv' d2rv' r2ev',
+      maybeToOption exeRedirv <> None ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv' exeEpochv' decRedirv' exeRedirv f2iv' i2dv' d2rv' r2ev'.
+  Proof.
+    unfold getArchPc, getPcRedir; intros.
+    destruct (maybeToOption exeRedirv); auto; simpl.
+    elim H; reflexivity.
+  Qed.
 
-    Definition i2dFilter (decEpoch exeEpoch: bool)
-               (i2d: list (type (Struct I2D)))
-      : fullType type (@NativeKind (list (type (Struct I2D))) nil) :=
-      filter (i2dValid decEpoch exeEpoch) i2d.
+  Lemma getArchPc_decRedir:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev
+           pcv' decEpochv' f2iv' i2dv',
+      maybeToOption decRedirv <> None ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc pcv' decEpochv' exeEpochv decRedirv exeRedirv f2iv' i2dv' d2rv r2ev.
+  Proof.
+    unfold getArchPc, getPcRedir; intros.
+    destruct (maybeToOption exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    destruct (maybeToOption decRedirv); auto; simpl.
+    elim H; reflexivity.
+  Qed.
 
-    Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
-      eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+  Lemma consistentExeEpochF2I_invalid:
+    forall decEpochv exeEpochv f2iv,
+      consistentExeEpochF2I (negb exeEpochv) f2iv ->
+      getArchPcF2I decEpochv exeEpochv f2iv = None.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    unfold f2iValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    rewrite andb_false_r.
+    auto.
+  Qed.
 
-    Definition d2rFilter (exeEpoch: bool)
-               (d2r: list (type (Struct D2R)))
-      : fullType type (@NativeKind (list (type (Struct D2R))) nil) :=
-      filter (d2rValid exeEpoch) d2r.
+  Lemma consistentExeEpochI2D_invalid:
+    forall decEpochv exeEpochv i2dv,
+      consistentExeEpochI2D (negb exeEpochv) i2dv ->
+      getArchPcI2D decEpochv exeEpochv i2dv = None.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    unfold i2dValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    rewrite andb_false_r.
+    auto.
+  Qed.
 
-    Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
-      eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
+  Lemma consistentExeEpochD2R_invalid:
+    forall exeEpochv d2rv,
+      consistentExeEpochD2R (negb exeEpochv) d2rv ->
+      getArchPcD2R exeEpochv d2rv = None.
+  Proof.
+    induction d2rv; simpl; intros; auto.
+    inv H.
+    unfold d2rValid.
+    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
+      by (destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
+    auto.
+  Qed.
 
-    Definition r2eFilter (exeEpoch: bool)
-               (r2e: list (type (Struct R2E)))
-      : fullType type (@NativeKind (list (type (Struct R2E))) nil) :=
-      filter (r2eValid exeEpoch) r2e.
+  Lemma consistentExeEpochR2E_invalid:
+    forall exeEpochv r2ev,
+      consistentExeEpochR2E (negb exeEpochv) r2ev ->
+      getArchPcR2E exeEpochv r2ev = None.
+  Proof.
+    induction r2ev; simpl; intros; auto.
+    inv H.
+    unfold r2eValid.
+    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpochv) with false
+      by (destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv; auto).
+    auto.
+  Qed.
 
-    Local Definition thetaR (ir sr: RegsT): Prop.
-    Proof.
-      kexistnv "pc" pcv ir (SyntaxKind (Bit addrSize)).
-      kexistnv "decEpoch" decEpochv ir (SyntaxKind Bool).
-      kexistnv "exeEpoch" exeEpochv ir (SyntaxKind Bool).
-      kexistnv (f2iName -- Names.elt) f2iv ir (@NativeKind (list (type (Struct F2I))) nil).
-      kexistnv (i2dName -- Names.elt) i2dv ir (@NativeKind (list (type (Struct I2D))) nil).
-      kexistnv (d2rName -- Names.elt) d2rv ir (@NativeKind (list (type (Struct D2R))) nil).
-      kexistnv (r2eName -- Names.elt) r2ev ir (@NativeKind (list (type (Struct R2E))) nil).
+  Lemma getArchPc_exe_redirected:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
+           (decRedirv exeRedirv decRedirv' exeRedirv'
+            : fullType type (SyntaxKind (RedirectK addrSize))),
+      consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev ->
+      exeRedirv Fin.F1 = true ->
+      exeRedirv' Fin.F1 = false -> decRedirv' Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc (exeRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
+                decRedirv' exeRedirv' f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentExeEpoch, getArchPc; intros; dest.
+    rewrite consistentExeEpochR2E_invalid by assumption.
+    rewrite consistentExeEpochD2R_invalid by assumption.
+    rewrite consistentExeEpochI2D_invalid by assumption.
+    rewrite consistentExeEpochF2I_invalid by assumption.
+    simpl.
+    unfold getPcRedir, maybeToOption.
+    rewrite H0, H1, H2; simpl.
+    reflexivity.
+  Qed.
 
-      exact (sr =
-             ["pc" <- existT _ _ pcv]
-             +[(f2iName -- Names.elt) <- existT _ _ (f2iFilter decEpochv exeEpochv f2iv)]
-             +[(i2dName -- Names.elt) <- existT _ _ (i2dFilter decEpochv exeEpochv i2dv)]
-             +[(d2rName -- Names.elt) <- existT _ _ (d2rFilter exeEpochv d2rv)]
-             +[(r2eName -- Names.elt) <- existT _ _ (r2eFilter exeEpochv r2ev)]
-             +["archPc" <- existT _ _ (getArchPc pcv decEpochv exeEpochv
-                                                 f2iv i2dv d2rv r2ev)])%fmap.
-    Defined.
+  Lemma consistentDecEpochF2I_invalid:
+    forall decEpochv exeEpochv f2iv,
+      consistentDecEpochF2I (negb decEpochv) f2iv ->
+      getArchPcF2I decEpochv exeEpochv f2iv = None.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    unfold f2iValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
+    auto.
+  Qed.
 
-    Hint Unfold F2I I2D D2R R2E : MethDefs.
-    Hint Unfold thetaR : InvDefs.
+  Lemma consistentDecEpochI2D_invalid:
+    forall decEpochv exeEpochv i2dv,
+      consistentDecEpochI2D (negb decEpochv) i2dv ->
+      getArchPcI2D decEpochv exeEpochv i2dv = None.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    unfold i2dValid.
+    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
+      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
+    auto.
+  Qed.
 
-    (** Some utilities for [thetaR] preservation *)
-    
-    Definition f2i_enq_pc (pcv: fullType type (SyntaxKind (Bit addrSize)))
-               (f2ie: type (Struct F2I)) :=
-      f2ie Fin.F1 Fin.F1 = pcv.
+  Lemma getArchPc_dec_redirected:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
+           (decRedirv exeRedirv decRedirv': fullType type (SyntaxKind (RedirectK addrSize))),
+      consistentDecEpoch (negb decEpochv) f2iv i2dv ->
+      decRedirv Fin.F1 = true ->
+      decRedirv' Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      getArchPc (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
+                decRedirv' exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentDecEpoch, getArchPc; intros; dest.
+    rewrite consistentDecEpochI2D_invalid by assumption.
+    rewrite consistentDecEpochF2I_invalid by assumption.
+    simpl.
+    unfold getPcRedir, maybeToOption.
+    rewrite H0, H1; simpl.
+    reflexivity.
+  Qed.
 
-    Lemma f2i_valid_enq_getArchPc_preserved:
-      forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev f2ie,
-        f2iValid decEpochv exeEpochv f2ie = true ->
-        f2i_enq_pc pcv f2ie ->
-        forall pcv',
-          getArchPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev =
-          getArchPc pcv' decEpochv exeEpochv (f2iv ++ [f2ie])%list i2dv d2rv r2ev.
-    Proof.
-      unfold f2iValid, f2i_enq_pc, getArchPc; intros.
-      unfold otake.
+  Lemma getArchPc_iMem_pass:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv (f2ie: fullType type (SyntaxKind (Struct F2I)))
+           i2dv (i2de: fullType type (SyntaxKind (Struct I2D))) d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv (f2ie :: f2iv) i2dv d2rv r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2dv ++ [i2de]) d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    rewrite getArchPcI2D_app; simpl.
+    unfold f2iValid, i2dValid.
+    rewrite H.
+    destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto; simpl.
+    destruct (eqb _ _ && eqb _ _); auto.
+  Qed.
 
-      destruct (getArchPcR2E exeEpochv r2ev); auto.
-      destruct (getArchPcD2R exeEpochv d2rv); auto.
-      destruct (getArchPcI2D decEpochv exeEpochv i2dv); auto.
+  Lemma getArchPc_decode_pass:
+    forall pcv decEpochv decEpochv' exeEpochv
+           (decRedirv decRedirv' exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv (i2de: fullType type (SyntaxKind (Struct I2D)))
+           d2rv (d2re: fullType type (SyntaxKind (Struct D2R))) r2ev,
+      i2dValid decEpochv exeEpochv i2de = true ->
+      d2rValid exeEpochv d2re = true ->
+      i2de Fin.F1 Fin.F1 = d2re Fin.F1 ->
+      decRedirv Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2de :: i2dv) d2rv r2ev =
+      getArchPc pcv decEpochv' exeEpochv decRedirv' exeRedirv f2iv i2dv (d2rv ++ [d2re]) r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    rewrite getArchPcD2R_app; simpl.
+    rewrite H, H0; simpl.
+    rewrite H1.
+    destruct (getPcRedir exeRedirv); auto; simpl.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (getArchPcD2R exeEpochv d2rv); auto; simpl.
+    unfold getPcRedir, maybeToOption; rewrite H2.
+    reflexivity.
+  Qed.
 
-      rewrite getArchPcF2I_app.
-      destruct (getArchPcF2I decEpochv exeEpochv f2iv); auto.
-      simpl; rewrite H; auto.
-    Qed.
+  Lemma getArchPc_decode_killed:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv i2dv (i2de: fullType type (SyntaxKind (Struct I2D))) d2rv r2ev,
+      i2dValid decEpochv exeEpochv i2de = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv (i2de :: i2dv) d2rv r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    simpl; rewrite H; reflexivity.
+  Qed.
 
-    Lemma f2iFilter_app:
-      forall decEpochv exeEpochv f2iv1 f2iv2,
-        f2iFilter decEpochv exeEpochv (f2iv1 ++ f2iv2) =
-        ((f2iFilter decEpochv exeEpochv f2iv1)
-           ++ (f2iFilter decEpochv exeEpochv f2iv2))%list.
-    Proof.
-      intros; apply filter_app.
-    Qed.
+  Lemma getArchPc_execute_killed:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv i2dv d2rv r2ev
+           (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      r2eValid exeEpochv r2ee = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv (r2ee :: r2ev) =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold getArchPc; intros.
+    simpl; rewrite H; reflexivity.
+  Qed.
 
-    Lemma f2iFilter_valid_consistent:
-      forall decEpochv exeEpochv f2iv f2ie,
-        f2iValid decEpochv exeEpochv f2ie = true ->
-        NativeFifo.listEnq f2ie (f2iFilter decEpochv exeEpochv f2iv) =
-        f2iFilter decEpochv exeEpochv (f2iv ++ [f2ie]).
-    Proof.
-      intros.
-      rewrite f2iFilter_app.
-      unfold NativeFifo.listEnq.
-      f_equal.
-      simpl; rewrite H; auto.
-    Qed.
+  Lemma getArchPc_execute_valid:
+    forall pcv decEpochv exeEpochv
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv d2rv r2ev
+           (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      exeRedirv Fin.F1 = false ->
+      r2eValid exeEpochv r2ee = true ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv (r2ee :: r2ev) =
+      r2ee Fin.F1.
+  Proof.
+    unfold getArchPc, getPcRedir, maybeToOption; intros; simpl.
+    rewrite H, H0; simpl; reflexivity.
+  Qed.
 
-    Lemma f2iValid_invalid_f2iFilter:
-      forall decEpochv exeEpochv f2iv f2ie,
-        f2iValid decEpochv exeEpochv f2ie = false ->
-        f2iFilter decEpochv exeEpochv f2iv =
-        f2iFilter decEpochv exeEpochv (f2iv ++ [f2ie]).
-    Proof.
-      intros; rewrite f2iFilter_app; simpl.
-      rewrite H, app_nil_r; reflexivity.
-    Qed.
+  Local Definition thetaR (ir sr: RegsT): Prop.
+  Proof.
+    kexistnv "pc" pcv ir (SyntaxKind (Bit addrSize)).
+    kexistnv "decEpoch" decEpochv ir (SyntaxKind Bool).
+    kexistnv "exeEpoch" exeEpochv ir (SyntaxKind Bool).
+    kexistnv "dec" decRedirv ir (SyntaxKind (RedirectK addrSize)).
+    kexistnv "exe" exeRedirv ir (SyntaxKind (RedirectK addrSize)).
+    kexistnv (f2iName -- Names.elt) f2iv ir (@NativeKind (list (type (Struct F2I))) nil).
+    kexistnv (i2dName -- Names.elt) i2dv ir (@NativeKind (list (type (Struct I2D))) nil).
+    kexistnv (d2rName -- Names.elt) d2rv ir (@NativeKind (list (type (Struct D2R))) nil).
+    kexistnv (r2eName -- Names.elt) r2ev ir (@NativeKind (list (type (Struct R2E))) nil).
+    exact (sr =
+           ["pc" <- existT _ _ pcv]
+           +[(f2iName -- Names.elt) <- existT _ _ f2iv]
+           +[(i2dName -- Names.elt) <- existT _ _ i2dv]
+           +[(d2rName -- Names.elt) <- existT _ _ d2rv]
+           +[(r2eName -- Names.elt) <- existT _ _ r2ev]
+           +["archPc" <- existT _ _ (getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv
+                                               f2iv i2dv d2rv r2ev)])%fmap.
+  Defined.
 
-    Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
-    Notation "'_STRUCT_SIG_'" := (forall i : Fin.t _, _).
+  Hint Unfold F2I I2D D2R R2E : MethDefs.
+  Hint Unfold thetaR : InvDefs.
 
-    Lemma Attribute_inv:
-      forall {A} (n1 n2: string) (v1 v2: A),
-        ((n1 :: v1) = (n2 :: v2))%struct -> n1 = n2 /\ v1 = v2.
-    Proof.
-      intros; inv H; auto.
-    Qed.
+  Local Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
+  Local Notation "'_STRUCT_SIG_'" := (forall i : Fin.t _, _).
 
-    Ltac kinvert_det :=
-      repeat
-        match goal with
-        | [H: SubstepMeths _ _ _ _ |- _] => inv H
-        | [H: Substep _ _ _ (Meth (Some _)) _ |- _] => inv H
-        | [H: (_ :: _)%struct = (_ :: _)%struct |- _] =>
-          apply Attribute_inv in H; destruct H; subst
-        | [H1: In ?f (getDefsBodies _), H2: _ = Struct.attrName ?f |- _] =>
-          let fn := fresh "fn" in
-          let fa := fresh "fa" in
-          destruct f as [fn fa]; simpl in *; subst;
-          repeat
-            match goal with
-            | [H: _ \/ _ |- _] => destruct H; try discriminate
-            | [H: False |- _] => elim H
-            end
-        (* Below inversion mechanism for [existT] should be at the end of this Ltac *)
-        | [H: existT _ _ _ = existT _ _ _ |- _] => destruct_existT
-        end.
+  Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
+  Proof.
+    apply stepRefinementR with (thetaR:= thetaR).
+    - kdecompose_regrel_init.
+      meqReify.
 
-    Ltac kinv_constr_det :=
-      repeat
-        match goal with
-        | [ |- exists _, _ /\ _ ] => eexists; split
-        | [ |- Step _ _ _ _ ] =>
-          apply stepDet_implies_step; [kequiv|repeat (constructor || reflexivity)|]
-        | [ |- StepDet _ _ _ _ ] => econstructor
-        | [ |- SubstepMeths _ _ _ _ ] => econstructor
-        | [ |- Substep _ _ _ _ _ ] => econstructor
-        | [ |- In _ _ ] => simpl; tauto
-        | [ |- SemAction _ _ _ _ _ ] => econstructor
-        | [ |- _ = _ ] => reflexivity
-        end.
+    - intros.
+      apply fidreComb_epoch_invariant_ok in H.
+      
+      apply step_implies_stepDet in H0;
+        [|kequiv|repeat (constructor || reflexivity)|reflexivity].
 
-    Theorem fidreComb_fidreNR: fidreComb <<== fidreNR.
-    Proof.
-      apply stepRefinementR with (thetaR:= thetaR).
-      - kdecompose_regrel_init.
-        meqReify.
+      inv H0; simpl;
+        [do 2 eexists; split; [apply SemFacts.step_empty; auto|auto] (* empty rule *)
+        |exists None; eexists; split; [apply SemFacts.step_empty; auto|auto] (* empty meth *)
+        |].
 
-      - intros.
-        apply step_implies_stepDet in H0;
-          [|kequiv|repeat (constructor || reflexivity)|reflexivity].
+      unfold thetaR in H1; dest; subst; subst.
+      kinvert.
 
-        inv H0; simpl;
-          [do 2 eexists; split; [apply SemFacts.step_empty; auto|auto] (* empty rule *)
-          |exists None; eexists; split; [apply SemFacts.step_empty; auto|auto] (* empty meth *)
-          |].
+      + (* doFetch *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
 
-        unfold thetaR in H1; dest; subst; subst.
-        kinvert.
+        exists (Some "doFetch").
+        kinv_constr_det; kinv_eq_light; auto.
+        * destruct (bool_dec x12 x1); subst.
+          { destruct (bool_dec x11 x0); subst.
+            { inv H3; apply getArchPc_f2i_valid; auto.
+              unfold f2iValid; simpl.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { apply getArchPc_decRedir.
+              unfold maybeToOption.
+              destruct (x2 Fin.F1); auto.
+              discriminate.
+            }
+          }
+          { apply getArchPc_exeRedir.
+            unfold maybeToOption.
+            destruct (x3 Fin.F1); auto.
+            discriminate.
+          }
+        * inv H3; reflexivity.
 
-        + (* doFetch *)
-          kinv_action_dest.
+      + (* redirectExe *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "killFetch").
+        kinv_constr_det; kinv_eq_light; auto.
+        
+        inv H15; apply getArchPc_exe_redirected; auto.
+
+      + (* redirectDec *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "killFetch").
+        kinv_constr_det; kinv_eq_light; auto.
+
+        inv H3; apply getArchPc_dec_redirected; auto.
+
+      + (* doIMem *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "doIMem").
+        kinv_constr_det; kinv_eq_light; auto.
+
+        * destruct x12; try discriminate.
+          reflexivity.
+        * inv H3; reflexivity.
+        * destruct x12 as [|f2id ?]; try discriminate.
+          inv H3; inv H13; apply getArchPc_iMem_pass; auto.
+        * inv H3; inv H13; reflexivity.
+
+      + (* killDecode *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "killDecode").
+        kinv_constr_det; kinv_eq_light; auto.
+        * destruct x9; try discriminate.
+          reflexivity.
+        * destruct x9; try discriminate.
+          inv H3; inv H13; apply getArchPc_decode_killed; auto.
+          unfold i2dValid.
+          destruct x0, x10, (t Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))),
+          (t Fin.F1 (Fin.FS (Fin.FS Fin.F1))); try discriminate; auto.
+
+      + (* doDecode *)
+        kinv_action_dest.
+        * (* case redirected *)
           kinv_red; kregmap_red.
           kinvert_det; kinv_action_dest.
+          destruct H.
           kinv_red; kregmap_red; kinv_red.
 
-          case_eq (f2iValid x0 x1 argV); intros.
-          * exists (Some "doFetch").
-            kinv_constr_det; kinv_eq_light; auto.
-            -- apply f2i_valid_enq_getArchPc_preserved; auto.
-               inv H3; reflexivity.
-            -- inv H3.
-               apply f2iFilter_valid_consistent; auto.
-          * exists (Some "killFetch").
-            kinv_constr_det; kinv_eq_light; auto.
-            -- admit. (* TODO: need an invariant saying that there exists 
-                       * _a valid element_ in the fifos if we can find 
-                       * an invalid element in the fifos.
-                       *)
-            -- apply f2iValid_invalid_f2iFilter; auto.
+          destruct x13 as [|i2de ?]; try discriminate.
+          inv H3; inv H13; inv H15; inv H20.
 
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
-        + admit.
+          exists (Some "doDecode").
+          kinv_constr_det; kinv_eq_light; auto.
+          { kinv_finish. }
+          { apply getArchPc_decode_pass; auto.
+            { unfold i2dValid.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { unfold d2rValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+          }
+          
+        * (* case not redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
 
-    Admitted.
+          destruct x11 as [|i2de ?]; try discriminate.
+          inv H3; inv H13; inv H15.
 
-  End RefinementNR.
+          exists (Some "doDecode").
+          kinv_constr_det; kinv_eq_light; auto.
+          { kinv_finish. }
+          { apply getArchPc_decode_pass; auto.
+            { unfold i2dValid.
+              rewrite 2! eqb_reflx; reflexivity.
+            }
+            { unfold d2rValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+            { destruct (x2 Fin.F1); auto.
+              specialize (HdrSpec eq_refl).
+              inv HdrSpec.
+              inv H1.
+              exfalso; eapply negb_eq_false; eauto.
+            }
+          }
+
+      + (* doRegRead *)
+        admit.
+
+      + (* killExecute *)
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "killExecute").
+        kinv_constr_det; kinv_eq_light; auto.
+        * destruct x12; try discriminate.
+          reflexivity.
+        * destruct x12; try discriminate.
+          inv H3; inv H13; apply getArchPc_execute_killed; auto.
+          unfold r2eValid.
+          apply eqb_false_iff; auto.
+
+      + (* doExecute *)
+        kinv_action_dest.
+
+        * (* case redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x16 as [|r2ee ?]; try discriminate.
+          inv H3; inv H13; inv H17; inv H20.
+
+          exists (Some "doExecute").
+          kinv_constr_det; kinv_eq_light; auto.
+
+          simpl; destruct (weq _ _); auto.
+          elim n; clear n.
+          apply eq_sym, getArchPc_execute_valid; auto.
+          unfold r2eValid; simpl.
+          rewrite eqb_reflx; reflexivity.
+
+        * (* case redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x11 as [|r2ee ?]; try discriminate.
+          inv H3; inv H13.
+
+          exists (Some "doExecute").
+          kinv_constr_det; kinv_eq_light; auto.
+          { simpl; destruct (weq _ _); auto.
+            elim n; clear n.
+            apply eq_sym, getArchPc_execute_valid; auto.
+            { destruct (x3 Fin.F1); auto.
+              specialize (HerSpec eq_refl).
+              unfold consistentExeEpoch in HerSpec; dest.
+              inv H3.
+              exfalso; eapply negb_eq_false; eauto.
+            }
+            { unfold r2eValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+          }
+          { admit. }
+
+  Admitted.
   
 End Processor.
 

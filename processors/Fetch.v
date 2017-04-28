@@ -95,6 +95,9 @@ Section Processor.
             Retv
 
           with Method (redirName -- "redirSetValid")(v: Struct redirectStr): Void :=
+            Read redir <- redirName;
+            (* NOTE: below guard doesn't affect the performance of redirection mechanism. *)
+            Assert (#redir!(Maybe (Struct redirectStr))@."isValid" == $$false);
             Write redirName: RedirectK <- STRUCT { "isValid" ::= $$true;
                                                    "value" ::= #v };
             Retv
@@ -172,9 +175,15 @@ Section Processor.
           Write "pc" <- #r!redirectStr@."nextPc";
           Call btbUpdate(STRUCT { "curPc" ::= #r!redirectStr@."pc";
                                   "nextPc" ::= #r!redirectStr@."nextPc" });
+
           Read fetchEpochE <- "fetchEpochE";
           Write "fetchEpochE" <- !#fetchEpochE;
           Call (redirSetInvalid "exe")();
+
+          Read fetchEpochD <- "fetchEpochD";
+          Call decRedir <- (redirGet "dec")();
+          Write "fetchEpochD" <- IF #decRedir!(Maybe (Struct redirectStr))@."isValid"
+                                 then !#fetchEpochD else #fetchEpochD;
           Call (redirSetInvalid "dec")();
           Retv
 
@@ -222,9 +231,15 @@ Section Processor.
           Assert (#exeRedir!(Maybe (Struct redirectStr))@."isValid");
           LET r <- #exeRedir!(Maybe (Struct redirectStr))@."value";
           Write "pc" <- #r!redirectStr@."nextPc";
+
           Read fetchEpochE <- "fetchEpochE";
           Write "fetchEpochE" <- !#fetchEpochE;
           Call (redirSetInvalid "exe")();
+
+          Read fetchEpochD <- "fetchEpochD";
+          Call decRedir <- (redirGet "dec")();
+          Write "fetchEpochD" <- IF #decRedir!(Maybe (Struct redirectStr))@."isValid"
+                                 then !#fetchEpochD else #fetchEpochD;
           Call (redirSetInvalid "dec")();
           Retv
 

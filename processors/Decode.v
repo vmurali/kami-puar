@@ -162,9 +162,6 @@ Section Processor.
         with Rule "killDecode" :=
           Call i2d <- i2dDeq();
           LET f2d <- #i2d!I2D@."f2dOrig";
-          LET pc <- #f2d!(F2D addrSize)@."pc";
-          LET instStr <- #i2d!I2D@."iMemRep";
-          LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
           Read decEpoch <- "decEpoch";
           Call exeEpoch <- exeGetEpoch1();
@@ -224,9 +221,6 @@ Section Processor.
         with Rule "killDecode" :=
           Call i2d <- i2dDeq();
           LET f2d <- #i2d!I2D@."f2dOrig";
-          LET pc <- #f2d!(F2D addrSize)@."pc";
-          LET instStr <- #i2d!I2D@."iMemRep";
-          LET inst <- #instStr!(RsToProc dataBytes)@."data";
 
           Read decEpoch <- "decEpoch";
           Call exeEpoch <- exeGetEpoch1();
@@ -278,7 +272,12 @@ Section Processor.
 
     Definition decodeNondetNR :=
       MODULE {
-        Rule "doDecode" :=
+        (* Nondeterministic kill *)
+        Rule "killDecode" :=
+          Call i2d <- i2dDeq();
+          Retv
+
+        with Rule "doDecode" :=
           Call i2d <- i2dDeq();
           LET f2d <- #i2d!I2D@."f2dOrig";
           LET pc <- #f2d!(F2D addrSize)@."pc";
