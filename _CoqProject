@@ -3,5 +3,7 @@
 -R kami/examples Ex
 -R kami/examples/isa_rv32 Ex
 -R kami/extraction Ext
+-R kami/compilation Compilation
+-R puar Puar
 -R processors Proc
 -R refinements Refinement
