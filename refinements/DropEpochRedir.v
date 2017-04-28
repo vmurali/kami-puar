@@ -593,8 +593,23 @@ Section Processor.
 
       + (* doRegRead *)
         admit.
+
       + (* killExecute *)
-        admit.
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        exists (Some "killExecute").
+        kinv_constr_det; kinv_eq_light; auto.
+        * destruct x12; try discriminate.
+          reflexivity.
+        * destruct x12; try discriminate.
+          inv H3; inv H13; apply getArchPc_execute_killed; auto.
+          unfold r2eValid.
+          apply eqb_false_iff; auto.
+
       + (* doExecute *)
         admit.
         
