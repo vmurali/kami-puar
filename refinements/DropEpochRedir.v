@@ -408,6 +408,20 @@ Section Processor.
     simpl; rewrite H; reflexivity.
   Qed.
 
+  Lemma getArchPc_execute_valid:
+    forall pcv decEpochv exeEpochv
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv d2rv r2ev
+           (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      exeRedirv Fin.F1 = false ->
+      r2eValid exeEpochv r2ee = true ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv (r2ee :: r2ev) =
+      r2ee Fin.F1.
+  Proof.
+    unfold getArchPc, getPcRedir, maybeToOption; intros; simpl.
+    rewrite H, H0; simpl; reflexivity.
+  Qed.
+
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
     kexistnv "pc" pcv ir (SyntaxKind (Bit addrSize)).
@@ -454,7 +468,7 @@ Section Processor.
 
       unfold thetaR in H1; dest; subst; subst.
       kinvert.
-      
+
       + (* doFetch *)
         kinv_action_dest.
         kinv_red; kregmap_red.
@@ -611,8 +625,52 @@ Section Processor.
           apply eqb_false_iff; auto.
 
       + (* doExecute *)
-        admit.
-        
+        kinv_action_dest.
+
+        * (* case redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x16 as [|r2ee ?]; try discriminate.
+          inv H3; inv H13; inv H17; inv H20.
+
+          exists (Some "doExecute").
+          kinv_constr_det; kinv_eq_light; auto.
+
+          simpl; destruct (weq _ _); auto.
+          elim n; clear n.
+          apply eq_sym, getArchPc_execute_valid; auto.
+          unfold r2eValid; simpl.
+          rewrite eqb_reflx; reflexivity.
+
+        * (* case redirected *)
+          kinv_red; kregmap_red.
+          kinvert_det; kinv_action_dest.
+          destruct H.
+          kinv_red; kregmap_red; kinv_red.
+
+          destruct x11 as [|r2ee ?]; try discriminate.
+          inv H3; inv H13.
+
+          exists (Some "doExecute").
+          kinv_constr_det; kinv_eq_light; auto.
+          { simpl; destruct (weq _ _); auto.
+            elim n; clear n.
+            apply eq_sym, getArchPc_execute_valid; auto.
+            { destruct (x3 Fin.F1); auto.
+              specialize (HerSpec eq_refl).
+              unfold consistentExeEpoch in HerSpec; dest.
+              inv H3.
+              exfalso; eapply negb_eq_false; eauto.
+            }
+            { unfold r2eValid; simpl.
+              rewrite eqb_reflx; reflexivity.
+            }
+          }
+          { admit. }
+
   Admitted.
   
 End Processor.
