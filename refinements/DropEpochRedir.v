@@ -123,16 +123,6 @@ Section Processor.
       else getArchPcD2R exeEpoch d2r'
     end.
 
-  Fixpoint getArchPcR2E (exeEpoch: bool) (r2e: list (type (Struct R2E)))
-    : option (fullType type (SyntaxKind (Bit addrSize))) :=
-    match r2e with
-    | nil => None
-    | e :: r2e' =>
-      if r2eValid exeEpoch e
-      then Some (e Fin.F1)
-      else getArchPcR2E exeEpoch r2e'
-    end.
-
   Lemma getArchPcD2R_app:
     forall exeEpochv (d2rv1 d2rv2: list (type (Struct D2R))),
       getArchPcD2R exeEpochv (d2rv1 ++ d2rv2) =
@@ -144,6 +134,29 @@ Section Processor.
     induction d2rv1; intros; auto.
     simpl.
     destruct (d2rValid exeEpochv a); auto.
+  Qed.
+
+  Fixpoint getArchPcR2E (exeEpoch: bool) (r2e: list (type (Struct R2E)))
+    : option (fullType type (SyntaxKind (Bit addrSize))) :=
+    match r2e with
+    | nil => None
+    | e :: r2e' =>
+      if r2eValid exeEpoch e
+      then Some (e Fin.F1)
+      else getArchPcR2E exeEpoch r2e'
+    end.
+
+  Lemma getArchPcR2E_app:
+    forall exeEpochv (r2ev1 r2ev2: list (type (Struct R2E))),
+      getArchPcR2E exeEpochv (r2ev1 ++ r2ev2) =
+      match getArchPcR2E exeEpochv r2ev1 with
+      | Some v => Some v
+      | None => getArchPcR2E exeEpochv r2ev2
+      end.
+  Proof.
+    induction r2ev1; intros; auto.
+    simpl.
+    destruct (r2eValid exeEpochv a); auto.
   Qed.
 
   Local Definition otake {A} (oa: option A) (default: A): A :=
@@ -396,6 +409,24 @@ Section Processor.
     simpl; rewrite H; reflexivity.
   Qed.
 
+  Lemma getArchPc_regRead_pass:
+    forall pcv decEpochv exeEpochv decRedirv exeRedirv
+           f2iv i2dv d2rv (d2re: fullType type (SyntaxKind (Struct D2R)))
+           r2ev (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      d2re Fin.F1 = r2ee Fin.F1 ->
+      d2re (Fin.FS (Fin.FS (Fin.FS Fin.F1))) =
+      r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv (d2re :: d2rv) r2ev =
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv (r2ev ++ [r2ee]).
+  Proof.
+    unfold getArchPc; intros.
+    rewrite getArchPcR2E_app; simpl.
+    unfold d2rValid, r2eValid.
+    rewrite H, H0.
+    destruct (getArchPcR2E exeEpochv r2ev); auto; simpl.
+    destruct (eqb _ _); auto.
+  Qed.
+
   Lemma getArchPc_execute_killed:
     forall pcv decEpochv exeEpochv decRedirv exeRedirv
            f2iv i2dv d2rv r2ev
@@ -421,6 +452,27 @@ Section Processor.
     unfold getArchPc, getPcRedir, maybeToOption; intros; simpl.
     rewrite H, H0; simpl; reflexivity.
   Qed.
+
+  Lemma getArchPc_execute_valid_post:
+    forall pcv decEpochv exeEpochv
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv d2rv r2ev
+           (r2ee: fullType type (SyntaxKind (Struct R2E))),
+      exeRedirv Fin.F1 = false ->
+      r2eValid exeEpochv r2ee = true ->
+      consistentExeEpoch exeEpochv f2iv i2dv d2rv (r2ee :: r2ev) ->
+      ((decRedirv Fin.F1 = false /\
+        pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv (r2ee :: r2ev)) \/
+       (decRedirv Fin.F1 = true /\
+        pcChainFromDec (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1))
+                       exeEpochv d2rv (r2ee :: r2ev))) ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      r2ee (Fin.FS Fin.F1).
+  Proof.
+    intros; destruct H2; dest.
+    - unfold consistentExeEpoch in H1; dest.
+      unfold pcChainFromPc in H3; simpl in H3.
+  Admitted.
 
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
@@ -606,7 +658,20 @@ Section Processor.
           }
 
       + (* doRegRead *)
-        admit.
+        kinv_action_dest.
+        kinv_red; kregmap_red.
+        kinvert_det; kinv_action_dest.
+        destruct H.
+        kinv_red; kregmap_red; kinv_red.
+
+        destruct x15 as [|d2re ?]; try discriminate.
+        inv H3; inv H13.
+
+        exists (Some "doRegRead").
+        kinv_constr_det; kinv_eq_light; auto.
+        * kinv_finish.
+        * kinv_finish.
+        * apply getArchPc_regRead_pass; auto.
 
       + (* killExecute *)
         kinv_action_dest.
@@ -669,8 +734,29 @@ Section Processor.
               rewrite eqb_reflx; reflexivity.
             }
           }
-          { admit. }
+          { (* TODO: should be able to prove the below replacement by requiring
+             * more assumptions to AbstractIsa.execInst
+             *)
+            replace
+              (evalExpr
+                 (execInst type (r2ee (Fin.FS (Fin.FS Fin.F1)))
+                           (r2ee (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+                           (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (r2ee Fin.F1) 
+                           (r2ee (Fin.FS Fin.F1))) (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
+            with (r2ee (Fin.FS Fin.F1)) by admit.
 
+            (* exeRedir should be empty *)
+            assert (x3 Fin.F1 = false) by admit.
+
+            apply eq_sym, getArchPc_execute_valid_post; auto.
+            { unfold r2eValid.
+              rewrite eqb_reflx; reflexivity.
+            }
+            { destruct (x2 Fin.F1).
+              { right; repeat split; auto. }
+              { left; repeat split; auto. }
+            }
+          }
   Admitted.
   
 End Processor.

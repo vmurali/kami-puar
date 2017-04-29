@@ -46,22 +46,14 @@ Section Processor.
 
           Assert (#bst1 != $$bypassStStallE && #bst1 != $$bypassStStallM);
           Assert (#bst2 != $$bypassStStallE && #bst2 != $$bypassStStallM);
-                                                       
-          If (#bst1 == $$bypassStClean)
-          then 
-            Call rVal1 <- rfrd1(#src1);
-            Ret #rVal1
-          else
-            Ret #bpVal1!(BypassStr dataBytes)@."value"
-          as rVal1;            
 
-          If (#bst2 == $$bypassStClean)
-          then 
-            Call rVal2 <- rfrd2(#src2);
-            Ret #rVal2
-          else
-            Ret #bpVal2!(BypassStr dataBytes)@."value"
-          as rVal2;            
+          Call rVal1Rf <- rfrd1(#src1);
+          LET rVal1 <- IF (#bst1 == $$bypassStClean)
+                       then #rVal1Rf else #bpVal1!(BypassStr dataBytes)@."value";
+
+          Call rVal2Rf <- rfrd2(#src2);
+          LET rVal2 <- IF (#bst2 == $$bypassStClean)
+                       then #rVal2Rf else #bpVal2!(BypassStr dataBytes)@."value";
 
           LET dst <- #dInst!(decodedInst dataBytes rfIdx)@."dst";
 
