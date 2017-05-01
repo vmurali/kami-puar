@@ -69,8 +69,11 @@ Section Processor.
                    STRUCT { "pc" ::= #pc;
                             "taken" ::= #eInst!execInst@."brTaken" });
             Call exeToggleEpoch();
+            Retv
+          else
+            Assert (#eInst!execInst@."addr" == #predPc);
             Retv;
-
+            
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });
           Retv
       }.
@@ -113,6 +116,9 @@ Section Processor.
                    STRUCT { "pc" ::= #pc;
                             "nextPc" ::= #eInst!execInst@."addr" });
             Call exeToggleEpoch();
+            Retv
+          else
+            Assert (#eInst!execInst@."addr" == #predPc);
             Retv;
 
           Call e2mEnq(STRUCT { "eInst" ::= #eInst; "poisoned" ::= $$false });

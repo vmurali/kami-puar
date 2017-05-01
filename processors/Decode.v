@@ -79,7 +79,6 @@ Section Processor.
     
     Definition bhtPredPcStr :=
       STRUCT { "pc" :: Bit addrSize;
-               "predPc" :: Bit addrSize;
                "dInst" :: Struct DecodedInst
              }.
     
@@ -88,7 +87,6 @@ Section Processor.
         Method "bhtPredPc"(pp: Struct bhtPredPcStr): Struct (Maybe (Bit addrSize)) :=
           LET dInst <- #pp!bhtPredPcStr@."dInst";
           LET pc <- #pp!bhtPredPcStr@."pc";
-          LET predPc <- #pp!bhtPredPcStr@."predPc";
           LET iType <- #dInst!DecodedInst@."iType";
             
           If (#iType == $$iTypeBr)
@@ -98,31 +96,15 @@ Section Processor.
                                              then #pc + UniBit (ZeroExtendTrunc _ _)
                                                                #dInst!DecodedInst@."imm"
                                              else #pc + $4);
-            If (#predPc != #bhtPredPc)
-            then
-              LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
-                                                                  "value" ::= #bhtPredPc };
-              Ret #ret
-            else (* #predPc == #bhtPredPc *)
-              LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
-                                                                  "value" ::= $$Default };
-              Ret #ret
-            as ret;
+            LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
+                                                                "value" ::= #bhtPredPc };
             Ret #ret
           else (* #iType != $$iTypeBr *)
             If (#iType == $$iTypeJ)
             then
               LET jumpAddr <- #pc + UniBit (ZeroExtendTrunc _ _) #dInst!DecodedInst@."imm";
-              If (#predPc != #jumpAddr)
-              then
-                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
-                                                                    "value" ::= #jumpAddr };
-                Ret #ret
-              else (* #predPc == #jumpAddr *)
-                LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$false;
-                                                                    "value" ::= $$Default };
-                Ret #ret
-              as ret;
+              LET ret : Struct (Maybe (Bit addrSize)) <- STRUCT { "isValid" ::= $$true;
+                                                                  "value" ::= #jumpAddr };
               Ret #ret
             else (* #iType != $$iTypeJ *)
               Ret (STRUCT { "isValid" ::= $$false; "value" ::= $$Default })
@@ -196,20 +178,28 @@ Section Processor.
                                    "isLd" ::= #iType == $$iTypeLd });
                   
           (* Branch prediction related *)
-          Call predPc <- bhtPredPc(STRUCT { "pc" ::= #pc;
-                                            "predPc" ::= #f2d!(F2D addrSize)@."predPc";
-                                            "dInst" ::= #dInst });
-          Call d2rEnq(STRUCT { "pc" ::= #pc;
-                               "predPc" ::= #predPc!(Maybe (Bit addrSize))@."value";
-                               "dInst" ::= #dInst;
-                               "exeEpoch" ::= #exeEpoch });
+          Call bpredPc <- bhtPredPc(STRUCT { "pc" ::= #pc; "dInst" ::= #dInst });
 
-          If (#predPc!(Maybe (Bit addrSize))@."isValid")
+          (* Something is predicted and it is different from the old predicted one, *)
+          If ((#bpredPc!(Maybe (Bit addrSize))@."isValid")
+                && (#bpredPc!(Maybe (Bit addrSize))@."value" != #predPc))
           then
+            (* Redirect and send the newly predicted pc to the next stage *)
             Call (redirSetValid addrSize "dec")(
                    STRUCT { "pc" ::= #pc;
-                            "nextPc" ::= #predPc!(Maybe (Bit addrSize))@."value" });
+                            "nextPc" ::= #bpredPc!(Maybe (Bit addrSize))@."value" });
             Write "decEpoch" <- !#decEpoch;
+            Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                 "predPc" ::= #bpredPc!(Maybe (Bit addrSize))@."value";
+                                 "dInst" ::= #dInst;
+                                 "exeEpoch" ::= #exeEpoch });
+            Retv
+          else
+            (* If not, then just pass the old predicted pc *)
+            Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                 "predPc" ::= #predPc;
+                                 "dInst" ::= #dInst;
+                                 "exeEpoch" ::= #exeEpoch });
             Retv;
           Retv
       }.
@@ -253,19 +243,29 @@ Section Processor.
                                    "dst" ::= #dInst!DecodedInst@."dst";
                                    "isLd" ::= #iType == $$iTypeLd });
 
-          Nondet predPcN : SyntaxKind (Bit addrSize);
-          Nondet isValid : SyntaxKind Bool;
+          (* Branch prediction related *)
+          Nondet bpredPc : SyntaxKind (Struct (Maybe (Bit addrSize)));
 
-          Call d2rEnq(STRUCT { "pc" ::= #pc;
-                               "predPc" ::= #predPcN;
-                               "dInst" ::= #dInst;
-                               "exeEpoch" ::= #exeEpoch });
-
-          If #isValid then
+          (* Something is predicted and it is different from the old predicted one, *)
+          If ((#bpredPc!(Maybe (Bit addrSize))@."isValid")
+                && (#bpredPc!(Maybe (Bit addrSize))@."value" != #predPc))
+          then
+            (* Redirect and send the newly predicted pc to the next stage *)
             Call (redirSetValid addrSize "dec")(
                    STRUCT { "pc" ::= #pc;
-                            "nextPc" ::= #predPcN });
+                            "nextPc" ::= #bpredPc!(Maybe (Bit addrSize))@."value" });
             Write "decEpoch" <- !#decEpoch;
+            Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                 "predPc" ::= #bpredPc!(Maybe (Bit addrSize))@."value";
+                                 "dInst" ::= #dInst;
+                                 "exeEpoch" ::= #exeEpoch });
+            Retv
+          else
+            (* If not, then just pass the old predicted pc *)
+            Call d2rEnq(STRUCT { "pc" ::= #pc;
+                                 "predPc" ::= #predPc;
+                                 "dInst" ::= #dInst;
+                                 "exeEpoch" ::= #exeEpoch });
             Retv;
           Retv
       }.

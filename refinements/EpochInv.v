@@ -123,52 +123,6 @@ Section Processor.
              (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
     ((map r2eToEpochPc r2ev) ++ (map d2rToEpochPc d2rv))%list.
 
-  (** [pcChainFromPc] and [pcChainFromDec] describe invariants
-   * when there are no redirections, saying that pc/predPc pairs generate
-   * a chain (started from either [pc] or [decRedir]) throughout the fifos.
-   *)
-  Definition decEpochMatches (decEpoch: bool) (pDecEpoch: option bool) :=
-    match pDecEpoch with
-    | Some pde => eqb decEpoch pde
-    | None => true
-    end.
-
-  (* NOTE: head should be the youngest! *)
-  Fixpoint pcChainDecExe (pcv: fullType type (SyntaxKind (Bit addrSize)))
-           (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
-           (eps: list EpochPc) :=
-    match eps with
-    | nil => True
-    | ep :: eps' =>
-      if (decEpochMatches decEpochv (pDecEpoch ep))
-           && (eqb exeEpochv (pExeEpoch ep))
-      then pcv = pPredPc ep /\ pcChainDecExe (pPc ep) decEpochv exeEpochv eps'
-      else True
-    end.
-  
-  Definition pcChainFromPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
-             (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
-             (f2iv: list (type (Struct F2I))) (i2dv: list (type (Struct I2D)))
-             (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
-    pcChainDecExe pcv decEpochv exeEpochv (List.rev (epochPcFidre f2iv i2dv d2rv r2ev)).
-
-  (* NOTE: head should be the youngest! *)
-  Fixpoint pcChainExe (pcv: fullType type (SyntaxKind (Bit addrSize)))
-           (exeEpochv: fullType type (SyntaxKind Bool))
-           (eps: list EpochPc) :=
-    match eps with
-    | nil => True
-    | ep :: eps' =>
-      if eqb exeEpochv (pExeEpoch ep)
-      then pcv = pPredPc ep /\ pcChainExe (pPc ep) exeEpochv eps'
-      else True
-    end.
-
-  Definition pcChainFromDec (pcv: fullType type (SyntaxKind (Bit addrSize)))
-             (exeEpochv: fullType type (SyntaxKind Bool))
-             (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
-    pcChainExe pcv exeEpochv (List.rev (epochPcDre d2rv r2ev)).
-
   Definition getOldest
              (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D)))
              (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
@@ -176,6 +130,40 @@ Section Processor.
     | nil => None
     | hd :: _ => Some hd
     end.
+
+  (** [pcChainFromPc] and [pcChainFromDec] describe invariants
+   * when there are no redirections, saying that pc/predPc pairs generate
+   * a chain (started from either [pc] or [decRedir]) throughout the fifos.
+   *)
+  Definition decEpochMatches (decEpoch: bool) (pDecEpoch: option bool) :=
+    match pDecEpoch with
+    | Some pde => eqb pde decEpoch
+    | None => true
+    end.
+
+  (* NOTE: head should be the youngest! *)
+  Fixpoint pcChain (pcv: fullType type (SyntaxKind (Bit addrSize)))
+           (eps: list EpochPc) :=
+    match eps with
+    | nil => True
+    | ep :: eps' => pcv = pPredPc ep /\ pcChain (pPc ep) eps'
+    end.
+  
+  Definition pcChainFromPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
+             (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
+             (f2iv: list (type (Struct F2I))) (i2dv: list (type (Struct I2D)))
+             (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
+    pcChain
+      pcv (List.rev (List.filter (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                                              && (eqb (pExeEpoch ep) exeEpochv))
+                                 (epochPcFidre f2iv i2dv d2rv r2ev))).
+
+  Definition pcChainFromDec (pcv: fullType type (SyntaxKind (Bit addrSize)))
+             (exeEpochv: fullType type (SyntaxKind Bool))
+             (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
+    pcChain
+      pcv (List.rev (List.filter (fun ep => eqb (pExeEpoch ep) exeEpochv)
+                                 (epochPcDre d2rv r2ev))).
 
   (** [consistentDecEpoch] and [consistentExeEpoch] describe invariants
    * when a pc value is redirected from Decode or Execute, respectively,
@@ -253,17 +241,18 @@ Section Processor.
       HerSpec: exeRedirv Fin.F1 = true ->
                consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev;
 
-      (** Invariants with no redirections, about pc/predPc chain *)
-      Hchain1: decRedirv Fin.F1 = false ->
-               exeRedirv Fin.F1 = false ->
-               pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev;
-      Hchain2: decRedirv Fin.F1 = true ->
+      (** Invariants about pc/predPc chain *)
+      Hchain1: decRedirv Fin.F1 = true ->
                exeRedirv Fin.F1 = false ->
                pcChainFromDec (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) exeEpochv d2rv r2ev;
+      Hchain2: decRedirv Fin.F1 = false ->
+               decRedirv Fin.F1 = false ->
+               pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev;
 
       (** An invariant about exeEpoch *)
       HeeSpec3: match getOldest f2iv i2dv d2rv r2ev with
                 | Some ep => pExeEpoch ep = exeEpochv ->
+                             exeRedirv Fin.F1 = false /\
                              consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev
                 | None => True
                 end
@@ -283,8 +272,9 @@ Section Processor.
     (*   auto. *)
     (* intros; inv H0. *)
     (* intros; inv H0. *)
-    (* intros; vm_compute; auto. *)
-    (* intros; vm_compute; auto. *)
+    (* vm_compute; auto. *)
+    (* vm_compute; auto. *)
+    (* vm_compute; auto. *)
 
     (* (* induction case *) *)
     (* clear H o; intros. *)

@@ -453,6 +453,157 @@ Section Processor.
     rewrite H, H0; simpl; reflexivity.
   Qed.
 
+  Definition epochPcValid (decEpochv exeEpochv: bool) (ep: EpochPc addrSize) :=
+    decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv.
+
+  Fixpoint getArchPcEpochPc (decEpochv exeEpochv: bool)
+           (eps: list (EpochPc addrSize)) :=
+    match eps with
+    | nil => None
+    | ep :: eps' =>
+      if epochPcValid decEpochv exeEpochv ep
+      then Some (pPc ep)
+      else getArchPcEpochPc decEpochv exeEpochv eps'
+    end.
+
+  Lemma getArchPcF2I_getArchPcEpochPc:
+    forall decEpochv exeEpochv f2iv,
+    getArchPcF2I decEpochv exeEpochv f2iv =
+    getArchPcEpochPc decEpochv exeEpochv
+                     (map (f2iToEpochPc (dataBytes:=dataBytes)) f2iv).
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    change (f2iValid decEpochv exeEpochv a)
+    with (epochPcValid decEpochv exeEpochv (f2iToEpochPc a)).
+    destruct (epochPcValid _ _ _); auto.
+  Qed.
+
+  Lemma getArchPcI2D_getArchPcEpochPc:
+    forall decEpochv exeEpochv i2dv,
+      getArchPcI2D decEpochv exeEpochv i2dv =
+      getArchPcEpochPc decEpochv exeEpochv
+                       (map (i2dToEpochPc (dataBytes:=dataBytes)) i2dv).
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    change (i2dValid decEpochv exeEpochv a)
+    with (epochPcValid decEpochv exeEpochv (i2dToEpochPc a)).
+    destruct (epochPcValid _ _ _); auto.
+  Qed.
+
+  Lemma getArchPcD2R_getArchPcEpochPc:
+    forall decEpochv exeEpochv d2rv,
+      getArchPcD2R exeEpochv d2rv =
+      getArchPcEpochPc decEpochv exeEpochv
+                       (map (d2rToEpochPc (rfIdx:=rfIdx)) d2rv).
+  Proof.
+    induction d2rv; simpl; intros; auto.
+    change (d2rValid exeEpochv a)
+    with (epochPcValid decEpochv exeEpochv (d2rToEpochPc a)).
+    destruct (epochPcValid _ _ _); auto.
+  Qed.
+
+  Lemma getArchPcR2E_getArchPcEpochPc:
+    forall decEpochv exeEpochv r2ev,
+      getArchPcR2E exeEpochv r2ev =
+      getArchPcEpochPc decEpochv exeEpochv
+                       (map (r2eToEpochPc (rfIdx:=rfIdx)) r2ev).
+  Proof.
+    induction r2ev; simpl; intros; auto.
+    change (r2eValid exeEpochv a)
+    with (epochPcValid decEpochv exeEpochv (r2eToEpochPc a)).
+    destruct (epochPcValid _ _ _); auto.
+  Qed.
+
+  Lemma getArchPcEpochPc_otake:
+    forall pcv decEpochv exeEpochv eps1 eps2,
+      (getArchPcEpochPc decEpochv exeEpochv (eps1 ++ eps2)) >>= pcv =
+      (getArchPcEpochPc decEpochv exeEpochv eps1)
+        >>= (getArchPcEpochPc decEpochv exeEpochv eps2)
+        >>= pcv.
+  Proof.
+    induction eps1; simpl; intros; auto.
+    destruct (epochPcValid _ _ _); auto.
+  Qed.
+
+  Lemma getArchPc_epochPc_consistent_exe:
+    forall pcv decEpochv exeEpochv
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv d2rv r2ev,
+      exeRedirv Fin.F1 = false ->
+      decRedirv Fin.F1 = false ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      (getArchPcEpochPc decEpochv exeEpochv (epochPcFidre f2iv i2dv d2rv r2ev)) >>= pcv.
+  Proof.
+    intros.
+    unfold getArchPc, epochPcFidre.
+    repeat rewrite getArchPcEpochPc_otake.
+    unfold getPcRedir, maybeToOption.
+    rewrite H, H0; simpl.
+
+    rewrite getArchPcF2I_getArchPcEpochPc.
+    rewrite getArchPcI2D_getArchPcEpochPc.
+    erewrite getArchPcD2R_getArchPcEpochPc.
+    erewrite getArchPcR2E_getArchPcEpochPc.
+    reflexivity.
+  Qed.
+
+  Lemma getArchPc_epochPc_consistent_dec:
+    forall pcv decEpochv exeEpochv
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv i2dv d2rv r2ev,
+      exeRedirv Fin.F1 = false ->
+      decRedirv Fin.F1 = true ->
+      getArchPc pcv decEpochv exeEpochv decRedirv exeRedirv f2iv i2dv d2rv r2ev =
+      (getArchPcEpochPc decEpochv exeEpochv (epochPcDre d2rv r2ev))
+        >>= (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)).
+  Proof.
+    intros.
+    unfold getArchPc, epochPcDre.
+    repeat rewrite getArchPcEpochPc_otake.
+
+    unfold getPcRedir, maybeToOption.
+    rewrite H, H0; simpl.
+
+    erewrite getArchPcD2R_getArchPcEpochPc.
+    erewrite getArchPcR2E_getArchPcEpochPc.
+    reflexivity.
+  Qed.
+
+  Lemma pcChain_app:
+    forall (eps1 eps2: list (EpochPc addrSize)) pcv,
+      pcChain pcv (eps1 ++ eps2) ->
+      pcChain pcv eps1 /\ pcChain (match List.rev eps1 with
+                                   | nil => pcv
+                                   | ep :: _ => pPc ep
+                                   end) eps2.
+  Proof.
+    induction eps1; simpl; intros; eauto.
+    dest; subst.
+    specialize (IHeps1 _ _ H0); dest.
+    repeat split; auto.
+
+    remember (List.rev eps1) as reps1; destruct reps1;
+      simpl in *; auto.
+  Qed.
+
+  Lemma getArchPcEpochPc_filter_consistent:
+    forall pcv decEpochv exeEpochv eps,
+      match getArchPcEpochPc decEpochv exeEpochv eps with
+      | Some v => v
+      | None => pcv
+      end =
+      match filter (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                                && (eqb (pExeEpoch ep) exeEpochv)) eps
+      with
+      | nil => pcv
+      | ep :: _ => pPc ep
+      end.
+  Proof.
+    induction eps; simpl; intros; auto.
+    unfold epochPcValid.
+    destruct (decEpochMatches decEpochv (pDecEpoch a) && eqb (pExeEpoch a) exeEpochv); auto.
+  Qed.
+
   Lemma getArchPc_execute_valid_post:
     forall pcv decEpochv exeEpochv
            (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
@@ -470,9 +621,48 @@ Section Processor.
       r2ee (Fin.FS Fin.F1).
   Proof.
     intros; destruct H2; dest.
-    - unfold consistentExeEpoch in H1; dest.
+
+    - rewrite getArchPc_epochPc_consistent_exe by assumption.
+      unfold consistentExeEpoch in H1; dest.
+      inv H6.
       unfold pcChainFromPc in H3; simpl in H3.
-  Admitted.
+      rewrite eqb_reflx in H3; simpl in H3.
+      apply pcChain_app in H3; dest.
+      rewrite rev_involutive in H6; simpl in H6; dest.
+      rewrite <-H6.
+      unfold epochPcFidre.
+      apply getArchPcEpochPc_filter_consistent.
+
+    - rewrite getArchPc_epochPc_consistent_dec by assumption.
+      unfold consistentExeEpoch in H1; dest.
+      inv H6.
+      unfold pcChainFromDec in H3; simpl in H3.
+      rewrite eqb_reflx in H3; simpl in H3.
+      apply pcChain_app in H3; dest.
+      rewrite rev_involutive in H6; simpl in H6; dest.
+      rewrite <-H6.
+      unfold epochPcDre.
+ 
+      match goal with
+      | [ |- _ = match ?fl with | nil => _ | _ => _ end ] =>
+        replace fl with
+        (filter
+           (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                        && (eqb (pExeEpoch ep)
+                                (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
+           (map (r2eToEpochPc (rfIdx:=rfIdx)) r2ev ++ map (d2rToEpochPc (rfIdx:=rfIdx)) d2rv))
+      end.
+      apply getArchPcEpochPc_filter_consistent.
+
+      clear.
+      rewrite 2! filter_app; f_equal.
+      + induction r2ev; simpl; intros; auto.
+        destruct (eqb _ _); auto.
+        f_equal; auto.
+      + induction d2rv; simpl; intros; auto.
+        destruct (eqb _ _); auto.
+        f_equal; auto.
+  Qed.
 
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
@@ -520,7 +710,7 @@ Section Processor.
 
       unfold thetaR in H1; dest; subst; subst.
       kinvert.
-
+        
       + (* doFetch *)
         kinv_action_dest.
         kinv_red; kregmap_red.
@@ -615,8 +805,8 @@ Section Processor.
           destruct H.
           kinv_red; kregmap_red; kinv_red.
 
-          destruct x13 as [|i2de ?]; try discriminate.
-          inv H3; inv H13; inv H15; inv H20.
+          destruct x15 as [|i2de ?]; try discriminate.
+          inv H3; inv H13; inv H19; inv H22.
 
           exists (Some "doDecode").
           kinv_constr_det; kinv_eq_light; auto.
@@ -652,7 +842,7 @@ Section Processor.
             { destruct (x2 Fin.F1); auto.
               specialize (HdrSpec eq_refl).
               inv HdrSpec.
-              inv H1.
+              inv H0.
               exfalso; eapply negb_eq_false; eauto.
             }
           }
@@ -710,7 +900,7 @@ Section Processor.
           unfold r2eValid; simpl.
           rewrite eqb_reflx; reflexivity.
 
-        * (* case redirected *)
+        * (* case not redirected *)
           kinv_red; kregmap_red.
           kinvert_det; kinv_action_dest.
           destruct H.
@@ -727,27 +917,15 @@ Section Processor.
             { destruct (x3 Fin.F1); auto.
               specialize (HerSpec eq_refl).
               unfold consistentExeEpoch in HerSpec; dest.
-              inv H3.
+              inv H2.
               exfalso; eapply negb_eq_false; eauto.
             }
             { unfold r2eValid; simpl.
               rewrite eqb_reflx; reflexivity.
             }
           }
-          { (* TODO: should be able to prove the below replacement by requiring
-             * more assumptions to AbstractIsa.execInst
-             *)
-            replace
-              (evalExpr
-                 (execInst type (r2ee (Fin.FS (Fin.FS Fin.F1)))
-                           (r2ee (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
-                           (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))) (r2ee Fin.F1) 
-                           (r2ee (Fin.FS Fin.F1))) (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-            with (r2ee (Fin.FS Fin.F1)) by admit.
-
-            (* exeRedir should be empty *)
-            assert (x3 Fin.F1 = false) by admit.
-
+          { specialize (HeeSpec3 eq_refl); dest.
+            rewrite e.
             apply eq_sym, getArchPc_execute_valid_post; auto.
             { unfold r2eValid.
               rewrite eqb_reflx; reflexivity.
@@ -757,7 +935,7 @@ Section Processor.
               { left; repeat split; auto. }
             }
           }
-  Admitted.
+  Qed.
   
 End Processor.
 
