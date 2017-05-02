@@ -81,6 +81,20 @@ Section Processor.
   Definition D2R := D2R addrSize dataBytes rfIdx.
   Definition R2E := R2E addrSize dataBytes rfIdx.
 
+  Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
+    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
+    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
+        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
+    eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
+
+  Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
+    eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
+
   Record EpochPc := { pPc : word addrSize;
                       pPredPc : word addrSize;
                       pDecEpoch : option bool;
@@ -165,6 +179,24 @@ Section Processor.
       pcv (List.rev (List.filter (fun ep => eqb (pExeEpoch ep) exeEpochv)
                                  (epochPcDre d2rv r2ev))).
 
+  Lemma pcChainFromPc_f2i_enq:
+    forall pcv pcv' decEpochv exeEpochv f2iv (f2ie: type (Struct F2I)) i2dv d2rv r2ev,
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev ->
+      f2iValid decEpochv exeEpochv f2ie = true ->
+      pcv = f2ie Fin.F1 Fin.F1 ->
+      pcv' = f2ie Fin.F1 (Fin.FS Fin.F1) ->
+      pcChainFromPc pcv' decEpochv exeEpochv (f2iv ++ [f2ie]) i2dv d2rv r2ev.
+  Proof.
+    unfold pcChainFromPc, epochPcFidre; intros.
+    repeat (rewrite filter_app || rewrite rev_app_distr || rewrite map_app); simpl.
+    repeat ((rewrite filter_app in H)
+            || (rewrite rev_app_distr in H)
+            || (rewrite map_app in H)); simpl in H.
+    unfold f2iValid in H0; rewrite H0; simpl.
+    split; auto.
+    rewrite <-H1; auto.
+  Qed.
+
   (** [consistentDecEpoch] and [consistentExeEpoch] describe invariants
    * when a pc value is redirected from Decode or Execute, respectively,
    * saying that all epoch values are same throughout the fifos.
@@ -201,6 +233,210 @@ Section Processor.
              (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
     consistentExeEpochF2I exeEpoch f2i /\ consistentExeEpochI2D exeEpoch i2d /\
     consistentExeEpochD2R exeEpoch d2r /\ consistentExeEpochR2E exeEpoch r2e.
+
+  Lemma consistentDecEpochF2I_filter_nil:
+    forall decEpochv exeEpochv f2iv,
+      consistentDecEpochF2I (negb decEpochv) f2iv ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map f2iToEpochPc f2iv) = nil.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv;
+      try (inv H2; fail);
+      try (simpl; auto).
+  Qed.
+
+  Lemma consistentDecEpochI2D_filter_nil:
+    forall decEpochv exeEpochv i2dv,
+      consistentDecEpochI2D (negb decEpochv) i2dv ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map i2dToEpochPc i2dv) = nil.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv;
+      try (inv H2; fail);
+      try (simpl; auto).
+  Qed.
+
+  Lemma consistentExeEpochF2I_filter_nil:
+    forall decEpochv exeEpochv f2iv,
+      consistentExeEpochF2I (negb exeEpochv) f2iv ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map f2iToEpochPc f2iv) = nil.
+  Proof.
+    induction f2iv; simpl; intros; auto.
+    inv H.
+    destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
+      try (inv H2; fail);
+      try (rewrite andb_false_r; auto).
+  Qed.
+
+  Lemma consistentExeEpochI2D_filter_nil:
+    forall decEpochv exeEpochv i2dv,
+      consistentExeEpochI2D (negb exeEpochv) i2dv ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map i2dToEpochPc i2dv) = nil.
+  Proof.
+    induction i2dv; simpl; intros; auto.
+    inv H.
+    destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
+      try (inv H2; fail);
+      try (rewrite andb_false_r; auto).
+  Qed.
+
+  Lemma consistentExeEpochD2R_filter_nil:
+    forall decEpochv exeEpochv d2rv,
+      consistentExeEpochD2R (negb exeEpochv) d2rv ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map d2rToEpochPc d2rv) = nil.
+  Proof.
+    induction d2rv; simpl; intros; auto.
+    inv H.
+    destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
+      auto; inv H2.
+  Qed.
+
+  Lemma consistentExeEpochR2E_filter_nil:
+    forall decEpochv exeEpochv r2ev,
+      consistentExeEpochR2E (negb exeEpochv) r2ev ->
+      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
+             (map r2eToEpochPc r2ev) = nil.
+  Proof.
+    induction r2ev; simpl; intros; auto.
+    inv H.
+    destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv;
+      auto; inv H2.
+  Qed.
+
+  Lemma pcChainFromPc_consistentExeEpoch_invalid:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev,
+      consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentExeEpoch, pcChainFromPc, epochPcFidre; intros; dest.
+    repeat rewrite filter_app.
+    rewrite consistentExeEpochF2I_filter_nil by assumption.
+    rewrite consistentExeEpochI2D_filter_nil by assumption.
+    rewrite consistentExeEpochD2R_filter_nil by assumption.
+    rewrite consistentExeEpochR2E_filter_nil by assumption.
+    simpl; auto.
+  Qed.
+
+  Lemma pcChainFromPc_consistentDecEpoch_invalid:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev,
+      consistentDecEpoch (negb decEpochv) f2iv i2dv ->
+      pcChainFromDec pcv exeEpochv d2rv r2ev ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentDecEpoch, pcChainFromDec, pcChainFromPc, epochPcDre, epochPcFidre;
+      intros; dest.
+    rewrite filter_app in H0.
+    repeat rewrite filter_app.
+    rewrite consistentDecEpochF2I_filter_nil by assumption.
+    rewrite consistentDecEpochI2D_filter_nil by assumption.
+    simpl; auto.
+    rewrite app_nil_r.
+    match goal with
+    | [H: pcChain _ (List.rev (?r1 ++ ?d1)) |- pcChain _ (List.rev (?r2 ++ ?d2)) ] =>
+      replace r2 with r1
+    end.
+    match goal with
+    | [H: pcChain _ (List.rev (?r1 ++ ?d1)) |- pcChain _ (List.rev (?r2 ++ ?d2)) ] =>
+      replace d2 with d1; auto
+    end.
+    - clear; induction d2rv; simpl; intros; auto.
+      destruct (eqb _ _); auto.
+      f_equal; auto.
+    - clear; induction r2ev; simpl; intros; auto.
+      destruct (eqb _ _); auto.
+      f_equal; auto.
+  Qed.
+
+  Lemma getOldest_consistency_f2i_enq:
+    forall (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
+           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
+           f2iv (f2ie: type (Struct F2I)) i2dv d2rv r2ev,
+      (exeRedirv Fin.F1 = false -> f2ie Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpochv) ->
+      (f2ie Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpochv -> exeRedirv Fin.F1 = false) ->
+      match getOldest f2iv i2dv d2rv r2ev with
+      | Some ep =>
+        pExeEpoch ep = exeEpochv ->
+        exeRedirv Fin.F1 = false /\ consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev
+      | None => True
+      end ->
+      match getOldest (f2iv ++ [f2ie]) i2dv d2rv r2ev with
+      | Some ep =>
+        pExeEpoch ep = exeEpochv ->
+        exeRedirv Fin.F1 = false /\ consistentExeEpoch exeEpochv (f2iv ++ [f2ie]) i2dv d2rv r2ev
+      | None => True
+      end.
+  Proof.
+    unfold getOldest, epochPcFidre, consistentExeEpoch; intros.
+    destruct r2ev;
+      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
+        apply ListSupport.Forall_app; auto].
+    destruct d2rv;
+      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
+        apply ListSupport.Forall_app; auto].
+    destruct i2dv;
+      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
+        apply ListSupport.Forall_app; auto].
+    simpl; simpl in H1.
+    rewrite map_app; simpl.
+    match goal with
+    | [H: context[match (map _ ?l) with | nil => _ | _ => _ end] |- _] => destruct l
+    end.
+    - simpl; intros.
+      repeat split; repeat constructor; auto.
+    - simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto.
+      inv H3.
+      constructor; auto.
+      apply ListSupport.Forall_app; auto.
+  Qed.
+
+  Lemma consistentDecEpoch_pass_valid:
+    forall decEpochv f2iv f2ie i2dv i2de,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      consistentDecEpoch decEpochv (f2ie :: f2iv) i2dv ->
+      consistentDecEpoch decEpochv f2iv (i2dv ++ [i2de]).
+  Proof.
+    unfold consistentDecEpoch; intros; dest.
+    inv H0.
+    split; auto.
+    apply ListSupport.Forall_app; auto.
+    rewrite H; auto.
+  Qed.
+
+  Lemma consistentExeEpoch_f2i_pass_valid:
+    forall exeEpochv f2iv f2ie i2dv i2de d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      consistentExeEpoch exeEpochv (f2ie :: f2iv) i2dv d2rv r2ev ->
+      consistentExeEpoch exeEpochv f2iv (i2dv ++ [i2de]) d2rv r2ev.
+  Proof.
+    unfold consistentExeEpoch; intros; dest.
+    inv H0.
+    repeat split; auto.
+    apply ListSupport.Forall_app; auto.
+    rewrite H; auto.
+  Qed.
+
+  Lemma pcChainFromPc_f2i_pass_valid:
+    forall pcv decEpochv exeEpochv f2iv f2ie i2dv i2de d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      pcChainFromPc pcv decEpochv exeEpochv (f2ie :: f2iv) i2dv d2rv r2ev ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv (i2dv ++ [i2de]) d2rv r2ev.
+  Proof.
+  Admitted.
+
+  Lemma getOldest_f2i_pass_valid:
+    forall f2iv f2ie i2dv i2de d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      getOldest f2iv (i2dv ++ [i2de]) d2rv r2ev =
+      getOldest (f2ie :: f2iv) i2dv d2rv r2ev.
+  Proof.
+  Admitted.
 
   Record epoch_invariant (o: RegsT) : Prop :=
     { pcv : fullType type (SyntaxKind (Bit addrSize));
@@ -246,7 +482,7 @@ Section Processor.
                exeRedirv Fin.F1 = false ->
                pcChainFromDec (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) exeEpochv d2rv r2ev;
       Hchain2: decRedirv Fin.F1 = false ->
-               decRedirv Fin.F1 = false ->
+               exeRedirv Fin.F1 = false ->
                pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev;
 
       (** An invariant about exeEpoch *)
@@ -264,178 +500,227 @@ Section Processor.
   Lemma fidreComb_epoch_invariant_ok:
     forall o, reachable o fidreComb -> epoch_invariant o.
   Proof.
-    (* intros; apply stepInv with (m:= fidreComb); auto. *)
+    intros; apply stepInv with (m:= fidreComb); auto.
 
-    (* Focus 1. (* initial case *) *)
-    (* econstructor; *)
-    (*   try (findReify; (reflexivity || eassumption); fail); *)
-    (*   auto. *)
-    (* intros; inv H0. *)
-    (* intros; inv H0. *)
-    (* vm_compute; auto. *)
-    (* vm_compute; auto. *)
-    (* vm_compute; auto. *)
+    Focus 1. (* initial case *)
+    econstructor;
+      try (findReify; (reflexivity || eassumption); fail);
+      auto.
+    intros; inv H0.
+    intros; inv H0.
+    vm_compute; auto.
+    vm_compute; auto.
+    vm_compute; auto.
 
-    (* (* induction case *) *)
-    (* clear H o; intros. *)
-    (* apply step_implies_stepDet in H0; *)
-    (*   [|kequiv|repeat (constructor || reflexivity)|reflexivity]. *)
-    (* inv H0; simpl; try mred. *)
+    (* induction case *)
+    clear H o; intros.
+    apply step_implies_stepDet in H0;
+      [|kequiv|repeat (constructor || reflexivity)|reflexivity].
+    inv H0; simpl; try mred.
 
-    (* kinvert. *)
+    kinvert.
 
-    (* - (* doFetch *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
+    - (* doFetch *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
       
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
-    (*   + admit. *)
-    (*   + admit. *)
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + intros.
+        specialize (HdrSpec H); unfold consistentDecEpoch in HdrSpec; dest.
+        constructor; auto.
+        apply ListSupport.Forall_app; auto.
+        constructor; auto.
+        inv H2.
+        destruct (decRedirv Fin.F1); try discriminate.
+        destruct x2, decEpochv; auto; try discriminate.
+        specialize (HdeSpec1 eq_refl); discriminate.
+      + intros.
+        specialize (HerSpec H); unfold consistentExeEpoch in HerSpec; dest.
+        constructor; auto.
+        apply ListSupport.Forall_app; auto.
+        constructor; auto.
+        inv H2.
+        destruct (exeRedirv Fin.F1); try discriminate.
+        destruct x3, exeEpochv; auto; try discriminate.
+        specialize (HeeSpec1 eq_refl); discriminate.
+      + intros; inv H2; eapply pcChainFromPc_f2i_enq; try reflexivity.
+        * eauto.
+        * unfold f2iValid; simpl.
+          specialize (HdeSpec2 H); specialize (HeeSpec2 H0); subst.
+          rewrite 2! eqb_reflx; auto.
+      + apply getOldest_consistency_f2i_enq; auto;
+          try (inv H2; auto).
 
-    (* - (* redirectExe *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
+    - (* redirectExe *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
       
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + destruct (x5 Fin.F1); auto.
+      + inv H1.
+        destruct (x6 Fin.F1); auto.
+        destruct x0, decEpochv; auto.
+        specialize (HdeSpec1 eq_refl); discriminate.
+      + intros; reflexivity.
+      + inv H6; rewrite H4 in *.
+        destruct x2, exeEpochv; auto.
+        specialize (HeeSpec1 eq_refl); discriminate.
+      + intros; inv H.
+      + intros; inv H.
+      + intros; inv H.
+      + intros; inv H6.
+        specialize (HerSpec H4).
+        apply pcChainFromPc_consistentExeEpoch_invalid; auto.
+      + destruct (getOldest f2iv i2dv d2rv r2ev); auto.
+        intros; specialize (HeeSpec3 H); dest.
+        split; auto.
 
-    (*   + destruct (x5 Fin.F1); auto. *)
-    (*   + inv H1. *)
-    (*     destruct (x6 Fin.F1); auto. *)
-    (*     destruct x0, decEpochv; auto. *)
-    (*     specialize (HdeSpec1 eq_refl); discriminate. *)
-    (*   + intros; reflexivity. *)
-    (*   + inv H6; rewrite H4 in *. *)
-    (*     destruct x2, exeEpochv; auto. *)
-    (*     specialize (HeeSpec1 eq_refl); discriminate. *)
-    (*   + intros; inv H. *)
-    (*   + intros; inv H. *)
+    - (* redirectDec *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
+      
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + intros; reflexivity.
+      + inv H1; rewrite H6 in *.
+        destruct x3, decEpochv; auto.
+        specialize (HdeSpec1 eq_refl); discriminate.
+      + intros; inv H.
+      + intros; inv H.
+      + intros; inv H1.
+        specialize (Hchain1 H6 H0).
+        specialize (HdrSpec H6).
+        apply pcChainFromPc_consistentDecEpoch_invalid; auto.
         
-    (* - (* redirectDec *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
+    - (* doIMem *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
       
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
-
-    (*   + intros; reflexivity. *)
-    (*   + inv H1; rewrite H6 in *. *)
-    (*     destruct x3, decEpochv; auto. *)
-    (*     specialize (HdeSpec1 eq_refl); discriminate. *)
-    (*   + intros; inv H. *)
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + destruct x3 as [|f2ie ?]; try discriminate.
+        intros; specialize (HdrSpec H).
+        eapply consistentDecEpoch_pass_valid; eauto.
+        inv H1; inv H4; reflexivity.
+      + destruct x3 as [|f2ie ?]; try discriminate.
+        intros; specialize (HerSpec H).
+        eapply consistentExeEpoch_f2i_pass_valid; eauto.
+        inv H1; inv H4; reflexivity.
+      + destruct x3 as [|f2ie ?]; try discriminate.
+        intros; specialize (Hchain2 H H0).
+        eapply pcChainFromPc_f2i_pass_valid; eauto.
+        inv H1; inv H4; reflexivity.
+      + destruct x3 as [|f2ie ?]; try discriminate.
+        inv H1; inv H4.
+        rewrite getOldest_f2i_pass_valid with (f2ie:= f2ie) by reflexivity.
+        destruct (getOldest _ _ _ _); auto.
+        intros; specialize (HeeSpec3 H); dest.
+        split; auto.
+        eapply consistentExeEpoch_f2i_pass_valid; eauto.
         
-    (* - (* doIMem *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
+    - (* killDecode *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
       
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
-    (*   + admit. *)
-    (*   + admit. *)
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption;
+        admit.
       
-    (* - (* killDecode *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
+    - (* doDecode *)
+      kinv_action_dest;
+        kinv_red; kregmap_red;
+          kinvert_det; kinv_action_dest.
       
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
-    (*   + admit. *)
-    (*   + admit. *)
-      
-    (* - (* doDecode *) *)
-    (*   kinv_action_dest; *)
-    (*     kinv_red; kregmap_red; *)
-    (*       kinvert_det; kinv_action_dest. *)
-      
-    (*   + destruct H. *)
-    (*     kinv_red; kregmap_red; kinv_red. *)
-    (*     econstructor; *)
-    (*       try (findReify; try (reflexivity || eassumption); fail); *)
-    (*       try assumption. *)
-    (*     * specialize (HdeSpec2 e). *)
-    (*       subst; intros. *)
-    (*       exfalso; eapply no_fixpoint_negb; eauto. *)
-    (*     * intros; discriminate. *)
-    (*     * admit. *)
-    (*     * admit. *)
+      + destruct H.
+        kinv_red; kregmap_red; kinv_red.
+        econstructor;
+          try (findReify; try (reflexivity || eassumption); fail);
+          try assumption.
+        * specialize (HdeSpec2 e).
+          subst; intros.
+          exfalso; eapply no_fixpoint_negb; eauto.
+        * intros; discriminate.
+        * admit.
+        * admit.
 
-    (*   + destruct H. *)
-    (*     kinv_red; kregmap_red; kinv_red. *)
-    (*     econstructor; *)
-    (*       try (findReify; try (reflexivity || eassumption); fail); *)
-    (*       try assumption. *)
-    (*     * admit. *)
-    (*     * admit. *)
+      + destruct H.
+        kinv_red; kregmap_red; kinv_red.
+        econstructor;
+          try (findReify; try (reflexivity || eassumption); fail);
+          try assumption.
+        * admit.
+        * admit.
 
-    (* - (* doRegRead *) *)
-    (*   kinv_action_dest; *)
-    (*     kinv_red; kregmap_red; *)
-    (*       kinvert_det; kinv_action_dest; *)
-    (*         abstract (destruct H; *)
-    (*                   kinv_red; kregmap_red; kinv_red; *)
-    (*                   econstructor; *)
-    (*                   try (findReify; try (reflexivity || eassumption); fail); *)
-    (*                   try assumption; *)
-    (*                   admit). *)
+    - (* doRegRead *)
+      kinv_action_dest;
+        kinv_red; kregmap_red;
+          kinvert_det; kinv_action_dest;
+            abstract (destruct H;
+                      kinv_red; kregmap_red; kinv_red;
+                      econstructor;
+                      try (findReify; try (reflexivity || eassumption); fail);
+                      try assumption;
+                      admit).
       
-    (* - (* killExecute *) *)
-    (*   kinv_action_dest. *)
-    (*   kinv_red; kregmap_red. *)
-    (*   kinvert_det; kinv_action_dest. *)
+    - (* killExecute *)
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
 
-    (*   destruct H. *)
-    (*   kinv_red; kregmap_red; kinv_red. *)
-    (*   econstructor; *)
-    (*     try (findReify; try (reflexivity || eassumption); fail); *)
-    (*     try assumption. *)
-    (*   + admit. *)
-    (*   + admit. *)
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + admit.
+      + admit.
 
-    (* - (* doExecute *) *)
-    (*   kinv_action_dest; *)
-    (*     kinv_red; kregmap_red; *)
-    (*       kinvert_det; kinv_action_dest. *)
+    - (* doExecute *)
+      kinv_action_dest;
+        kinv_red; kregmap_red;
+          kinvert_det; kinv_action_dest.
       
-    (*   + destruct H. *)
-    (*     kinv_red; kregmap_red; kinv_red. *)
-    (*     econstructor; *)
-    (*       try (findReify; try (reflexivity || eassumption); fail); *)
-    (*       try assumption. *)
-    (*     * specialize (HeeSpec2 e). *)
-    (*       subst; intros. *)
-    (*       exfalso; eapply no_fixpoint_negb; eauto. *)
-    (*     * intros; discriminate. *)
-    (*     * admit. *)
-    (*     * admit. *)
+      + destruct H.
+        kinv_red; kregmap_red; kinv_red.
+        econstructor;
+          try (findReify; try (reflexivity || eassumption); fail);
+          try assumption.
+        * specialize (HeeSpec2 e).
+          subst; intros.
+          exfalso; eapply no_fixpoint_negb; eauto.
+        * intros; discriminate.
+        * admit.
+        * admit.
 
-    (*   + destruct H. *)
-    (*     kinv_red; kregmap_red; kinv_red. *)
-    (*     econstructor; *)
-    (*       try (findReify; try (reflexivity || eassumption); fail); *)
-    (*       try assumption. *)
-    (*     * admit. *)
-    (*     * admit. *)
+      + destruct H.
+        kinv_red; kregmap_red; kinv_red.
+        econstructor;
+          try (findReify; try (reflexivity || eassumption); fail);
+          try assumption.
+        * admit.
+        * admit.
   Admitted.
   
 End Processor.

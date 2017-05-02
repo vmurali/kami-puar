@@ -52,21 +52,6 @@ Section Processor.
   Definition R2E := R2E addrSize dataBytes rfIdx.
 
   (* Construction of the state relation [thetaR] *)
-
-  Definition f2iValid (decEpoch exeEpoch: bool) (e: type (Struct F2I)) :=
-    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-  Definition i2dValid (decEpoch exeEpoch: bool) (e: type (Struct I2D)) :=
-    eqb (e Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpoch &&
-        eqb (e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-  Definition d2rValid (exeEpoch: bool) (e: type (Struct D2R)) :=
-    eqb (e (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpoch.
-
-  Definition r2eValid (exeEpoch: bool) (e: type (Struct R2E)) :=
-    eqb (e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpoch.
-
   Fixpoint getArchPcF2I (decEpoch exeEpoch: bool) (f2i: list (type (Struct F2I)))
     : option (fullType type (SyntaxKind (Bit addrSize))) :=
     match f2i with
