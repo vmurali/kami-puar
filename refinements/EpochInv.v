@@ -162,7 +162,23 @@ Section Processor.
     | nil => True
     | ep :: eps' => pcv = pPredPc ep /\ pcChain (pPc ep) eps'
     end.
-  
+
+  Lemma pcChain_app:
+    forall (eps1 eps2: list EpochPc) pcv,
+      pcChain pcv (eps1 ++ eps2) ->
+      pcChain pcv eps1 /\ pcChain (match List.rev eps1 with
+                                   | nil => pcv
+                                   | ep :: _ => pPc ep
+                                   end) eps2.
+  Proof.
+    induction eps1; simpl; intros; eauto.
+    dest; subst.
+    specialize (IHeps1 _ _ H0); dest.
+    repeat split; auto.
+    remember (List.rev eps1) as reps1; destruct reps1;
+      simpl in *; auto.
+  Qed.
+
   Definition pcChainFromPc (pcv: fullType type (SyntaxKind (Bit addrSize)))
              (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
              (f2iv: list (type (Struct F2I))) (i2dv: list (type (Struct I2D)))
@@ -195,6 +211,18 @@ Section Processor.
     unfold f2iValid in H0; rewrite H0; simpl.
     split; auto.
     rewrite <-H1; auto.
+  Qed.
+
+  Lemma pcChainFromDec_r2e_killed:
+    forall pcv exeEpochv d2rv r2ev r2ee,
+      pcChainFromDec pcv exeEpochv d2rv (r2ee :: r2ev) ->
+      pcChainFromDec pcv exeEpochv d2rv r2ev.
+  Proof.
+    unfold pcChainFromDec, epochPcDre; intros.
+    simpl in H.
+    destruct (eqb _ _); auto.
+    simpl in H.
+    apply pcChain_app in H; dest; auto.
   Qed.
 
   (** [consistentDecEpoch] and [consistentExeEpoch] describe invariants
@@ -233,6 +261,23 @@ Section Processor.
              (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
     consistentExeEpochF2I exeEpoch f2i /\ consistentExeEpochI2D exeEpoch i2d /\
     consistentExeEpochD2R exeEpoch d2r /\ consistentExeEpochR2E exeEpoch r2e.
+
+  (** Lemmas *)
+
+  Lemma epochPcFidre_f2i_pass:
+    forall f2iv f2ie i2dv i2de d2rv r2ev,
+      f2ie Fin.F1 = i2de Fin.F1 ->
+      epochPcFidre f2iv (i2dv ++ [i2de]) d2rv r2ev =
+      epochPcFidre (f2ie :: f2iv) i2dv d2rv r2ev.
+  Proof.
+    unfold epochPcFidre; intros.
+    do 2 f_equal.
+    rewrite map_app; simpl.
+    rewrite <-app_assoc.
+    f_equal; simpl; f_equal.
+    unfold f2iToEpochPc, i2dToEpochPc; simpl.
+    rewrite H; reflexivity.
+  Qed.
 
   Lemma consistentDecEpochF2I_filter_nil:
     forall decEpochv exeEpochv f2iv,
@@ -396,6 +441,23 @@ Section Processor.
       apply ListSupport.Forall_app; auto.
   Qed.
 
+  Lemma consistentExeEpoch_getOldest:
+    forall exeEpochv f2iv i2dv d2rv r2ev ep,
+      consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev ->
+      getOldest f2iv i2dv d2rv r2ev = Some ep ->
+      pExeEpoch ep = exeEpochv.
+  Proof.
+    unfold consistentExeEpoch, getOldest, epochPcFidre; intros; dest.
+    destruct r2ev as [|r2ee ?]; simpl in H0.
+    - destruct d2rv as [|d2re ?]; simpl in H0.
+      + destruct i2dv as [|i2de ?]; simpl in H0.
+        * destruct f2iv as [|f2ie ?]; simpl in H0; try discriminate.
+          inv H0; inv H; reflexivity.
+        * inv H0; inv H1; reflexivity.
+      + inv H0; inv H2; reflexivity.
+    - inv H0; inv H3; reflexivity.
+  Qed.
+
   Lemma consistentDecEpoch_pass_valid:
     forall decEpochv f2iv f2ie i2dv i2de,
       f2ie Fin.F1 = i2de Fin.F1 ->
@@ -407,6 +469,16 @@ Section Processor.
     split; auto.
     apply ListSupport.Forall_app; auto.
     rewrite H; auto.
+  Qed.
+
+  Lemma consistentDecEpoch_killed_valid:
+    forall decEpochv f2iv i2dv i2de,
+      consistentDecEpoch decEpochv f2iv (i2de :: i2dv) ->
+      consistentDecEpoch decEpochv f2iv i2dv.
+  Proof.
+    unfold consistentDecEpoch; intros; dest.
+    inv H0.
+    split; auto.
   Qed.
 
   Lemma consistentExeEpoch_f2i_pass_valid:
@@ -422,13 +494,84 @@ Section Processor.
     rewrite H; auto.
   Qed.
 
+  Lemma consistentExeEpoch_i2d_pass_valid:
+    forall exeEpochv f2iv i2dv (i2de: type (Struct I2D)) d2rv (d2re: type (Struct D2R)) r2ev,
+      i2de Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))) =
+      d2re (Fin.FS (Fin.FS (Fin.FS Fin.F1))) ->
+      consistentExeEpoch exeEpochv f2iv (i2de :: i2dv) d2rv r2ev ->
+      consistentExeEpoch exeEpochv f2iv i2dv (d2rv ++ [d2re]) r2ev.
+  Proof.
+    unfold consistentExeEpoch; intros; dest.
+    inv H1.
+    repeat split; auto.
+    apply ListSupport.Forall_app; auto.
+  Qed.
+
+  Lemma consistentExeEpoch_i2d_killed_valid:
+    forall exeEpochv f2iv i2dv i2de d2rv r2ev,
+      consistentExeEpoch exeEpochv f2iv (i2de :: i2dv) d2rv r2ev ->
+      consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentExeEpoch; intros; dest.
+    inv H0.
+    repeat split; auto.
+  Qed.
+
+  Lemma consistentExeEpoch_r2e_killed:
+    forall exeEpochv f2iv i2dv d2rv r2ev r2ee,
+      consistentExeEpoch exeEpochv f2iv i2dv d2rv (r2ee :: r2ev) ->
+      consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold consistentExeEpoch; intros; dest.
+    inv H2; auto.
+  Qed.
+
   Lemma pcChainFromPc_f2i_pass_valid:
     forall pcv decEpochv exeEpochv f2iv f2ie i2dv i2de d2rv r2ev,
       f2ie Fin.F1 = i2de Fin.F1 ->
       pcChainFromPc pcv decEpochv exeEpochv (f2ie :: f2iv) i2dv d2rv r2ev ->
       pcChainFromPc pcv decEpochv exeEpochv f2iv (i2dv ++ [i2de]) d2rv r2ev.
   Proof.
-  Admitted.
+    unfold pcChainFromPc; intros.
+    erewrite epochPcFidre_f2i_pass; eauto.
+  Qed.
+
+  Lemma pcChainFromPc_i2d_killed:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev (i2de: type (Struct I2D)),
+      (if bool_dec exeEpochv (i2de Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))))
+       then true else false)
+        && (if bool_dec decEpochv (i2de Fin.F1 (Fin.FS (Fin.FS Fin.F1)))
+            then true else false) = false ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv (i2de :: i2dv) d2rv r2ev ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold pcChainFromPc; intros.
+    replace (filter (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                                 && (eqb (pExeEpoch ep) exeEpochv))
+                    (epochPcFidre f2iv i2dv d2rv r2ev)) with
+    (filter
+       (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                    && (eqb (pExeEpoch ep) exeEpochv))
+       (epochPcFidre f2iv (i2de :: i2dv) d2rv r2ev)); auto.
+    unfold epochPcFidre.
+    repeat rewrite filter_app.
+    do 3 f_equal; simpl.
+    destruct decEpochv, exeEpochv,
+    (i2de Fin.F1 (Fin.FS (Fin.FS Fin.F1))), (i2de Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))));
+      simpl; try discriminate; auto.
+  Qed.
+
+  Lemma pcChainFromPc_r2e_killed:
+    forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev r2ee,
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv (r2ee :: r2ev) ->
+      pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev.
+  Proof.
+    unfold pcChainFromPc, epochPcFidre; intros.
+    simpl in H.
+    destruct (eqb _ _); auto.
+    simpl in H.
+    apply pcChain_app in H; dest; auto.
+  Qed.
 
   Lemma getOldest_f2i_pass_valid:
     forall f2iv f2ie i2dv i2de d2rv r2ev,
@@ -436,7 +579,9 @@ Section Processor.
       getOldest f2iv (i2dv ++ [i2de]) d2rv r2ev =
       getOldest (f2ie :: f2iv) i2dv d2rv r2ev.
   Proof.
-  Admitted.
+    unfold getOldest; intros.
+    erewrite epochPcFidre_f2i_pass; eauto.
+  Qed.
 
   Record epoch_invariant (o: RegsT) : Prop :=
     { pcv : fullType type (SyntaxKind (Bit addrSize));
@@ -635,7 +780,7 @@ Section Processor.
         intros; specialize (HeeSpec3 H); dest.
         split; auto.
         eapply consistentExeEpoch_f2i_pass_valid; eauto.
-        
+
     - (* killDecode *)
       kinv_action_dest.
       kinv_red; kregmap_red.
@@ -645,9 +790,20 @@ Section Processor.
       
       econstructor;
         try (findReify; try (reflexivity || eassumption); fail);
-        try assumption;
-        admit.
-      
+        try assumption.
+      + destruct x3 as [|i2de ?]; try discriminate.
+        intros; specialize (HdrSpec H).
+        eapply consistentDecEpoch_killed_valid; eauto.
+      + destruct x3 as [|i2de ?]; try discriminate.
+        intros; specialize (HerSpec H).
+        eapply consistentExeEpoch_i2d_killed_valid; eauto.
+      + destruct x3 as [|i2de ?]; try discriminate.
+        intros; specialize (Hchain2 H H0).
+        inv H2; inv H5.
+        eapply pcChainFromPc_i2d_killed; eauto.
+      + destruct x3 as [|i2de ?]; try discriminate.
+        admit. (* need a new invariant *)
+
     - (* doDecode *)
       kinv_action_dest;
         kinv_red; kregmap_red;
@@ -662,47 +818,86 @@ Section Processor.
           subst; intros.
           exfalso; eapply no_fixpoint_negb; eauto.
         * intros; discriminate.
-        * admit.
-        * admit.
+        * destruct x7 as [|i2de ?]; try discriminate.
+          (* need the same invariant for [consistentDecEpoch] related to [getOldest] *)
+          admit.
+        * destruct x7 as [|r2ee ?]; try discriminate.
+          inv H2; inv H5; inv H11; inv H14.
+          intros; specialize (HerSpec H).
+          eapply consistentExeEpoch_i2d_pass_valid; eauto.
+        * destruct x7 as [|r2ee ?]; try discriminate.
+          inv H2; inv H5; inv H11; inv H14.
+          intros. specialize (Hchain2 e H0).
+          move Hchain2 at bottom.
+          admit. (* provable using Hchain2 *)
+        * intros; inv H.
+        * destruct x7 as [|r2ee ?]; try discriminate.
+          admit. (* provable using HeeSpec3 *)
 
       + destruct H.
         kinv_red; kregmap_red; kinv_red.
         econstructor;
           try (findReify; try (reflexivity || eassumption); fail);
           try assumption.
-        * admit.
-        * admit.
+        * destruct x5 as [|r2ee ?]; try discriminate.
+          intros; specialize (HdrSpec H).
+          eapply consistentDecEpoch_killed_valid; eauto.
+        * destruct x5 as [|r2ee ?]; try discriminate.
+          intros; specialize (HerSpec H).
+          inv H2; inv H5; inv H7.
+          eapply consistentExeEpoch_i2d_pass_valid; eauto.
+        * (* need the same invariant for [consistentDecEpoch] related to [getOldest] *)
+          admit.
+        * destruct x5 as [|r2ee ?]; try discriminate.
+          intros; specialize (Hchain2 H H0).
+          admit. (* provable using Hchain2 *)
+        * destruct x5 as [|r2ee ?]; try discriminate.
+          admit. (* provable using HeeSpec3 *)
 
     - (* doRegRead *)
-      kinv_action_dest;
-        kinv_red; kregmap_red;
-          kinvert_det; kinv_action_dest;
-            abstract (destruct H;
-                      kinv_red; kregmap_red; kinv_red;
-                      econstructor;
-                      try (findReify; try (reflexivity || eassumption); fail);
-                      try assumption;
-                      admit).
+      kinv_action_dest.
+      kinv_red; kregmap_red.
+      kinvert_det; kinv_action_dest.
+      destruct H.
+      kinv_red; kregmap_red; kinv_red.
       
+      econstructor;
+        try (findReify; try (reflexivity || eassumption); fail);
+        try assumption.
+      + admit. (* provable - just simple pass case *)
+      + admit. (* provable - just simple pass case *)
+      + admit. (* provable - just simple pass case *)
+      + admit. (* provable - just simple pass case *)
+
     - (* killExecute *)
       kinv_action_dest.
       kinv_red; kregmap_red.
       kinvert_det; kinv_action_dest.
-
       destruct H.
       kinv_red; kregmap_red; kinv_red.
+      
       econstructor;
         try (findReify; try (reflexivity || eassumption); fail);
         try assumption.
-      + admit.
-      + admit.
+      + destruct x3 as [|r2ee ?]; try discriminate.
+        intros; specialize (HerSpec H).
+        apply consistentExeEpoch_r2e_killed with (r2ee:= r2ee); auto.
+      + destruct x3 as [|r2ee ?]; try discriminate.
+        intros; specialize (Hchain1 H H0).
+        eapply pcChainFromDec_r2e_killed; eauto.
+      + destruct x3 as [|r2ee ?]; try discriminate.
+        intros; specialize (Hchain2 H H0).
+        eapply pcChainFromPc_r2e_killed; eauto.
+      + destruct x3 as [|r2ee ?]; try discriminate.
+        admit. (* TODO: need a new invariant :( *)
 
     - (* doExecute *)
       kinv_action_dest;
         kinv_red; kregmap_red;
           kinvert_det; kinv_action_dest.
       
-      + destruct H.
+      + (* case redirected *)
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
         econstructor;
           try (findReify; try (reflexivity || eassumption); fail);
@@ -711,16 +906,44 @@ Section Processor.
           subst; intros.
           exfalso; eapply no_fixpoint_negb; eauto.
         * intros; discriminate.
-        * admit.
-        * admit.
+        * destruct x7 as [|r2ee ?]; try discriminate.
+          intros; simpl in HeeSpec3.
+          inv H1; inv H4; inv H8; inv H11.
+          specialize (HeeSpec3 eq_refl); dest.
+          rewrite negb_involutive.
+          eapply consistentExeEpoch_r2e_killed; eauto.
+        * intros; inv H0.
+        * intros; inv H0.
+        * destruct x7 as [|r2ee ?]; try discriminate.
+          inv H1; inv H4; inv H8; inv H11.
+          simpl in HeeSpec3; specialize (HeeSpec3 eq_refl); dest.
+          case_eq (getOldest f2iv i2dv d2rv x7); intros; auto.
+          exfalso.
+          apply consistentExeEpoch_r2e_killed in H0.
+          eapply consistentExeEpoch_getOldest in H1; eauto.
+          rewrite H1 in H2; eapply negb_eq_false; eauto.
 
-      + destruct H.
+      + (* case not redirected *)
+        destruct H.
         kinv_red; kregmap_red; kinv_red.
         econstructor;
           try (findReify; try (reflexivity || eassumption); fail);
           try assumption.
-        * admit.
-        * admit.
+        * destruct x2 as [|r2ee ?]; try discriminate.
+          intros; specialize (HerSpec H).
+          eapply consistentExeEpoch_r2e_killed; eauto.
+        * destruct x2 as [|r2ee ?]; try discriminate.
+          intros; specialize (Hchain1 H H0).
+          eapply pcChainFromDec_r2e_killed; eauto.
+        * destruct x2 as [|r2ee ?]; try discriminate.
+          intros; specialize (Hchain2 H H0).
+          eapply pcChainFromPc_r2e_killed; eauto.
+        * destruct x2 as [|r2ee ?]; try discriminate.
+          inv H1; inv H4.
+          simpl in HeeSpec3; specialize (HeeSpec3 eq_refl); dest.
+          destruct (getOldest f2iv i2dv d2rv x2); auto; intros.
+          split; auto.
+          eapply consistentExeEpoch_r2e_killed; eauto.
   Admitted.
   
 End Processor.

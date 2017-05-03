@@ -554,23 +554,6 @@ Section Processor.
     reflexivity.
   Qed.
 
-  Lemma pcChain_app:
-    forall (eps1 eps2: list (EpochPc addrSize)) pcv,
-      pcChain pcv (eps1 ++ eps2) ->
-      pcChain pcv eps1 /\ pcChain (match List.rev eps1 with
-                                   | nil => pcv
-                                   | ep :: _ => pPc ep
-                                   end) eps2.
-  Proof.
-    induction eps1; simpl; intros; eauto.
-    dest; subst.
-    specialize (IHeps1 _ _ H0); dest.
-    repeat split; auto.
-
-    remember (List.rev eps1) as reps1; destruct reps1;
-      simpl in *; auto.
-  Qed.
-
   Lemma getArchPcEpochPc_filter_consistent:
     forall pcv decEpochv exeEpochv eps,
       match getArchPcEpochPc decEpochv exeEpochv eps with
