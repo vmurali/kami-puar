@@ -117,7 +117,7 @@ Section Processor.
   Variable PcInit: ConstT VAddr.
   Variable ModeInit: ConstT Mode.
 
-  Definition RIndex := Bit RIndexSz.
+  Notation RIndex := (Bit RIndexSz).
   Definition CExec := STRUCT
                         { newCState :: CState;
                           newPc :: VAddr;
@@ -551,11 +551,11 @@ Section Processor.
         with Rule wb :=
           Pop inp1 : Struct LdRqT <- fifoLdRp;
           Read wbEpochVal <- wbEpoch;
-          Read wbPcVal: VAddr <- wbPc;
+          Read wbPcVal <- wbPc;
           Read cStateVal <- cState;
           Read modeVal <- mode;
           LET epochMatch <- #inp1!LdRqT@.wbEpoch == #wbEpochVal;
-          (* LET pcMatch <- #inp1!LdRqT@.instVAddr == #wbPcVal; *)
+          LET pcMatch <- #inp1!LdRqT@.instVAddr == #wbPcVal;
           LET cExecVal <- cExec #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
               #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode #inp1!LdRqT@.exception
               #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
