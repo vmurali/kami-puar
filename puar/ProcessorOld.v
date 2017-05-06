@@ -142,7 +142,7 @@ Section Processor.
   Variable cExecException:
     forall ty,  Inst @ ty -> VAddr @ ty -> VAddr @ ty -> CState @ ty ->
                 Mode @ ty -> Mode @ ty -> Mode @ ty ->
-                Exception @ ty.
+                (Struct CExec) @ ty.
   Variable isLd: forall ty, Inst @ ty -> Bool @ ty.
   Variable isSt: forall ty, Inst @ ty -> Bool @ ty.
   Variable isNotZero: forall ty, RIndex @ ty -> Bool @ ty.
@@ -474,7 +474,7 @@ Section Processor.
               Retv
               );
             LET finalException <- IF noException #inp1!RegReadT@.exception
-                                  then #execVal!Exec@.execException
+                                  then #execVal!Exec@.execNextPc
                                   else #inp1!RegReadT@.exception;
             Enq fifoExec : Struct ExecT <-
                                   (STRUCT {
@@ -514,7 +514,7 @@ Section Processor.
           as inp2;
           LET finalException <- IF noException #inp1!ExecT@.exception
                                 then memVToPRp_Exception #inp2
-                                else #inp1!ExecT@.exception;
+                                else #inp1!RegReadT@.exception;
           Enq fifoLdRq : Struct LdRqT <- (STRUCT {
                                               wbEpoch ::= #inp1!ExecT@.wbEpoch;
                                               instVAddr ::= #inp1!ExecT@.instVAddr;
@@ -544,13 +544,6 @@ Section Processor.
           LET cExecVal <- cExec #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
               #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode #inp1!LdRqT@.exception
               #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
-          LET cExecExcept <- cExecException #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
-              #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode
-              #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
-
-          LET finalException <- IF noException #inp1!LdRqT@.exception
-                                then #cExecExcept
-                                else #inp1!LdRqT@.exception;
 
           If isLd #inp1!LdRqT@.inst
           then (
@@ -583,11 +576,11 @@ Section Processor.
                                   commitPAddr ::= #ldPAddr;
                                   commitLdData ::= #ldData;
                                   commitMode ::= #modeVal;
-                                  commitException ::= #finalException;
+                                  commitException ::= #cExecVal!CExec@.currException;
                                   commitNextPc ::= #cExecVal!CExec@.newPc;
                                   commitNextMode ::= #cExecVal!CExec@.newMode });
 
-            If noException #finalException
+            If noException #cExecVal!CExec@.currException
             then (
               Call setAccessInstVToPCall(#inp1!LdRqT@.instVAddr);
               If isSt #inp1!LdRqT@.inst
