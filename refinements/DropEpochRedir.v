@@ -223,59 +223,59 @@ Section Processor.
     elim H; reflexivity.
   Qed.
 
-  Lemma consistentExeEpochF2I_invalid:
-    forall decEpochv exeEpochv f2iv,
-      consistentExeEpochF2I (negb exeEpochv) f2iv ->
-      getArchPcF2I decEpochv exeEpochv f2iv = None.
-  Proof.
-    induction f2iv; simpl; intros; auto.
-    inv H.
-    unfold f2iValid.
-    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
-      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
-    rewrite andb_false_r.
-    auto.
-  Qed.
+  (* Lemma consistentExeEpochF2I_invalid: *)
+  (*   forall decEpochv exeEpochv f2iv, *)
+  (*     consistentExeEpochF2I (negb exeEpochv) f2iv -> *)
+  (*     getArchPcF2I decEpochv exeEpochv f2iv = None. *)
+  (* Proof. *)
+  (*   induction f2iv; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold f2iValid. *)
+  (*   replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false *)
+  (*     by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto). *)
+  (*   rewrite andb_false_r. *)
+  (*   auto. *)
+  (* Qed. *)
 
-  Lemma consistentExeEpochI2D_invalid:
-    forall decEpochv exeEpochv i2dv,
-      consistentExeEpochI2D (negb exeEpochv) i2dv ->
-      getArchPcI2D decEpochv exeEpochv i2dv = None.
-  Proof.
-    induction i2dv; simpl; intros; auto.
-    inv H.
-    unfold i2dValid.
-    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
-      by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
-    rewrite andb_false_r.
-    auto.
-  Qed.
+  (* Lemma consistentExeEpochI2D_invalid: *)
+  (*   forall decEpochv exeEpochv i2dv, *)
+  (*     consistentExeEpochI2D (negb exeEpochv) i2dv -> *)
+  (*     getArchPcI2D decEpochv exeEpochv i2dv = None. *)
+  (* Proof. *)
+  (*   induction i2dv; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold i2dValid. *)
+  (*   replace (eqb (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false *)
+  (*     by (destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto). *)
+  (*   rewrite andb_false_r. *)
+  (*   auto. *)
+  (* Qed. *)
 
-  Lemma consistentExeEpochD2R_invalid:
-    forall exeEpochv d2rv,
-      consistentExeEpochD2R (negb exeEpochv) d2rv ->
-      getArchPcD2R exeEpochv d2rv = None.
-  Proof.
-    induction d2rv; simpl; intros; auto.
-    inv H.
-    unfold d2rValid.
-    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false
-      by (destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto).
-    auto.
-  Qed.
+  (* Lemma consistentExeEpochD2R_invalid: *)
+  (*   forall exeEpochv d2rv, *)
+  (*     consistentExeEpochD2R (negb exeEpochv) d2rv -> *)
+  (*     getArchPcD2R exeEpochv d2rv = None. *)
+  (* Proof. *)
+  (*   induction d2rv; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold d2rValid. *)
+  (*   replace (eqb (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))) exeEpochv) with false *)
+  (*     by (destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv; auto). *)
+  (*   auto. *)
+  (* Qed. *)
 
-  Lemma consistentExeEpochR2E_invalid:
-    forall exeEpochv r2ev,
-      consistentExeEpochR2E (negb exeEpochv) r2ev ->
-      getArchPcR2E exeEpochv r2ev = None.
-  Proof.
-    induction r2ev; simpl; intros; auto.
-    inv H.
-    unfold r2eValid.
-    replace (eqb (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpochv) with false
-      by (destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv; auto).
-    auto.
-  Qed.
+  (* Lemma consistentExeEpochR2E_invalid: *)
+  (*   forall exeEpochv r2ev, *)
+  (*     consistentExeEpochR2E (negb exeEpochv) r2ev -> *)
+  (*     getArchPcR2E exeEpochv r2ev = None. *)
+  (* Proof. *)
+  (*   induction r2ev; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold r2eValid. *)
+  (*   replace (eqb (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))) exeEpochv) with false *)
+  (*     by (destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv; auto). *)
+  (*   auto. *)
+  (* Qed. *)
 
   Lemma getArchPc_exe_redirected:
     forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
@@ -288,42 +288,33 @@ Section Processor.
       getArchPc (exeRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
                 decRedirv' exeRedirv' f2iv i2dv d2rv r2ev.
   Proof.
-    unfold consistentExeEpoch, getArchPc; intros; dest.
-    rewrite consistentExeEpochR2E_invalid by assumption.
-    rewrite consistentExeEpochD2R_invalid by assumption.
-    rewrite consistentExeEpochI2D_invalid by assumption.
-    rewrite consistentExeEpochF2I_invalid by assumption.
-    simpl.
-    unfold getPcRedir, maybeToOption.
-    rewrite H0, H1, H2; simpl.
-    reflexivity.
-  Qed.
+  Admitted.
 
-  Lemma consistentDecEpochF2I_invalid:
-    forall decEpochv exeEpochv f2iv,
-      consistentDecEpochF2I (negb decEpochv) f2iv ->
-      getArchPcF2I decEpochv exeEpochv f2iv = None.
-  Proof.
-    induction f2iv; simpl; intros; auto.
-    inv H.
-    unfold f2iValid.
-    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
-      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
-    auto.
-  Qed.
+  (* Lemma consistentDecEpochF2I_invalid: *)
+  (*   forall decEpochv exeEpochv f2iv, *)
+  (*     consistentDecEpochF2I (negb decEpochv) f2iv -> *)
+  (*     getArchPcF2I decEpochv exeEpochv f2iv = None. *)
+  (* Proof. *)
+  (*   induction f2iv; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold f2iValid. *)
+  (*   replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false *)
+  (*     by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto). *)
+  (*   auto. *)
+  (* Qed. *)
 
-  Lemma consistentDecEpochI2D_invalid:
-    forall decEpochv exeEpochv i2dv,
-      consistentDecEpochI2D (negb decEpochv) i2dv ->
-      getArchPcI2D decEpochv exeEpochv i2dv = None.
-  Proof.
-    induction i2dv; simpl; intros; auto.
-    inv H.
-    unfold i2dValid.
-    replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false
-      by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto).
-    auto.
-  Qed.
+  (* Lemma consistentDecEpochI2D_invalid: *)
+  (*   forall decEpochv exeEpochv i2dv, *)
+  (*     consistentDecEpochI2D (negb decEpochv) i2dv -> *)
+  (*     getArchPcI2D decEpochv exeEpochv i2dv = None. *)
+  (* Proof. *)
+  (*   induction i2dv; simpl; intros; auto. *)
+  (*   inv H. *)
+  (*   unfold i2dValid. *)
+  (*   replace (eqb (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))) decEpochv) with false *)
+  (*     by (destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv; auto). *)
+  (*   auto. *)
+  (* Qed. *)
 
   Lemma getArchPc_dec_redirected:
     forall pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev
@@ -335,14 +326,7 @@ Section Processor.
       getArchPc (decRedirv (Fin.FS Fin.F1) (Fin.FS Fin.F1)) decEpochv exeEpochv
                 decRedirv' exeRedirv f2iv i2dv d2rv r2ev.
   Proof.
-    unfold consistentDecEpoch, getArchPc; intros; dest.
-    rewrite consistentDecEpochI2D_invalid by assumption.
-    rewrite consistentDecEpochF2I_invalid by assumption.
-    simpl.
-    unfold getPcRedir, maybeToOption.
-    rewrite H0, H1; simpl.
-    reflexivity.
-  Qed.
+  Admitted.
 
   Lemma getArchPc_iMem_pass:
     forall pcv decEpochv exeEpochv decRedirv exeRedirv
@@ -591,45 +575,30 @@ Section Processor.
     intros; destruct H2; dest.
 
     - rewrite getArchPc_epochPc_consistent_exe by assumption.
-      unfold consistentExeEpoch in H1; dest.
-      inv H6.
-      unfold pcChainFromPc in H3; simpl in H3.
-      rewrite eqb_reflx in H3; simpl in H3.
-      apply pcChain_app in H3; dest.
-      rewrite rev_involutive in H6; simpl in H6; dest.
-      rewrite <-H6.
-      unfold epochPcFidre.
-      apply getArchPcEpochPc_filter_consistent.
+      unfold consistentExeEpoch in H1.
+      admit.
 
     - rewrite getArchPc_epochPc_consistent_dec by assumption.
       unfold consistentExeEpoch in H1; dest.
-      inv H6.
-      unfold pcChainFromDec in H3; simpl in H3.
-      rewrite eqb_reflx in H3; simpl in H3.
-      apply pcChain_app in H3; dest.
-      rewrite rev_involutive in H6; simpl in H6; dest.
-      rewrite <-H6.
-      unfold epochPcDre.
- 
-      match goal with
-      | [ |- _ = match ?fl with | nil => _ | _ => _ end ] =>
-        replace fl with
-        (filter
-           (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
-                        && (eqb (pExeEpoch ep)
-                                (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))))
-           (map (r2eToEpochPc (rfIdx:=rfIdx)) r2ev ++ map (d2rToEpochPc (rfIdx:=rfIdx)) d2rv))
-      end.
-      apply getArchPcEpochPc_filter_consistent.
+      admit.
+  Admitted.
 
-      clear.
-      rewrite 2! filter_app; f_equal.
-      + induction r2ev; simpl; intros; auto.
-        destruct (eqb _ _); auto.
-        f_equal; auto.
-      + induction d2rv; simpl; intros; auto.
-        destruct (eqb _ _); auto.
-        f_equal; auto.
+  Lemma separatedExeEpoch_consistentExeEpoch:
+    forall f2iv i2dv d2rv r2ev (r2ee: type (Struct R2E)),
+      separatedExeEpoch (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                        f2iv i2dv d2rv (r2ee :: r2ev) ->
+      consistentExeEpoch (r2ee (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1))))))
+                         f2iv i2dv d2rv (r2ee :: r2ev).
+  Proof.
+    unfold separatedExeEpoch, consistentExeEpoch; intros; dest.
+    assert (x = nil); subst.
+    { destruct x; auto.
+      exfalso.
+      unfold epochPcFidre in H; simpl in H; inv H.
+      inv H0.
+      eapply negb_eq_false; eauto.
+    }
+    simpl in H; subst; auto.
   Qed.
 
   Local Definition thetaR (ir sr: RegsT): Prop.
@@ -678,7 +647,7 @@ Section Processor.
 
       unfold thetaR in H1; dest; subst; subst.
       kinvert.
-        
+
       + (* doFetch *)
         kinv_action_dest.
         kinv_red; kregmap_red.
@@ -883,16 +852,23 @@ Section Processor.
             elim n; clear n.
             apply eq_sym, getArchPc_execute_valid; auto.
             { destruct (x3 Fin.F1); auto.
-              specialize (HerSpec eq_refl).
-              unfold consistentExeEpoch in HerSpec; dest.
-              inv H2.
-              exfalso; eapply negb_eq_false; eauto.
+              specialize (HerSpec1 eq_refl).
+              admit.
+              (* inv H2. *)
+              (* exfalso; eapply negb_eq_false; eauto. *)
             }
             { unfold r2eValid; simpl.
               rewrite eqb_reflx; reflexivity.
             }
           }
-          { specialize (HeeSpec3 eq_refl); dest.
+          { assert (x3 Fin.F1 = false).
+            { destruct (x3 Fin.F1); auto.
+              specialize (HerSpec1 eq_refl).
+              exfalso.
+              admit. (* because of HerSpec1 *)
+            }
+            apply separatedExeEpoch_consistentExeEpoch in HerSpec2.
+
             rewrite e.
             apply eq_sym, getArchPc_execute_valid_post; auto.
             { unfold r2eValid.
@@ -903,6 +879,7 @@ Section Processor.
               { left; repeat split; auto. }
             }
           }
+          
   Qed.
   
 End Processor.
