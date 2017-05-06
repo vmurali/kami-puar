@@ -133,17 +133,13 @@ Section Processor.
        ++ (map i2dToEpochPc i2dv)
        ++ (map f2iToEpochPc f2iv))%list.
 
+  Definition epochPcFid
+             (f2iv: list (type (Struct F2I))) (i2dv: list (type (Struct I2D))) :=
+    ((map f2iToEpochPc f2iv) ++ (map i2dToEpochPc i2dv))%list.
+
   Definition epochPcDre
              (d2rv: list (type (Struct D2R))) (r2ev: list (type (Struct R2E))) :=
     ((map r2eToEpochPc r2ev) ++ (map d2rToEpochPc d2rv))%list.
-
-  Definition getOldest
-             (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D)))
-             (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
-    match epochPcFidre f2i i2d d2r r2e with
-    | nil => None
-    | hd :: _ => Some hd
-    end.
 
   (** [pcChainFromPc] and [pcChainFromDec] describe invariants
    * when there are no redirections, saying that pc/predPc pairs generate
@@ -229,38 +225,22 @@ Section Processor.
    * when a pc value is redirected from Decode or Execute, respectively,
    * saying that all epoch values are same throughout the fifos.
    *)
-  Definition consistentDecEpochF2I (decEpoch: bool) (f2i: list (type (Struct F2I))) :=
-    Forall (fun e : type (Struct F2I) => e Fin.F1 (Fin.FS (Fin.FS Fin.F1))
-                                         = decEpoch) f2i.
-
-  Definition consistentDecEpochI2D (decEpoch: bool) (i2d: list (type (Struct I2D))) :=
-    Forall (fun e : type (Struct I2D) => e Fin.F1 (Fin.FS (Fin.FS Fin.F1))
-                                         = decEpoch) i2d.
-
   Definition consistentDecEpoch (decEpoch: bool)
              (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D))) :=
-    consistentDecEpochF2I decEpoch f2i /\ consistentDecEpochI2D decEpoch i2d.
-
-  Definition consistentExeEpochF2I (exeEpoch: bool) (f2i: list (type (Struct F2I))) :=
-    Forall (fun e : type (Struct F2I) => e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                                         = exeEpoch) f2i.
-
-  Definition consistentExeEpochI2D (exeEpoch: bool) (i2d: list (type (Struct I2D))) :=
-    Forall (fun e : type (Struct I2D) => e Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))
-                                         = exeEpoch) i2d.
-
-  Definition consistentExeEpochD2R (exeEpoch: bool) (d2r: list (type (Struct D2R))) :=
-    Forall (fun e : type (Struct D2R) => e (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpoch) d2r.
-
-  Definition consistentExeEpochR2E (exeEpoch: bool) (r2e: list (type (Struct R2E))) :=
-    Forall (fun e : type (Struct R2E) => e (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))
-                                         = exeEpoch) r2e.
+    Forall (fun ep => pDecEpoch ep = Some decEpoch) (epochPcFid f2i i2d).
 
   Definition consistentExeEpoch (exeEpoch: bool)
              (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D)))
              (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
-    consistentExeEpochF2I exeEpoch f2i /\ consistentExeEpochI2D exeEpoch i2d /\
-    consistentExeEpochD2R exeEpoch d2r /\ consistentExeEpochR2E exeEpoch r2e.
+    Forall (fun ep => pExeEpoch ep = exeEpoch) (epochPcFidre f2i i2d d2r r2e).
+
+  Definition separatedExeEpoch (exeEpoch: bool)
+             (f2i: list (type (Struct F2I))) (i2d: list (type (Struct I2D)))
+             (d2r: list (type (Struct D2R))) (r2e: list (type (Struct R2E))) :=
+    exists eps1 eps2,
+      epochPcFidre f2i i2d d2r r2e = (eps1 ++ eps2)%list /\
+      Forall (fun ep => pExeEpoch ep = negb exeEpoch) eps1 /\
+      Forall (fun ep => pExeEpoch ep = exeEpoch) eps2.
 
   (** Lemmas *)
 
@@ -279,80 +259,35 @@ Section Processor.
     rewrite H; reflexivity.
   Qed.
 
-  Lemma consistentDecEpochF2I_filter_nil:
-    forall decEpochv exeEpochv f2iv,
-      consistentDecEpochF2I (negb decEpochv) f2iv ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map f2iToEpochPc f2iv) = nil.
+  Lemma Forall_app_inv:
+    forall {A} (l1 l2: list A) (P: A -> Prop),
+      Forall P (l1 ++ l2) -> Forall P l1 /\ Forall P l2.
   Proof.
-    induction f2iv; simpl; intros; auto.
-    inv H.
-    destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv;
-      try (inv H2; fail);
-      try (simpl; auto).
+    induction l1; simpl; intros; auto.
+    inv H; specialize (IHl1 _ _ H3); dest; auto.
   Qed.
 
-  Lemma consistentDecEpochI2D_filter_nil:
-    forall decEpochv exeEpochv i2dv,
-      consistentDecEpochI2D (negb decEpochv) i2dv ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map i2dToEpochPc i2dv) = nil.
+  Lemma decEpoch_negb_eq_filter_nil:
+    forall decEpochv exeEpochv eps,
+      Forall (fun ep => pDecEpoch ep = Some (negb decEpochv)) eps ->
+      filter (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                          && (eqb (pExeEpoch ep) exeEpochv)) eps = nil.
   Proof.
-    induction i2dv; simpl; intros; auto.
+    induction eps; simpl; intros; auto.
     inv H.
-    destruct (a Fin.F1 (Fin.FS (Fin.FS Fin.F1))), decEpochv;
-      try (inv H2; fail);
-      try (simpl; auto).
+    rewrite H2; simpl.
+    rewrite eqb_negb1; simpl; auto.
   Qed.
 
-  Lemma consistentExeEpochF2I_filter_nil:
-    forall decEpochv exeEpochv f2iv,
-      consistentExeEpochF2I (negb exeEpochv) f2iv ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map f2iToEpochPc f2iv) = nil.
+  Lemma exeEpoch_negb_eq_filter_nil:
+    forall decEpochv exeEpochv eps,
+      Forall (fun ep => pExeEpoch ep = negb exeEpochv) eps ->
+      filter (fun ep => (decEpochMatches decEpochv (pDecEpoch ep))
+                          && (eqb (pExeEpoch ep) exeEpochv)) eps = nil.
   Proof.
-    induction f2iv; simpl; intros; auto.
+    induction eps; simpl; intros; auto.
     inv H.
-    destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
-      try (inv H2; fail);
-      try (rewrite andb_false_r; auto).
-  Qed.
-
-  Lemma consistentExeEpochI2D_filter_nil:
-    forall decEpochv exeEpochv i2dv,
-      consistentExeEpochI2D (negb exeEpochv) i2dv ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map i2dToEpochPc i2dv) = nil.
-  Proof.
-    induction i2dv; simpl; intros; auto.
-    inv H.
-    destruct (a Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
-      try (inv H2; fail);
-      try (rewrite andb_false_r; auto).
-  Qed.
-
-  Lemma consistentExeEpochD2R_filter_nil:
-    forall decEpochv exeEpochv d2rv,
-      consistentExeEpochD2R (negb exeEpochv) d2rv ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map d2rToEpochPc d2rv) = nil.
-  Proof.
-    induction d2rv; simpl; intros; auto.
-    inv H.
-    destruct (a (Fin.FS (Fin.FS (Fin.FS Fin.F1)))), exeEpochv;
-      auto; inv H2.
-  Qed.
-
-  Lemma consistentExeEpochR2E_filter_nil:
-    forall decEpochv exeEpochv r2ev,
-      consistentExeEpochR2E (negb exeEpochv) r2ev ->
-      filter (fun ep => decEpochMatches decEpochv (pDecEpoch ep) && eqb (pExeEpoch ep) exeEpochv)
-             (map r2eToEpochPc r2ev) = nil.
-  Proof.
-    induction r2ev; simpl; intros; auto.
-    inv H.
-    destruct (a (Fin.FS (Fin.FS (Fin.FS (Fin.FS (Fin.FS Fin.F1)))))), exeEpochv;
-      auto; inv H2.
+    rewrite H2, eqb_negb1, andb_false_r; simpl; auto.
   Qed.
 
   Lemma pcChainFromPc_consistentExeEpoch_invalid:
@@ -362,10 +297,10 @@ Section Processor.
   Proof.
     unfold consistentExeEpoch, pcChainFromPc, epochPcFidre; intros; dest.
     repeat rewrite filter_app.
-    rewrite consistentExeEpochF2I_filter_nil by assumption.
-    rewrite consistentExeEpochI2D_filter_nil by assumption.
-    rewrite consistentExeEpochD2R_filter_nil by assumption.
-    rewrite consistentExeEpochR2E_filter_nil by assumption.
+    apply Forall_app_inv in H; dest.
+    apply Forall_app_inv in H0; dest.
+    apply Forall_app_inv in H1; dest.
+    repeat rewrite exeEpoch_negb_eq_filter_nil by assumption.
     simpl; auto.
   Qed.
 
@@ -375,13 +310,14 @@ Section Processor.
       pcChainFromDec pcv exeEpochv d2rv r2ev ->
       pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev.
   Proof.
-    unfold consistentDecEpoch, pcChainFromDec, pcChainFromPc, epochPcDre, epochPcFidre;
-      intros; dest.
+    unfold consistentDecEpoch, pcChainFromDec, pcChainFromPc,
+    epochPcFid, epochPcDre, epochPcFidre; intros; dest.
     rewrite filter_app in H0.
     repeat rewrite filter_app.
-    rewrite consistentDecEpochF2I_filter_nil by assumption.
-    rewrite consistentDecEpochI2D_filter_nil by assumption.
-    simpl; auto.
+    apply Forall_app_inv in H; dest.
+    rewrite (decEpoch_negb_eq_filter_nil _ _ H).
+    rewrite (decEpoch_negb_eq_filter_nil _ _ H1).
+    simpl.
     rewrite app_nil_r.
     match goal with
     | [H: pcChain _ (List.rev (?r1 ++ ?d1)) |- pcChain _ (List.rev (?r2 ++ ?d2)) ] =>
@@ -399,76 +335,20 @@ Section Processor.
       f_equal; auto.
   Qed.
 
-  Lemma getOldest_consistency_f2i_enq:
-    forall (decEpochv exeEpochv: fullType type (SyntaxKind Bool))
-           (decRedirv exeRedirv: fullType type (SyntaxKind (RedirectK addrSize)))
-           f2iv (f2ie: type (Struct F2I)) i2dv d2rv r2ev,
-      (exeRedirv Fin.F1 = false -> f2ie Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpochv) ->
-      (f2ie Fin.F1 (Fin.FS (Fin.FS (Fin.FS Fin.F1))) = exeEpochv -> exeRedirv Fin.F1 = false) ->
-      match getOldest f2iv i2dv d2rv r2ev with
-      | Some ep =>
-        pExeEpoch ep = exeEpochv ->
-        exeRedirv Fin.F1 = false /\ consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev
-      | None => True
-      end ->
-      match getOldest (f2iv ++ [f2ie]) i2dv d2rv r2ev with
-      | Some ep =>
-        pExeEpoch ep = exeEpochv ->
-        exeRedirv Fin.F1 = false /\ consistentExeEpoch exeEpochv (f2iv ++ [f2ie]) i2dv d2rv r2ev
-      | None => True
-      end.
-  Proof.
-    unfold getOldest, epochPcFidre, consistentExeEpoch; intros.
-    destruct r2ev;
-      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
-        apply ListSupport.Forall_app; auto].
-    destruct d2rv;
-      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
-        apply ListSupport.Forall_app; auto].
-    destruct i2dv;
-      [|simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto;
-        apply ListSupport.Forall_app; auto].
-    simpl; simpl in H1.
-    rewrite map_app; simpl.
-    match goal with
-    | [H: context[match (map _ ?l) with | nil => _ | _ => _ end] |- _] => destruct l
-    end.
-    - simpl; intros.
-      repeat split; repeat constructor; auto.
-    - simpl; simpl in H1; intros; specialize (H1 H2); dest; repeat split; auto.
-      inv H3.
-      constructor; auto.
-      apply ListSupport.Forall_app; auto.
-  Qed.
-
-  Lemma consistentExeEpoch_getOldest:
-    forall exeEpochv f2iv i2dv d2rv r2ev ep,
-      consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev ->
-      getOldest f2iv i2dv d2rv r2ev = Some ep ->
-      pExeEpoch ep = exeEpochv.
-  Proof.
-    unfold consistentExeEpoch, getOldest, epochPcFidre; intros; dest.
-    destruct r2ev as [|r2ee ?]; simpl in H0.
-    - destruct d2rv as [|d2re ?]; simpl in H0.
-      + destruct i2dv as [|i2de ?]; simpl in H0.
-        * destruct f2iv as [|f2ie ?]; simpl in H0; try discriminate.
-          inv H0; inv H; reflexivity.
-        * inv H0; inv H1; reflexivity.
-      + inv H0; inv H2; reflexivity.
-    - inv H0; inv H3; reflexivity.
-  Qed.
-
   Lemma consistentDecEpoch_pass_valid:
     forall decEpochv f2iv f2ie i2dv i2de,
       f2ie Fin.F1 = i2de Fin.F1 ->
       consistentDecEpoch decEpochv (f2ie :: f2iv) i2dv ->
       consistentDecEpoch decEpochv f2iv (i2dv ++ [i2de]).
   Proof.
-    unfold consistentDecEpoch; intros; dest.
+    unfold consistentDecEpoch, epochPcFid; intros; dest.
     inv H0.
-    split; auto.
+    apply Forall_app_inv in H4; dest.
     apply ListSupport.Forall_app; auto.
-    rewrite H; auto.
+    rewrite map_app; apply ListSupport.Forall_app; auto.
+    simpl; constructor; auto.
+    simpl; simpl in H3.
+    rewrite <-H; auto.
   Qed.
 
   Lemma consistentDecEpoch_killed_valid:
@@ -476,9 +356,10 @@ Section Processor.
       consistentDecEpoch decEpochv f2iv (i2de :: i2dv) ->
       consistentDecEpoch decEpochv f2iv i2dv.
   Proof.
-    unfold consistentDecEpoch; intros; dest.
-    inv H0.
-    split; auto.
+    unfold consistentDecEpoch, epochPcFid; intros; dest.
+    apply Forall_app_inv in H; dest.
+    apply ListSupport.Forall_app; auto.
+    inv H0; auto.
   Qed.
 
   Lemma consistentExeEpoch_f2i_pass_valid:
@@ -487,11 +368,15 @@ Section Processor.
       consistentExeEpoch exeEpochv (f2ie :: f2iv) i2dv d2rv r2ev ->
       consistentExeEpoch exeEpochv f2iv (i2dv ++ [i2de]) d2rv r2ev.
   Proof.
-    unfold consistentExeEpoch; intros; dest.
-    inv H0.
-    repeat split; auto.
-    apply ListSupport.Forall_app; auto.
-    rewrite H; auto.
+    unfold consistentExeEpoch, epochPcFidre; intros; dest.
+    apply Forall_app_inv in H0; dest.
+    apply Forall_app_inv in H1; dest.
+    apply Forall_app_inv in H2; dest.
+    inv H3.
+    repeat (apply ListSupport.Forall_app; auto).
+    rewrite map_app; apply ListSupport.Forall_app; auto.
+    simpl; constructor; auto.
+    simpl; rewrite H; auto.
   Qed.
 
   Lemma consistentExeEpoch_i2d_pass_valid:
@@ -501,10 +386,14 @@ Section Processor.
       consistentExeEpoch exeEpochv f2iv (i2de :: i2dv) d2rv r2ev ->
       consistentExeEpoch exeEpochv f2iv i2dv (d2rv ++ [d2re]) r2ev.
   Proof.
-    unfold consistentExeEpoch; intros; dest.
-    inv H1.
-    repeat split; auto.
-    apply ListSupport.Forall_app; auto.
+    unfold consistentExeEpoch, epochPcFidre; intros; dest.
+    apply Forall_app_inv in H0; dest.
+    apply Forall_app_inv in H1; dest.
+    apply Forall_app_inv in H2; dest.
+    inv H2.
+    repeat (apply ListSupport.Forall_app; auto).
+    rewrite map_app; apply ListSupport.Forall_app; auto.
+    simpl; auto.
   Qed.
 
   Lemma consistentExeEpoch_i2d_killed_valid:
@@ -512,9 +401,12 @@ Section Processor.
       consistentExeEpoch exeEpochv f2iv (i2de :: i2dv) d2rv r2ev ->
       consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev.
   Proof.
-    unfold consistentExeEpoch; intros; dest.
-    inv H0.
-    repeat split; auto.
+    unfold consistentExeEpoch, epochPcFidre; intros; dest.
+    apply Forall_app_inv in H; dest.
+    apply Forall_app_inv in H0; dest.
+    apply Forall_app_inv in H1; dest.
+    inv H1.
+    repeat (apply ListSupport.Forall_app; auto).
   Qed.
 
   Lemma consistentExeEpoch_r2e_killed:
@@ -522,8 +414,12 @@ Section Processor.
       consistentExeEpoch exeEpochv f2iv i2dv d2rv (r2ee :: r2ev) ->
       consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev.
   Proof.
-    unfold consistentExeEpoch; intros; dest.
-    inv H2; auto.
+    unfold consistentExeEpoch, epochPcFidre; intros; dest.
+    apply Forall_app_inv in H; dest.
+    apply Forall_app_inv in H0; dest.
+    apply Forall_app_inv in H1; dest.
+    inv H.
+    repeat (apply ListSupport.Forall_app; auto).
   Qed.
 
   Lemma pcChainFromPc_f2i_pass_valid:
@@ -573,16 +469,6 @@ Section Processor.
     apply pcChain_app in H; dest; auto.
   Qed.
 
-  Lemma getOldest_f2i_pass_valid:
-    forall f2iv f2ie i2dv i2de d2rv r2ev,
-      f2ie Fin.F1 = i2de Fin.F1 ->
-      getOldest f2iv (i2dv ++ [i2de]) d2rv r2ev =
-      getOldest (f2ie :: f2iv) i2dv d2rv r2ev.
-  Proof.
-    unfold getOldest; intros.
-    erewrite epochPcFidre_f2i_pass; eauto.
-  Qed.
-
   Record epoch_invariant (o: RegsT) : Prop :=
     { pcv : fullType type (SyntaxKind (Bit addrSize));
       Hpc: M.find "pc" o = Some (existT _ _ pcv);
@@ -619,8 +505,9 @@ Section Processor.
       (** Invariants when some redirections exist *)
       HdrSpec: decRedirv Fin.F1 = true ->
                consistentDecEpoch (negb decEpochv) f2iv i2dv;
-      HerSpec: exeRedirv Fin.F1 = true ->
-               consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev;
+      HerSpec1: exeRedirv Fin.F1 = true ->
+                consistentExeEpoch (negb exeEpochv) f2iv i2dv d2rv r2ev;
+      HerSpec2: separatedExeEpoch exeEpochv f2iv i2dv d2rv r2ev;
 
       (** Invariants about pc/predPc chain *)
       Hchain1: decRedirv Fin.F1 = true ->
@@ -629,14 +516,6 @@ Section Processor.
       Hchain2: decRedirv Fin.F1 = false ->
                exeRedirv Fin.F1 = false ->
                pcChainFromPc pcv decEpochv exeEpochv f2iv i2dv d2rv r2ev;
-
-      (** An invariant about exeEpoch *)
-      HeeSpec3: match getOldest f2iv i2dv d2rv r2ev with
-                | Some ep => pExeEpoch ep = exeEpochv ->
-                             exeRedirv Fin.F1 = false /\
-                             consistentExeEpoch exeEpochv f2iv i2dv d2rv r2ev
-                | None => True
-                end
     }.
 
   Local Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
@@ -653,7 +532,7 @@ Section Processor.
       auto.
     intros; inv H0.
     intros; inv H0.
-    vm_compute; auto.
+    do 2 exists nil; auto.
     vm_compute; auto.
     vm_compute; auto.
 
