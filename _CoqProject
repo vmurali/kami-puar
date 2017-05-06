@@ -5,5 +5,3 @@
 -R kami/extraction Ext
 -R kami/compilation Compilation
 -R puar Puar
--R processors Proc
--R refinements Refinement
