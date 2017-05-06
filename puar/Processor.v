@@ -356,38 +356,23 @@ Section Processor.
 
         with Rule fetchRq :=
           Pop inp1 : Struct InstVToPRqT <- fifoInstVToPRq;
-          Read decEpochVal <- decEpoch;
-          Read execEpochVal <- execEpoch;
-          Read wbEpochVal <- wbEpoch;
-          If #decEpochVal == #inp1!InstVToPRqT@.decEpoch &&
-             #execEpochVal == #inp1!InstVToPRqT@.execEpoch &&
-             #wbEpochVal == #inp1!InstVToPRqT@.wbEpoch
-          then (
-            Call inp2 <- instRpVToPDeq();
-            Enq fifoFetchRq : Struct FetchRqT <-
-                                     (STRUCT {
-                                          decEpoch ::= #inp1!InstVToPRqT@.decEpoch;
-                                          execEpoch ::= #inp1!InstVToPRqT@.execEpoch;
-                                          wbEpoch ::= #inp1!InstVToPRqT@.wbEpoch;
-                                          instVAddr ::= #inp1!InstVToPRqT@.instVAddr;
-                                          nextPc ::= #inp1!InstVToPRqT@.nextPc;
-                                          instMode ::= instVToPRp_Mode #inp2;
-                                          exception ::= instVToPRp_Exception #inp2;
-                                          instPAddr ::= instVToPRp_PAddr #inp2 });
-            Call instRqEnq(pAddr_FetchRq (instVToPRp_PAddr #inp2));
-            Retv
-            );
+          Call inp2 <- instRpVToPDeq();
+          Enq fifoFetchRq : Struct FetchRqT <-
+                                   (STRUCT {
+                                        decEpoch ::= #inp1!InstVToPRqT@.decEpoch;
+                                        execEpoch ::= #inp1!InstVToPRqT@.execEpoch;
+                                        wbEpoch ::= #inp1!InstVToPRqT@.wbEpoch;
+                                        instVAddr ::= #inp1!InstVToPRqT@.instVAddr;
+                                        nextPc ::= #inp1!InstVToPRqT@.nextPc;
+                                        instMode ::= instVToPRp_Mode #inp2;
+                                        exception ::= instVToPRp_Exception #inp2;
+                                        instPAddr ::= instVToPRp_PAddr #inp2 });
+          Call instRqEnq(pAddr_FetchRq (instVToPRp_PAddr #inp2));
           Retv
 
         with Rule fetchRp :=
           Pop inp1 : Struct FetchRqT <- fifoFetchRq;
-          Read decEpochVal <- decEpoch;
-          Read execEpochVal <- execEpoch;
-          Read wbEpochVal <- wbEpoch;
-          If #decEpochVal == #inp1!FetchRqT@.decEpoch &&
-             #execEpochVal == #inp1!FetchRqT@.execEpoch &&
-             #wbEpochVal == #inp1!FetchRqT@.wbEpoch
-          then (Enq fifoFetchRp : Struct FetchRqT <- #inp1; Retv);
+          Enq fifoFetchRp : Struct FetchRqT <- #inp1;
           Retv
 
         with Rule regRead :=
@@ -504,48 +489,41 @@ Section Processor.
 
         with Rule ldRq :=
           Pop inp1 : Struct ExecT <- fifoExec;
-          Read wbEpochVal <- wbEpoch;
-          If #wbEpochVal == #inp1!ExecT@.wbEpoch                               
+          If isLdSt #inp1!ExecT@.inst         
           then (
-            If isLdSt #inp1!ExecT@.inst         
-            then (
-              Read fifoLdRqData <- fifoLdRq;
-              Read fifoLdRpData <- fifoLdRp;
-              Read fifoLdRqV <- fifoLdRqValid;
-              Read fifoLdRpV <- fifoLdRpValid;
-              LET stall <- (#fifoLdRqV && isSt #fifoLdRqData!LdRqT@.inst) ||
-                           (#fifoLdRpV && isSt #fifoLdRpData!LdRqT@.inst);
+            Read fifoLdRqData <- fifoLdRq;
+            Read fifoLdRpData <- fifoLdRp;
+            Read fifoLdRqV <- fifoLdRqValid;
+            Read fifoLdRpV <- fifoLdRpValid;
+            LET stall <- (#fifoLdRqV && isSt #fifoLdRqData!LdRqT@.inst) ||
+                (#fifoLdRpV && isSt #fifoLdRpData!LdRqT@.inst);
 
-              Assert ! (isLd #inp1!ExecT@.inst && #stall);
+            Assert ! (isLd #inp1!ExecT@.inst && #stall);
 
-              Call inp2 <- memRpVToPDeq();
-              Call memRqEnq(pAddr_LdRq (memVToPRp_PAddr #inp2));
-              Ret #inp2
-              )
-            else Ret $$ Default
-            as inp2;
-            Enq fifoLdRq : Struct LdRqT <- (STRUCT {
-                                                wbEpoch ::= #inp1!ExecT@.wbEpoch;
-                                                instVAddr ::= #inp1!ExecT@.instVAddr;
-                                                nextPc ::= #inp1!ExecT@.nextPc;
-                                                instMode ::= #inp1!ExecT@.instMode;
-                                                exception ::= #inp1!ExecT@.exception;
-                                                instPAddr ::= #inp1!ExecT@.instPAddr;
-                                                inst ::= #inp1!ExecT@.inst;
-                                                vAddr ::= #inp1!ExecT@.vAddr;
-                                                dst ::= #inp1!ExecT@.dst;
-                                                pAddr ::= memVToPRp_PAddr #inp2;
-                                                dataMode ::= memVToPRp_Mode #inp2
-                                           });
-            Retv
-            );
+            Call inp2 <- memRpVToPDeq();
+            Call memRqEnq(pAddr_LdRq (memVToPRp_PAddr #inp2));
+            Ret #inp2
+            )
+          else Ret $$ Default
+          as inp2;
+          Enq fifoLdRq : Struct LdRqT <- (STRUCT {
+                                              wbEpoch ::= #inp1!ExecT@.wbEpoch;
+                                              instVAddr ::= #inp1!ExecT@.instVAddr;
+                                              nextPc ::= #inp1!ExecT@.nextPc;
+                                              instMode ::= #inp1!ExecT@.instMode;
+                                              exception ::= #inp1!ExecT@.exception;
+                                              instPAddr ::= #inp1!ExecT@.instPAddr;
+                                              inst ::= #inp1!ExecT@.inst;
+                                              vAddr ::= #inp1!ExecT@.vAddr;
+                                              dst ::= #inp1!ExecT@.dst;
+                                              pAddr ::= memVToPRp_PAddr #inp2;
+                                              dataMode ::= memVToPRp_Mode #inp2
+                                         });
           Retv
           
         with Rule ldRp :=
           Pop inp1 : Struct LdRqT <- fifoLdRq;
-          Read wbEpochVal <- wbEpoch;
-          If #wbEpochVal == #inp1!LdRqT@.wbEpoch                               
-          then (Enq fifoLdRp: Struct LdRqT <- #inp1; Retv);
+          Enq fifoLdRp: Struct LdRqT <- #inp1;
           Retv
           
         with Rule wb :=
@@ -554,8 +532,6 @@ Section Processor.
           Read wbPcVal <- wbPc;
           Read cStateVal <- cState;
           Read modeVal <- mode;
-          LET epochMatch <- #inp1!LdRqT@.wbEpoch == #wbEpochVal;
-          LET pcMatch <- #inp1!LdRqT@.instVAddr == #wbPcVal;
           LET cExecVal <- cExec #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
               #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode #inp1!LdRqT@.exception
               #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
@@ -569,7 +545,9 @@ Section Processor.
           as inp2;
           LET ldPAddr <- ldRp_PAddr #inp2;
           LET ldData <- ldRp_Data #inp2;
-          If #epochMatch (* && #pcMatch *)
+
+          If #wbEpochVal == #inp1!LdRqT@.wbEpoch &&
+             #wbPcVal == #inp1!LdRqT@.instVAddr
           then (
             Write cState <- #cExecVal!CExec@.newCState;
             Write wbPc <- #cExecVal!CExec@.newPc;
