@@ -1,72 +1,61 @@
-Require Import Kami Lib.Indexer.
+Require Import Kami Lib.Indexer Lib.Struct.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
 
 Open Scope string.
-Definition msg := "msg".
-Definition instRqToM := "instRqToM".
-Definition instRpToP := "instRpToP".
-Definition instRqVToP := "instRqVToP".
-Definition instRpVToP := "instRpVToP".
-Definition rqToM := "rqToM".
-Definition ldRpToP := "ldRpToP".
-Definition dataRqVToP := "dataRqVToP".
-Definition dataRpVToP := "dataRpVToP".
+(* External method calls *)
+Definition instVToPRq := "instVToPRq".
+Definition instVToPRp := "instVToPRp".
+Definition instRq := "instRq".
+Definition instRp := "instRp".
+Definition memVToPRq := "memVToPRq".
+Definition memVToPRp := "memVToPRp".
+Definition memRq := "memRq".
+Definition memRp := "memRp".
+
+Definition commit := "commit".
 Definition setAccessInstVToP := "setAccessInstVToP".
 Definition setAccessDataVToP := "setAccessDataVToP".
 Definition setDirtyDataVToP := "setDirtyDataVToP".
 
-Definition inst := "inst".
-Definition instVToP := "instVToP".
-Definition data := "data".
-Definition dataVToP := "dataVToP".
+(* Final External method calls *)
+Definition getInstVToP := "getInstVToP".
+Definition getInst := "getInst".
+Definition getMemVToP := "getMemVToP".
+Definition doMem := "doMem".
 
-Definition execException := "execException".
-Definition execNextPc := "execNextPc".
-Definition execVAddr := "execVAddr".
-Definition execData := "execData".
-
-Definition enq := "enq".
-Definition deq := "deq".
-Definition exception := "exception".
-
-Definition vAddr := "vAddr".
-Definition pAddr := "pAddr".
-
-Definition commitVpc := "commitVpc".
-Definition commitPc := "commitPc".
-Definition commitInst := "commitInst".
-Definition commitDst := "commitDst".
-Definition commitVAddr := "commitVAddr".
-Definition commitPAddr := "commitPAddr".
-Definition commitLdData := "commitLdData".
-Definition commitMode := "commitMode".
-Definition commitException := "commitException".
-Definition commitNextPc := "commitNextPc".
-Definition commitNextMode := "commitNextMode".
-
-Definition pc := "pc".
-Definition wbPc := "wbPc".
-Definition regFile := "regFile".
-Definition cState := "cState".
-Definition btb := "btb".
-Definition bp := "bp".
-Definition decEpoch := "decEpoch".
-Definition execEpoch := "execEpoch".
-Definition wbEpoch := "wbEpoch".
-Definition Valid := "Valid".
-Definition mode := "mode".
-Definition instMode := "instMode".
-Definition dataMode := "dataMode".
-
-Definition instVAddr := "instVAddr".
+(* Field names *)
 Definition nextPc := "nextPc".
-Definition instPAddr := "instPAddr".
-
+Definition instMode := "instMode".
+Definition exception := "exception".
+Definition physicalPc := "physicalPc".
+Definition inst := "inst".
+Definition memVAddr := "memVAddr".
 Definition src1 := "src1".
 Definition src2 := "src2".
 Definition dst := "dst".
+Definition memPAddr := "memPAddr".
+Definition memData := "memData".
+Definition dataMode := "dataMode".
+Definition byteEns := "byteEns".
+Definition data := "data".
+Definition op := "op".
+Definition pAddr := "pAddr".
+
+(* Registers *)
+Definition pc := "pc".
+Definition decEpoch := "decEpoch".
+Definition execEpoch := "execEpoch".
+Definition wbEpoch := "wbEpoch".
+Definition btb := "btb".
+Definition bp := "bp".
+Definition regFile := "regFile".
+Definition cState := "cState".
+Definition mode := "mode".
+Definition wbPc := "wbPc".
+
+Definition Valid := "Valid".
 
 Definition fifoInstVToPRq := "fifoInstVToPRq".
 Notation fifoInstVToPRqValid := (fifoInstVToPRq ++ Valid)%string.
@@ -79,12 +68,12 @@ Notation fifoRegReadValid := (fifoRegRead ++ Valid)%string.
 
 Definition fifoExec := "fifoExec".
 Notation fifoExecValid := (fifoExec ++ Valid)%string.
-Definition fifoLdRq := "fifoLdRq".
-Notation fifoLdRqValid := (fifoLdRq ++ Valid)%string.
-Definition fifoLdRp := "fifoLdRp".
-Notation fifoLdRpValid := (fifoLdRp ++ Valid)%string.
+Definition fifoMemRq := "fifoMemRq".
+Notation fifoMemRqValid := (fifoMemRq ++ Valid)%string.
+Definition fifoMemRp := "fifoMemRp".
+Notation fifoMemRpValid := (fifoMemRp ++ Valid)%string.
 
-Definition instVToPRq := "instVToPRq".
+(* Rule names *)
 Definition fetchRq := "fetchRq".
 Definition fetchRp := "fetchRp".
 Definition regRead := "regRead".
@@ -92,42 +81,46 @@ Definition exec := "exec".
 Definition ldRq := "ldRq".
 Definition ldRp := "ldRp".
 Definition wb := "wb".
-Definition commit := "commit".
 
-Definition newCState := "newCState".
-Definition newMode := "newMode".
-Definition newPc := "newPc".
-Definition currException := "currException".
+(* Enq Deq Pop First *)
+Definition enq := "enq".
+Definition deq := "deq".
+Definition pop := "pop".
+Definition first := "first".
 
 Close Scope string.
 
-Notation "e1 ? e2 : e3" := (ITE e1 e2 e3) (at level 12) : kami_expr_scope.
+Definition MemOp := Bit 2.
 
+(* No exception must be 0 because I use default everywhere to denote no exception *)
 
 Section Processor.
-  Variable VAddr PAddr Inst Data CState Exception InstVToPRq InstVToPRp
-           FetchRq FetchRp MemVToPRq MemVToPRp MemRq LdRp ByteEns Mode: Kind.
-  Variable RIndexSz: nat.
+  Variable VAddrSz PAddrSz NumDataBytes RIndexSz: nat.
+  Variable Inst CState Exception Mode: Kind.
+  Definition Data := Bit (8 * NumDataBytes).
+  Definition VAddr := Bit VAddrSz.
+  Definition PAddr := Bit PAddrSz.
+  Variable PcInit: ConstT VAddr.
+  Variable RegFileInit: ConstT (Vector Data RIndexSz).
+  Variable CStateInit: ConstT CState.
+  Variable ModeInit: ConstT Mode.
 
   Variable BtbState BpState: Kind.
   Variable BtbStateInit: ConstT BtbState.
   Variable BpStateInit: ConstT BpState.
-  Variable RegFileInit: ConstT (Vector Data RIndexSz).
-  Variable CStateInit: ConstT CState.
-  Variable PcInit: ConstT VAddr.
-  Variable ModeInit: ConstT Mode.
 
   Notation RIndex := (Bit RIndexSz).
+
   Definition CExec := STRUCT
-                        { newCState :: CState;
-                          newPc :: VAddr;
-                          newMode :: Mode }.
+                        { cState :: CState;
+                          pc :: VAddr;
+                          mode :: Mode }.
   
   Definition Exec := STRUCT
-                       { execException :: Exception;
-                         execNextPc :: VAddr;
-                         execVAddr :: VAddr;
-                         execData :: Data }.
+                       { exception :: Exception;
+                         nextPc :: VAddr;
+                         memVAddr :: VAddr;
+                         memData :: Data }.
   
   Variable getSrc1: forall ty, Inst @ ty -> RIndex @ ty.
   Variable getSrc2: forall ty, Inst @ ty -> RIndex @ ty.
@@ -145,28 +138,11 @@ Section Processor.
                 Exception @ ty.
   Variable isLd: forall ty, Inst @ ty -> Bool @ ty.
   Variable isSt: forall ty, Inst @ ty -> Bool @ ty.
+  Variable getByteEns: forall ty, Inst @ ty -> (Bit NumDataBytes) @ ty.
   Variable isNotZero: forall ty, RIndex @ ty -> Bool @ ty.
   Variable modeLe: forall ty, Mode @ ty -> Mode @ ty -> Bool @ ty.
   Variable noException: forall ty, Exception @ ty -> Bool @ ty.
 
-  Variable vAddr_InstVToPRq: forall ty, VAddr @ ty -> InstVToPRq @ ty.
-  Variable instVToPRp_VAddr: forall ty, InstVToPRp @ ty -> VAddr @ ty.
-  Variable instVToPRp_PAddr: forall ty, InstVToPRp @ ty -> PAddr @ ty.
-  Variable instVToPRp_Mode: forall ty, InstVToPRp @ ty -> Mode @ ty.
-  Variable instVToPRp_Exception: forall ty, InstVToPRp @ ty -> Exception @ ty.
-  Variable pAddr_FetchRq: forall ty, PAddr @ ty -> FetchRq @ ty.
-  Variable fetchRp_Inst: forall ty, FetchRp @ ty -> Inst @ ty.
-  Variable fetchRp_PAddr: forall ty, FetchRp @ ty -> PAddr @ ty.
-  Variable vAddr_MemVToPRq: forall ty, VAddr @ ty -> MemVToPRq @ ty.
-  Variable memVToPRp_PAddr: forall ty, MemVToPRp @ ty -> PAddr @ ty.
-  Variable memVToPRp_VAddr: forall ty, MemVToPRp @ ty -> VAddr @ ty.
-  Variable memVToPRp_Mode: forall ty, MemVToPRp @ ty -> Mode @ ty.
-  Variable memVToPRp_Exception: forall ty, MemVToPRp @ ty -> Exception @ ty.
-  Variable pAddr_LdRq: forall ty, PAddr @ ty -> MemRq @ ty.
-  Variable ldRp_Data: forall ty, LdRp @ ty -> Data @ ty.
-  Variable ldRp_PAddr: forall ty, LdRp @ ty -> PAddr @ ty.
-  Variable createStRq: forall ty, VAddr @ ty -> Data @ ty -> MemRq @ ty.
-  
   Variable getNextBtb: forall ty, BtbState @ ty -> VAddr @ ty -> VAddr @ ty.
   Variable updBtb: forall ty, BtbState @ ty -> VAddr @ ty -> VAddr @ ty -> BtbState @ ty.
 
@@ -177,34 +153,121 @@ Section Processor.
   Definition isLdSt ty (inst : Inst @ ty) := (isLd inst || isSt inst)%kami_expr.
   Definition isNm ty (inst : Inst @ ty) := (!(isLdSt inst))%kami_expr.
   
-  Definition instRqEnq := MethodSig (instRqToM -- enq) (FetchRq): Void.
-  Definition instRpDeq := MethodSig (instRpToP -- deq) (Void): FetchRp.
-  Definition instRqVToPEnq := MethodSig (instRqVToP -- enq) (InstVToPRq): Void.
-  Definition instRpVToPDeq := MethodSig (instRpVToP -- deq) (Void): InstVToPRp.
+  Definition MemRq := STRUCT
+                        { memPAddr :: PAddr;
+                          op :: MemOp;
+                          byteEns :: Bit NumDataBytes;
+                          data :: Data }.
 
-  Definition memRqEnq := MethodSig (rqToM -- enq) (MemRq): Void.
-  Definition ldRpDeq := MethodSig (ldRpToP -- deq) (Void): LdRp.
-  Definition memRqVToPEnq := MethodSig (dataRqVToP -- enq) (MemVToPRq): Void.
-  Definition memRpVToPDeq := MethodSig (dataRpVToP -- deq) (Void): MemVToPRp.
-  Definition setAccessInstVToPCall := MethodSig setAccessInstVToP (VAddr): Void.
-  Definition setAccessDataVToPCall := MethodSig setAccessDataVToP (VAddr): Void.
-  Definition setDirtyDataVToPCall := MethodSig setDirtyDataVToP (VAddr): Void.
-
+  Definition VToPRp := STRUCT
+                         { mode :: Mode;
+                           exception :: Exception;
+                           pAddr :: PAddr }.
   
-  Definition CommitT := STRUCT
-    { commitVpc :: VAddr;
-      commitPc :: PAddr;
-      commitInst :: Inst;
-      commitDst :: Data;
-      commitVAddr :: VAddr;
-      commitPAddr :: PAddr;
-      commitLdData :: Data;
-      commitMode :: Mode;
-      commitException :: Exception;
-      commitNextPc :: VAddr;
-      commitNextMode :: Mode }.
+  Definition createLdRq ty (addr: PAddr @ ty): (Struct MemRq) @ ty :=
+    (STRUCT { memPAddr ::= addr;
+              op ::= $$ (WO~0~1);
+              byteEns ::= $$ Default;
+              data ::= $$ Default })%kami_expr.
 
-  Definition commitLabel := MethodSig commit (Struct CommitT): Void.
+  Definition createStRq ty (addr: PAddr @ ty)
+             (byteEn: (Bit NumDataBytes) @ ty) (d: Data @ ty): (Struct MemRq) @ ty :=
+    (STRUCT { memPAddr ::= addr;
+              op ::= $$ (WO~1~0);
+              byteEns ::= byteEn;
+              data ::= d })%kami_expr.
+
+  Definition InstVToPRqT := STRUCT { decEpoch :: Bool;
+                                     execEpoch :: Bool;
+                                     wbEpoch :: Bool;
+                                     pc :: VAddr;
+                                     nextPc :: VAddr
+                                   }.
+
+  Definition FetchRqT := STRUCT { decEpoch :: Bool;
+                                  execEpoch :: Bool;
+                                  wbEpoch :: Bool;
+                                  pc :: VAddr;
+                                  nextPc :: VAddr;
+                                  instMode :: Mode;
+                                  exception :: Exception;
+                                  physicalPc :: PAddr
+                                }.
+
+  Definition FetchRpT := STRUCT { decEpoch :: Bool;
+                                  execEpoch :: Bool;
+                                  wbEpoch :: Bool;
+                                  pc :: VAddr;
+                                  nextPc :: VAddr;
+                                  instMode :: Mode;
+                                  exception :: Exception;
+                                  physicalPc :: PAddr;
+                                  inst :: Inst
+                                }.
+
+  Definition RegReadT := STRUCT { execEpoch :: Bool;
+                                  wbEpoch :: Bool;
+                                  pc :: VAddr;
+                                  nextPc :: VAddr;
+                                  instMode :: Mode;
+                                  exception :: Exception;
+                                  physicalPc :: PAddr;
+                                  inst :: Inst;
+                                  src1 :: Data;
+                                  src2 :: Data
+                                }.
+  
+  Definition ExecT := STRUCT { wbEpoch :: Bool;
+                               pc :: VAddr;
+                               nextPc :: VAddr;
+                               instMode :: Mode;
+                               exception :: Exception;
+                               physicalPc :: PAddr;
+                               inst :: Inst;
+                               memVAddr :: VAddr;
+                               dst :: Data (* Serves as data for store also *)
+                             }.
+
+  Definition MemRqT := STRUCT { wbEpoch :: Bool;
+                                pc :: VAddr;
+                                nextPc :: VAddr;
+                                instMode :: Mode;
+                                exception :: Exception;
+                                physicalPc :: PAddr;
+                                inst :: Inst;
+                                memVAddr :: VAddr;
+                                dst :: Data; (* Serves as data for store also *)
+                                memPAddr :: PAddr;
+                                dataMode :: Mode
+                              }.
+
+  Definition MemRpT := STRUCT { inst :: Inst;
+                                dst :: Data (* Serves as data for store also *)
+                              }.
+
+  Definition instVToPRqPop := MethodSig (instVToPRq -- pop) (Void): (Struct InstVToPRqT).
+  Definition instVToPRqFirst := MethodSig (instVToPRq -- first) (Void): (Struct InstVToPRqT).
+  Definition instVToPRpEnq := MethodSig (instVToPRp -- enq) (Struct FetchRqT): Void.
+  Definition instRqPop := MethodSig (instRq -- pop) (Void): (Struct FetchRqT).
+  Definition instRqFirst := MethodSig (instRq -- first) (Void): (Struct FetchRqT).
+  Definition instRpEnq := MethodSig (instRp -- enq) (Struct FetchRpT): Void.
+
+  Definition memVToPRqPop := MethodSig (memVToPRq -- pop) (Void): (Struct ExecT).
+  Definition memVToPRqFirst := MethodSig (memVToPRq -- first) (Void): (Struct ExecT).
+  Definition memVToPRpEnq := MethodSig (memVToPRp -- enq) (Struct MemRqT): Void.
+  Definition memRqPop := MethodSig (memRq -- pop) (Void): (Struct MemRqT).
+  Definition memRqFirst := MethodSig (memRq -- first) (Void): (Struct MemRqT).
+  Definition memRpEnq := MethodSig (memRp -- enq) (Struct MemRpT): Void.
+
+  Definition instVToPCall := MethodSig getInstVToP (VAddr): Struct VToPRp.
+  Definition instCall := MethodSig getInst (PAddr): Inst.
+  Definition memVToPCall := MethodSig getMemVToP (VAddr): Struct VToPRp.
+  Definition memCall := MethodSig doMem (Struct MemRq): Data.
+  Definition commitCall := MethodSig commit (VAddr): Void.
+
+  Definition setAccessInstCall := MethodSig setAccessInstVToP (VAddr): Void.
+  Definition setAccessDataCall := MethodSig setAccessDataVToP (VAddr): Void.
+  Definition setDirtyDataCall := MethodSig setDirtyDataVToP (VAddr): Void.
 
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -240,60 +303,6 @@ Section Processor.
     )%kami_sin
     (at level 12, right associativity, f at level 0, v at level 0) : kami_sin_scope.
 
-  Definition InstVToPRqT := STRUCT { decEpoch :: Bool;
-                                     execEpoch :: Bool;
-                                     wbEpoch :: Bool;
-                                     instVAddr :: VAddr;
-                                     nextPc :: VAddr
-                                   }.
-                                     
-
-  Definition FetchRqT := STRUCT { decEpoch :: Bool;
-                                  execEpoch :: Bool;
-                                  wbEpoch :: Bool;
-                                  instVAddr :: VAddr;
-                                  nextPc :: VAddr;
-                                  instMode :: Mode;
-                                  exception :: Exception;
-                                  instPAddr :: PAddr
-                                }.
-
-  Definition RegReadT := STRUCT { execEpoch :: Bool;
-                                  wbEpoch :: Bool;
-                                  instVAddr :: VAddr;
-                                  nextPc :: VAddr;
-                                  instMode :: Mode;
-                                  exception :: Exception;
-                                  instPAddr :: PAddr;
-                                  inst :: Inst;
-                                  src1 :: Data;
-                                  src2 :: Data
-                                }.
-  
-  Definition ExecT := STRUCT { wbEpoch :: Bool;
-                               instVAddr :: VAddr;
-                               nextPc :: VAddr;
-                               instMode :: Mode;
-                               exception :: Exception;
-                               instPAddr :: PAddr;
-                               inst :: Inst;
-                               vAddr :: VAddr;
-                               dst :: Data (* Serves as data for store also *)
-                             }.
-
-  Definition LdRqT := STRUCT { wbEpoch :: Bool;
-                               instVAddr :: VAddr;
-                               nextPc :: VAddr;
-                               instMode :: Mode;
-                               exception :: Exception;
-                               instPAddr :: PAddr;
-                               inst :: Inst;
-                               vAddr :: VAddr;
-                               dst :: Data; (* Serves as data for store also *)
-                               pAddr :: PAddr;
-                               dataMode :: Mode
-                             }.
-
   Definition bypass ty (f1Valid f2Valid f3Valid: Bool @ ty)
              (f1 f2 f3: Inst @ ty) (f1d f2d f3d d: Data @ ty) (src: RIndex @ ty) :=
     ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src)
@@ -325,7 +334,7 @@ Section Processor.
         with Register fifoFetchRq : Struct FetchRqT <- Default
         with Register fifoFetchRqValid : Bool <- (ConstBool false)
 
-        with Register fifoFetchRp : Struct FetchRqT <- Default
+        with Register fifoFetchRp : Struct FetchRpT <- Default
         with Register fifoFetchRpValid : Bool <- (ConstBool false)
                                     
         with Register fifoRegRead : Struct RegReadT <- Default
@@ -334,11 +343,11 @@ Section Processor.
         with Register fifoExec : Struct ExecT <- Default
         with Register fifoExecValid : Bool <- (ConstBool false)
 
-        with Register fifoLdRq : Struct LdRqT <- Default
-        with Register fifoLdRqValid : Bool <- (ConstBool false)
+        with Register fifoMemRq : Struct MemRqT <- Default
+        with Register fifoMemRqValid : Bool <- (ConstBool false)
 
-        with Register fifoLdRp : Struct LdRqT <- Default
-        with Register fifoLdRpValid : Bool <- (ConstBool false)
+        with Register fifoMemRp : Struct MemRqT <- Default
+        with Register fifoMemRpValid : Bool <- (ConstBool false)
 
         with Rule instVToPRq :=
           Read pcVal <- pc;
@@ -353,49 +362,26 @@ Section Processor.
                                            decEpoch ::= #decEpochVal;
                                            execEpoch ::= #execEpochVal;
                                            wbEpoch ::= #wbEpochVal;
-                                           instVAddr ::= #pcVal;
+                                           pc ::= #pcVal;
                                            nextPc ::= #nextPcVal });
-          Call instRqVToPEnq(vAddr_InstVToPRq #pcVal);
-          Retv
-
-        with Rule fetchRq :=
-          Pop inp1 : Struct InstVToPRqT <- fifoInstVToPRq;
-          Call inp2 <- instRpVToPDeq();
-          Enq fifoFetchRq : Struct FetchRqT <-
-                                   (STRUCT {
-                                        decEpoch ::= #inp1!InstVToPRqT@.decEpoch;
-                                        execEpoch ::= #inp1!InstVToPRqT@.execEpoch;
-                                        wbEpoch ::= #inp1!InstVToPRqT@.wbEpoch;
-                                        instVAddr ::= #inp1!InstVToPRqT@.instVAddr;
-                                        nextPc ::= #inp1!InstVToPRqT@.nextPc;
-                                        instMode ::= instVToPRp_Mode #inp2;
-                                        exception ::= instVToPRp_Exception #inp2;
-                                        instPAddr ::= instVToPRp_PAddr #inp2 });
-          Call instRqEnq(pAddr_FetchRq (instVToPRp_PAddr #inp2));
-          Retv
-
-        with Rule fetchRp :=
-          Pop inp1 : Struct FetchRqT <- fifoFetchRq;
-          Enq fifoFetchRp : Struct FetchRqT <- #inp1;
           Retv
 
         with Rule regRead :=
-          Pop inp1 : Struct FetchRqT <- fifoFetchRp;
-          Call inp2 <- instRpDeq();
+          Pop inp1 : Struct FetchRpT <- fifoFetchRp;
           Read decEpochVal <- decEpoch;
           Read execEpochVal <- execEpoch;
           Read wbEpochVal <- wbEpoch;
           Read bpStateVal <- bp;
-          If #decEpochVal == #inp1!FetchRqT@.decEpoch &&
-             #execEpochVal == #inp1!FetchRqT@.execEpoch &&
-             #wbEpochVal == #inp1!FetchRqT@.wbEpoch                               
+          If #decEpochVal == #inp1!FetchRpT@.decEpoch &&
+             #execEpochVal == #inp1!FetchRpT@.execEpoch &&
+             #wbEpochVal == #inp1!FetchRpT@.wbEpoch                               
           then (
             Read regFileVal <- regFile;
-            LET instVal <- fetchRp_Inst #inp2;    
+            LET instVal <- #inp1!FetchRpT@.inst;    
             LET src1Val <- #regFileVal@[getSrc1 #instVal];
             LET src2Val <- #regFileVal@[getSrc2 #instVal];
-            LET nextPcVal <- getBp #bpStateVal #inp1!FetchRqT@.instVAddr #instVal;
-            If #nextPcVal != #inp1!FetchRqT@.nextPc
+            LET nextPcVal <- getBp #bpStateVal #inp1!FetchRpT@.pc #instVal;
+            If #nextPcVal != #inp1!FetchRpT@.nextPc
             then (
               Write pc <- #nextPcVal;
               Write decEpoch <- ! #decEpochVal;
@@ -403,13 +389,13 @@ Section Processor.
               );
             Enq fifoRegRead : Struct RegReadT <-
                                      (STRUCT {
-                                          execEpoch ::= #inp1!FetchRqT@.execEpoch;
-                                          wbEpoch ::= #inp1!FetchRqT@.wbEpoch;
-                                          instVAddr ::= #inp1!FetchRqT@.instVAddr;
+                                          execEpoch ::= #inp1!FetchRpT@.execEpoch;
+                                          wbEpoch ::= #inp1!FetchRpT@.wbEpoch;
+                                          pc ::= #inp1!FetchRpT@.pc;
                                           nextPc ::= #nextPcVal;
-                                          instMode ::= #inp1!FetchRqT@.instMode;
-                                          exception ::= #inp1!FetchRqT@.exception;
-                                          instPAddr ::= #inp1!FetchRqT@.instPAddr;
+                                          instMode ::= #inp1!FetchRpT@.instMode;
+                                          exception ::= #inp1!FetchRpT@.exception;
+                                          physicalPc ::= #inp1!FetchRpT@.physicalPc;
                                           inst ::= #instVal;
                                           src1 ::= #src1Val;
                                           src2 ::= #src2Val });
@@ -425,11 +411,11 @@ Section Processor.
              #wbEpochVal == #inp1!RegReadT@.wbEpoch                               
           then (
             Read fifoExecData <- fifoExec;
-            Read fifoLdRqData <- fifoLdRq;
-            Read fifoLdRpData <- fifoLdRp;
+            Read fifoMemRqData <- fifoMemRq;
+            Read fifoMemRpData <- fifoMemRp;
             Read fifoExecV <- fifoExecValid;
-            Read fifoLdRqV <- fifoLdRqValid;
-            Read fifoLdRpV <- fifoLdRpValid;
+            Read fifoMemRqV <- fifoMemRqValid;
+            Read fifoMemRpV <- fifoMemRpValid;
 
             LET stall <- (#fifoExecV && isLd #fifoExecData!ExecT@.inst &&
                           isNotZero (getDst #fifoExecData!ExecT@.inst) &&
@@ -437,176 +423,255 @@ Section Processor.
                             getDst #fifoExecData!ExecT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
                            (useSrc2 #inp1!RegReadT@.inst &&
                             getDst #fifoExecData!ExecT@.inst == getSrc2 #inp1!RegReadT@.inst))) ||
-                         (#fifoLdRqV && isLd #fifoLdRqData!LdRqT@.inst &&
-                          isNotZero (getDst #fifoLdRqData!LdRqT@.inst) &&
+                         (#fifoMemRqV && isLd #fifoMemRqData!MemRqT@.inst &&
+                          isNotZero (getDst #fifoMemRqData!MemRqT@.inst) &&
                           ((useSrc1 #inp1!RegReadT@.inst &&
-                            getDst #fifoLdRqData!LdRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
+                            getDst #fifoMemRqData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
                            (useSrc2 #inp1!RegReadT@.inst &&
-                            getDst #fifoLdRqData!LdRqT@.inst == getSrc2 #inp1!RegReadT@.inst))) ||
-                         (#fifoLdRpV && isLd #fifoLdRpData!LdRqT@.inst &&
-                          isNotZero (getDst #fifoLdRpData!LdRqT@.inst) &&
+                            getDst #fifoMemRqData!MemRqT@.inst == getSrc2 #inp1!RegReadT@.inst))) ||
+                         (#fifoMemRpV && isLd #fifoMemRpData!MemRqT@.inst &&
+                          isNotZero (getDst #fifoMemRpData!MemRqT@.inst) &&
                           ((useSrc1 #inp1!RegReadT@.inst &&
-                            getDst #fifoLdRpData!LdRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
+                            getDst #fifoMemRpData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
                            (useSrc2 #inp1!RegReadT@.inst &&
-                            getDst #fifoLdRpData!LdRqT@.inst == getSrc1 #inp1!RegReadT@.inst)));
+                            getDst #fifoMemRpData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst)));
 
             Assert ! #stall;
 
             LET bypassSrc1 <-
                 bypass
-                #fifoExecV #fifoLdRqV #fifoLdRpV
-                #fifoExecData!ExecT@.inst #fifoLdRqData!LdRqT@.inst #fifoLdRpData!LdRqT@.inst
-                #fifoExecData!ExecT@.dst #fifoLdRqData!LdRqT@.dst #fifoLdRpData!LdRqT@.dst
+                #fifoExecV #fifoMemRqV #fifoMemRpV
+                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRqT@.inst
+                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRqT@.dst
                 #inp1!RegReadT@.src1 (getSrc1 #inp1!RegReadT@.inst);
 
             LET bypassSrc2 <-
                 bypass
-                #fifoExecV #fifoLdRqV #fifoLdRpV
-                #fifoExecData!ExecT@.inst #fifoLdRqData!LdRqT@.inst #fifoLdRpData!LdRqT@.inst
-                #fifoExecData!ExecT@.dst #fifoLdRqData!LdRqT@.dst #fifoLdRpData!LdRqT@.dst
+                #fifoExecV #fifoMemRqV #fifoMemRpV
+                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRqT@.inst
+                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRqT@.dst
                 #inp1!RegReadT@.src2 (getSrc2 #inp1!RegReadT@.inst);
 
             LET execVal <- execFn #inp1!RegReadT@.inst #bypassSrc1 #bypassSrc2;
-            If #execVal!Exec@.execNextPc != #inp1!RegReadT@.nextPc
+            
+            If #execVal!Exec@.nextPc != #inp1!RegReadT@.nextPc
             then (
-              Write pc <- #execVal!Exec@.execNextPc;
+              Write pc <- #execVal!Exec@.nextPc;
               Write execEpoch <- ! #execEpochVal;
               Retv
               );
             LET finalException <- IF noException #inp1!RegReadT@.exception
-                                  then #execVal!Exec@.execException
+                                  then #execVal!Exec@.exception
                                   else #inp1!RegReadT@.exception;
             Enq fifoExec : Struct ExecT <-
                                   (STRUCT {
                                           wbEpoch ::= #inp1!RegReadT@.wbEpoch;
-                                          instVAddr ::= #inp1!RegReadT@.instVAddr;
-                                          nextPc ::= #execVal!Exec@.execNextPc;
+                                          pc ::= #inp1!RegReadT@.pc;
+                                          nextPc ::= #execVal!Exec@.nextPc;
                                           instMode ::= #inp1!RegReadT@.instMode;
                                           exception ::= #finalException;
-                                          instPAddr ::= #inp1!RegReadT@.instPAddr;
+                                          physicalPc ::= #inp1!RegReadT@.physicalPc;
                                           inst ::= #inp1!RegReadT@.inst;
-                                          vAddr ::= #execVal!Exec@.execVAddr;
-                                          dst ::= #execVal!Exec@.execData });
-            If isLdSt #inp1!RegReadT@.inst
-            then (Call memRqVToPEnq (vAddr_MemVToPRq #execVal!Exec@.execVAddr); Retv);
+                                          memVAddr ::= #execVal!Exec@.memVAddr;
+                                          dst ::= #execVal!Exec@.data });
             Retv
             );
           Retv
 
-        with Rule ldRq :=
-          Pop inp1 : Struct ExecT <- fifoExec;
+        with Rule wb :=
+          Pop inp1 : Struct MemRpT <- fifoMemRp;
+          Read regFileVals <- regFile;
+          If ! (isSt #inp1!MemRpT@.inst)
+          then (
+            Write regFile <- #regFileVals@[getDst #inp1!MemRpT@.inst <- #inp1!MemRpT@.dst];
+            Retv
+            );
+          Retv                 
+
+        with Method (instVToPRq -- pop) (_: Void): (Struct InstVToPRqT) :=
+          Pop inp1 : _ <- fifoInstVToPRq;
+          Ret #inp1
+
+        with Method (instRq -- pop) (_: Void): (Struct FetchRqT) :=
+          Pop inp1 : _ <- fifoFetchRq;
+          Ret #inp1
+
+        with Method (memVToPRq -- pop) (_: Void): (Struct ExecT) :=
+          Pop inp1 : _ <- fifoExec;
+          Ret #inp1
+
+        with Method (memRq -- pop) (_: Void): (Struct MemRqT) :=
+          Pop inp1 : _ <- fifoMemRq;
+          Ret #inp1
+
+        with Method (instVToPRq -- first) (_: Void): (Struct InstVToPRqT) :=
+          First inp1 : _ <- fifoInstVToPRq;
+          Ret #inp1
+
+        with Method (instRq -- first) (_: Void): (Struct FetchRqT) :=
+          First inp1 : _ <- fifoFetchRq;
+          Ret #inp1
+
+        with Method (memVToPRq -- first) (_: Void): (Struct ExecT) :=
+          First inp1 : _ <- fifoExec;
+          Ret #inp1
+
+        with Method (memRq -- first) (_: Void): (Struct MemRqT) :=
+          First inp1 : _ <- fifoMemRq;
+          Ret #inp1
+
+        with Method (instVToPRp -- enq) (a: Struct FetchRqT): Void :=
+          Enq fifoFetchRq : _ <- #a;
+          Retv
+
+        with Method (instRp -- enq) (a: Struct FetchRpT): Void :=
+          Enq fifoFetchRp : _ <- #a;
+          Retv
+
+        with Method (memVToPRp -- enq) (a: Struct ExecT): Void :=
+          Enq fifoMemRq : _ <- #a;
+          Retv
+
+        with Method (memRp -- enq) (a: Struct MemRqT): Void :=
+          Enq fifoMemRp : _ <- #a;
+          Retv
+      }.
+
+  Definition InstVToPCall :=
+    SIN {
+        Rule fetchRq :=
+          Call inp1 <- instVToPRqPop();
+          Call inp2 <- instVToPCall(#inp1!InstVToPRqT@.pc);
+          Call instVToPRpEnq(STRUCT {
+                                 decEpoch ::= #inp1!InstVToPRqT@.decEpoch;
+                                 execEpoch ::= #inp1!InstVToPRqT@.execEpoch;
+                                 wbEpoch ::= #inp1!InstVToPRqT@.wbEpoch;
+                                 pc ::= #inp1!InstVToPRqT@.pc;
+                                 nextPc ::= #inp1!InstVToPRqT@.nextPc;
+                                 instMode ::= #inp2!VToPRp@.mode;
+                                 exception ::= #inp2!VToPRp@.exception;
+                                 physicalPc ::= #inp2!VToPRp@.pAddr });
+          Retv }.
+                                 
+  Definition InstCall :=
+    SIN {
+        Rule fetchRp :=
+          Call inp1 <- instRqPop();
+          Call inp2 <- instCall(#inp1!FetchRqT@.physicalPc);
+          Call instRpEnq(STRUCT {
+                             decEpoch ::= #inp1!FetchRqT@.decEpoch;
+                             execEpoch ::= #inp1!FetchRqT@.execEpoch;
+                             wbEpoch ::= #inp1!FetchRqT@.wbEpoch;
+                             pc ::= #inp1!FetchRqT@.pc;
+                             nextPc ::= #inp1!FetchRqT@.nextPc;
+                             instMode ::= #inp1!FetchRqT@.instMode;
+                             exception ::= #inp1!FetchRqT@.exception;
+                             physicalPc ::= #inp1!FetchRqT@.pAddr;
+                             inst ::= #inp2
+                        });
+          Retv }.
+
+  Definition MemVToPCall :=
+    SIN {
+        Rule memVToPRq :=
+          Call inp1 <- memVToPRqPop();
           If isLdSt #inp1!ExecT@.inst         
           then (
-            Read fifoLdRqData <- fifoLdRq;
-            Read fifoLdRpData <- fifoLdRp;
-            Read fifoLdRqV <- fifoLdRqValid;
-            Read fifoLdRpV <- fifoLdRpValid;
-            LET stall <- (#fifoLdRqV && isSt #fifoLdRqData!LdRqT@.inst) ||
-                (#fifoLdRpV && isSt #fifoLdRpData!LdRqT@.inst);
-
-            Assert ! (isLd #inp1!ExecT@.inst && #stall);
-
-            Call inp2 <- memRpVToPDeq();
-            Call memRqEnq(pAddr_LdRq (memVToPRp_PAddr #inp2));
+            Call inp2 <- memVToPCall(#inp1!ExecT@.memVAddr);
             Ret #inp2
             )
-          else Ret $$ Default
-          as inp2;
+          else (Ret $$ Default)
+          as inp2;     
           LET finalException <- IF noException #inp1!ExecT@.exception
-                                then memVToPRp_Exception #inp2
+                                then #inp2!VToPRp@.exception
                                 else #inp1!ExecT@.exception;
-          Enq fifoLdRq : Struct LdRqT <- (STRUCT {
-                                              wbEpoch ::= #inp1!ExecT@.wbEpoch;
-                                              instVAddr ::= #inp1!ExecT@.instVAddr;
-                                              nextPc ::= #inp1!ExecT@.nextPc;
-                                              instMode ::= #inp1!ExecT@.instMode;
-                                              exception ::= #finalException;
-                                              instPAddr ::= #inp1!ExecT@.instPAddr;
-                                              inst ::= #inp1!ExecT@.inst;
-                                              vAddr ::= #inp1!ExecT@.vAddr;
-                                              dst ::= #inp1!ExecT@.dst;
-                                              pAddr ::= memVToPRp_PAddr #inp2;
-                                              dataMode ::= memVToPRp_Mode #inp2
-                                         });
-          Retv
-          
-        with Rule ldRp :=
-          Pop inp1 : Struct LdRqT <- fifoLdRq;
-          Enq fifoLdRp: Struct LdRqT <- #inp1;
-          Retv
-          
-        with Rule wb :=
-          Pop inp1 : Struct LdRqT <- fifoLdRp;
+          Call memVToPRpEnq(STRUCT {
+                                wbEpoch ::= #inp1!ExecT@.wbEpoch;
+                                pc ::= #inp1!ExecT@.pc;
+                                nextPc ::= #inp1!ExecT@.nextPc;
+                                instMode ::= #inp1!ExecT@.instMode;
+                                exception ::= #finalException;
+                                physicalPc ::= #inp1!ExecT@.physicalPc;
+                                inst ::= #inp1!ExecT@.inst;
+                                memVAddr ::= #inp1!ExecT@.memVAddr;
+                                dst ::= #inp1!ExecT@.dst;
+                                memPAddr ::= #inp2!VToPRp@.pAddr;
+                                dataMode ::= #inp2!VToPRp@.mode });
+          Retv }.
+                                 
+  Definition MemCall :=
+    SIN {
+        Rule memRq :=
+          Call inp1 <- memRqPop();
           Read wbEpochVal <- wbEpoch;
           Read wbPcVal <- wbPc;
           Read cStateVal <- cState;
           Read modeVal <- mode;
-          LET cExecVal <- cExec #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
-              #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode #inp1!LdRqT@.exception
-              #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
-          LET cExecExcept <- cExecException #inp1!LdRqT@.inst #inp1!LdRqT@.instVAddr
-              #inp1!LdRqT@.nextPc #cStateVal #inp1!LdRqT@.mode
-              #inp1!LdRqT@.instMode #inp1!LdRqT@.dataMode;
+          LET cExecVal <- cExec #inp1!MemRqT@.inst #inp1!MemRqT@.pc
+              #inp1!MemRqT@.nextPc #cStateVal #modeVal #inp1!MemRqT@.exception
+              #inp1!MemRqT@.instMode #inp1!MemRqT@.dataMode;
+          LET cExecExcept <- cExecException #inp1!MemRqT@.inst #inp1!MemRqT@.pc
+              #inp1!MemRqT@.nextPc #cStateVal #modeVal
+              #inp1!MemRqT@.instMode #inp1!MemRqT@.dataMode;
 
-          LET finalException <- IF noException #inp1!LdRqT@.exception
+          LET finalException <- IF noException #inp1!MemRqT@.exception
                                 then #cExecExcept
-                                else #inp1!LdRqT@.exception;
+                                else #inp1!MemRqT@.exception;
 
-          If isLd #inp1!LdRqT@.inst
+          If isLd #inp1!MemRqT@.inst
           then (
-            Call inp2 <- ldRpDeq();
+            Call inp2 <- memCall(createLdRq #inp1!MemRqT@.memPAddr);
             Ret #inp2
             )
-          else Ret $$ Default
+          else (
+            If isSt #inp1!MemRqT@.inst
+            then (
+              Call inp2 <- memCall(createStRq #inp1!MemRqT@.memPAddr
+                                              (getByteEns #inp1!MemRqT@.inst)
+                                              #inp1!MemRqT@.dst);
+              Ret #inp2
+              )
+            else Ret $$ Default
+            as inp2;
+            Ret #inp2
+            )
           as inp2;
-          LET ldPAddr <- ldRp_PAddr #inp2;
-          LET ldData <- ldRp_Data #inp2;
 
-          If #wbEpochVal == #inp1!LdRqT@.wbEpoch &&
-             #wbPcVal == #inp1!LdRqT@.instVAddr
+          LET finalDst <- IF isLd #inp1!MemRqT@.inst
+                          then #inp2
+                          else #inp1!MemRqT@.dst;
+
+          If #wbEpochVal == #inp1!MemRqT@.wbEpoch &&
+             #wbPcVal == #inp1!MemRqT@.pc
           then (
-            Write cState <- #cExecVal!CExec@.newCState;
-            Write wbPc <- #cExecVal!CExec@.newPc;
-            Write mode <- #cExecVal!CExec@.newMode;
-            If #cExecVal!CExec@.newPc != #inp1!LdRqT@.nextPc
+            Write cState <- #cExecVal!CExec@.cState;
+            Write wbPc <- #cExecVal!CExec@.pc;
+            Write mode <- #cExecVal!CExec@.mode;
+            If #cExecVal!CExec@.pc != #inp1!MemRqT@.nextPc
             then (
               Write wbEpoch <- ! #wbEpochVal;
-              Write pc <- #cExecVal!CExec@.newPc;
+              Write pc <- #cExecVal!CExec@.pc;
               Retv
               );
-            Call commitLabel (STRUCT {
-                                  commitVpc ::= #inp1!LdRqT@.instVAddr;
-                                  commitPc ::= #inp1!LdRqT@.instPAddr;
-                                  commitInst ::= #inp1!LdRqT@.inst;
-                                  commitDst ::= #inp1!LdRqT@.dst;
-                                  commitVAddr ::= #inp1!LdRqT@.vAddr;
-                                  commitPAddr ::= #ldPAddr;
-                                  commitLdData ::= #ldData;
-                                  commitMode ::= #modeVal;
-                                  commitException ::= #finalException;
-                                  commitNextPc ::= #cExecVal!CExec@.newPc;
-                                  commitNextMode ::= #cExecVal!CExec@.newMode });
+            Call commitCall(#inp1!MemRqT@.pc);
 
             If noException #finalException
             then (
-              Call setAccessInstVToPCall(#inp1!LdRqT@.instVAddr);
-              If isSt #inp1!LdRqT@.inst
+              Call setAccessInstCall(#inp1!MemRqT@.pc);
+              Call memRpEnq(STRUCT {
+                                inst ::= #inp1!MemRqT@.inst;
+                                dst ::= #finalDst
+                           });
+              If isSt #inp1!MemRqT@.inst
               then (
-                Call memRqEnq(createStRq #inp1!LdRqT@.vAddr #inp1!LdRqT@.dst);
-                Call setAccessDataVToPCall(#inp1!LdRqT@.vAddr);
-                Call setDirtyDataVToPCall(#inp1!LdRqT@.vAddr);
+                Call setAccessDataCall(#inp1!MemRqT@.memVAddr);
+                Call setDirtyDataCall(#inp1!MemRqT@.memVAddr);                  
                 Retv
                 )
               else (
-                Read regFileVals <- regFile;
-                If isLd #inp1!LdRqT@.inst
+                If isLd #inp1!MemRqT@.inst
                 then (
-                  Call setAccessDataVToPCall(#inp1!LdRqT@.vAddr);
-                  Write regFile <- #regFileVals@[getDst #inp1!LdRqT@.inst <- #ldData];
-                  Retv
-                  )
-                else (
-                  Write regFile <- #regFileVals@[getDst #inp1!LdRqT@.inst <- #inp1!LdRqT@.dst];
+                  Call setAccessDataCall(#inp1!MemRqT@.memVAddr);
                   Retv
                   );
                 Retv
@@ -615,7 +680,6 @@ Section Processor.
               );  
             Retv  
             );
-          Retv
+          Retv }.
 
-      }.
 End Processor.
