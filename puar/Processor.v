@@ -82,9 +82,9 @@ Definition ldRq := "ldRq".
 Definition ldRp := "ldRp".
 Definition wb := "wb".
 
-(* Enq Deq Pop First *)
+(* Enq (* Deq *) Pop First *)
 Definition enq := "enq".
-Definition deq := "deq".
+(* Definition deq := "deq". *)
 Definition pop := "pop".
 Definition first := "first".
 
@@ -111,24 +111,28 @@ Section Processor.
 
   Notation RIndex := (Bit RIndexSz).
 
-  Definition CExec := STRUCT
-                        { cState :: CState;
-                          pc :: VAddr;
-                          mode :: Mode }.
-  
+  Variable getSrc1: forall ty, Inst @ ty -> RIndex @ ty.
+  Variable getSrc2: forall ty, Inst @ ty -> RIndex @ ty.
+  Variable useSrc1: forall ty, Inst @ ty -> Bool @ ty.
+  Variable useSrc2: forall ty, Inst @ ty -> Bool @ ty.
+  Variable useDst: forall ty, Inst @ ty -> Bool @ ty.
+  Variable getDst: forall ty, Inst @ ty -> RIndex @ ty.
+
   Definition Exec := STRUCT
                        { exception :: Exception;
                          nextPc :: VAddr;
                          memVAddr :: VAddr;
                          memData :: Data }.
   
-  Variable getSrc1: forall ty, Inst @ ty -> RIndex @ ty.
-  Variable getSrc2: forall ty, Inst @ ty -> RIndex @ ty.
-  Variable useSrc1: forall ty, Inst @ ty -> Bool @ ty.
-  Variable useSrc2: forall ty, Inst @ ty -> Bool @ ty.
-  Variable getDst: forall ty, Inst @ ty -> RIndex @ ty.
   Variable execFn: forall ty, Inst @ ty -> Data @ ty -> Data @ ty ->
                               (Struct Exec) @ ty.
+
+  Definition CExec := STRUCT
+                        { cState :: CState;
+                          pc :: VAddr;
+                          mode :: Mode }.
+  
+
   Variable cExec: forall ty,  Inst @ ty -> VAddr @ ty -> VAddr @ ty -> CState @ ty ->
                               Mode @ ty -> Exception @ ty -> Mode @ ty -> Mode @ ty ->
                               (Struct CExec) @ ty.
@@ -159,11 +163,6 @@ Section Processor.
                           byteEns :: Bit NumDataBytes;
                           data :: Data }.
 
-  Definition VToPRp := STRUCT
-                         { mode :: Mode;
-                           exception :: Exception;
-                           pAddr :: PAddr }.
-  
   Definition createLdRq ty (addr: PAddr @ ty): (Struct MemRq) @ ty :=
     (STRUCT { memPAddr ::= addr;
               op ::= $$ (WO~0~1);
@@ -177,6 +176,11 @@ Section Processor.
               byteEns ::= byteEn;
               data ::= d })%kami_expr.
 
+  Definition VToPRp := STRUCT
+                         { mode :: Mode;
+                           exception :: Exception;
+                           pAddr :: PAddr }.
+  
   Definition InstVToPRqT := STRUCT { decEpoch :: Bool;
                                      execEpoch :: Bool;
                                      wbEpoch :: Bool;
@@ -242,7 +246,7 @@ Section Processor.
                               }.
 
   Definition MemRpT := STRUCT { inst :: Inst;
-                                dst :: Data (* Serves as data for store also *)
+                                dst :: Data
                               }.
 
   Definition instVToPRqPop := MethodSig (instVToPRq -- pop) (Void): (Struct InstVToPRqT).
@@ -287,13 +291,13 @@ Section Processor.
     )%kami_sin
     (at level 12, right associativity, f at level 0, v at level 0) : kami_sin_scope.
 
-  Notation "'Deq' f ; c" :=
-    ( Read x : Bool <- (f ++ Valid)%string ;
-      Assert #x ;
-      Write (f ++ Valid)%string <- $$ false ;
-      c
-    )%kami_sin
-    (at level 12, right associativity, f at level 0) : kami_sin_scope.
+  (* Notation "'Deq' f ; c" := *)
+  (*   ( Read x : Bool <- (f ++ Valid)%string ; *)
+  (*     Assert #x ; *)
+  (*     Write (f ++ Valid)%string <- $$ false ; *)
+  (*     c *)
+  (*   )%kami_sin *)
+  (*   (at level 12, right associativity, f at level 0) : kami_sin_scope. *)
 
   Notation "'First' v : kind <- f ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -304,12 +308,13 @@ Section Processor.
     (at level 12, right associativity, f at level 0, v at level 0) : kami_sin_scope.
 
   Definition bypass ty (f1Valid f2Valid f3Valid: Bool @ ty)
-             (f1 f2 f3: Inst @ ty) (f1d f2d f3d d: Data @ ty) (src: RIndex @ ty) :=
-    ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src)
+             (f1 f2 f3: Inst @ ty) (f1d f2d f3d d: Data @ ty)
+             (src: RIndex @ ty) :=
+    ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src && useDst f1)
       then f1d else
-      IF (f2Valid && isNm f2 && isNotZero (getDst f2) && getDst f2 == src)
+      IF (f2Valid && isNm f2 && isNotZero (getDst f2) && getDst f2 == src && useDst f1)
       then f2d else
-      IF (f3Valid && isNm f3 && isNotZero (getDst f3) && getDst f3 == src)
+      IF (f3Valid && isNm f3 && isNotZero (getDst f3) && getDst f3 == src && useDst f1)
       then f3d else d
     )%kami_expr.
   
@@ -481,7 +486,7 @@ Section Processor.
         with Rule wb :=
           Pop inp1 : Struct MemRpT <- fifoMemRp;
           Read regFileVals <- regFile;
-          If ! (isSt #inp1!MemRpT@.inst)
+          If (useDst #inp1!MemRpT@.inst)
           then (
             Write regFile <- #regFileVals@[getDst #inp1!MemRpT@.inst <- #inp1!MemRpT@.dst];
             Retv
@@ -540,6 +545,7 @@ Section Processor.
   Definition InstVToPCall :=
     SIN {
         Rule fetchRq :=
+          Call _ <- instVToPRqFirst();
           Call inp1 <- instVToPRqPop();
           Call inp2 <- instVToPCall(#inp1!InstVToPRqT@.pc);
           Call instVToPRpEnq(STRUCT {
@@ -556,6 +562,7 @@ Section Processor.
   Definition InstCall :=
     SIN {
         Rule fetchRp :=
+          Call _ <- instRqFirst();
           Call inp1 <- instRqPop();
           Call inp2 <- instCall(#inp1!FetchRqT@.physicalPc);
           Call instRpEnq(STRUCT {
@@ -574,13 +581,14 @@ Section Processor.
   Definition MemVToPCall :=
     SIN {
         Rule memVToPRq :=
+          Call _ <- memVToPRqFirst();
           Call inp1 <- memVToPRqPop();
           If isLdSt #inp1!ExecT@.inst         
           then (
             Call inp2 <- memVToPCall(#inp1!ExecT@.memVAddr);
             Ret #inp2
             )
-          else (Ret $$ Default)
+          else Ret $$ Default (* The default MUST be noException *)
           as inp2;     
           LET finalException <- IF noException #inp1!ExecT@.exception
                                 then #inp2!VToPRp@.exception
@@ -602,6 +610,7 @@ Section Processor.
   Definition MemCall :=
     SIN {
         Rule memRq :=
+          Call _ <- memRqFirst();
           Call inp1 <- memRqPop();
           Read wbEpochVal <- wbEpoch;
           Read wbPcVal <- wbPc;
@@ -617,29 +626,6 @@ Section Processor.
           LET finalException <- IF noException #inp1!MemRqT@.exception
                                 then #cExecExcept
                                 else #inp1!MemRqT@.exception;
-
-          If isLd #inp1!MemRqT@.inst
-          then (
-            Call inp2 <- memCall(createLdRq #inp1!MemRqT@.memPAddr);
-            Ret #inp2
-            )
-          else (
-            If isSt #inp1!MemRqT@.inst
-            then (
-              Call inp2 <- memCall(createStRq #inp1!MemRqT@.memPAddr
-                                              (getByteEns #inp1!MemRqT@.inst)
-                                              #inp1!MemRqT@.dst);
-              Ret #inp2
-              )
-            else Ret $$ Default
-            as inp2;
-            Ret #inp2
-            )
-          as inp2;
-
-          LET finalDst <- IF isLd #inp1!MemRqT@.inst
-                          then #inp2
-                          else #inp1!MemRqT@.dst;
 
           If #wbEpochVal == #inp1!MemRqT@.wbEpoch &&
              #wbPcVal == #inp1!MemRqT@.pc
@@ -658,28 +644,40 @@ Section Processor.
             If noException #finalException
             then (
               Call setAccessInstCall(#inp1!MemRqT@.pc);
-              Call memRpEnq(STRUCT {
-                                inst ::= #inp1!MemRqT@.inst;
-                                dst ::= #finalDst
-                           });
               If isSt #inp1!MemRqT@.inst
               then (
                 Call setAccessDataCall(#inp1!MemRqT@.memVAddr);
                 Call setDirtyDataCall(#inp1!MemRqT@.memVAddr);                  
-                Retv
+                Call inp2 <- memCall(createStRq #inp1!MemRqT@.memPAddr
+                                                (getByteEns #inp1!MemRqT@.inst)
+                                                #inp1!MemRqT@.dst);
+                Ret #inp2
                 )
               else (
                 If isLd #inp1!MemRqT@.inst
                 then (
                   Call setAccessDataCall(#inp1!MemRqT@.memVAddr);
-                  Retv
-                  );
-                Retv
-                );
+                  Call inp2 <- memCall(createLdRq #inp1!MemRqT@.memPAddr);
+                  Ret #inp2
+                  )
+                else Ret $$ Default
+                as inp2;
+                Ret #inp2
+                )
+              as inp2;
+              LET finalDst <- IF isLd #inp1!MemRqT@.inst
+                              then #inp2
+                              else #inp1!MemRqT@.dst;
+
+              Call memRpEnq(STRUCT {
+                                inst ::= #inp1!MemRqT@.inst;
+                                dst ::= #finalDst
+                           });
               Retv
               );  
             Retv  
             );
           Retv }.
+
 
 End Processor.
