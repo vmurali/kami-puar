@@ -91,23 +91,20 @@ Definition first := "first".
 (* Specification state *)
 Definition stales := "stales".
 
-(* Specification *)
+(* Specification field *)
+Definition staleValid := "staleValid".
 Definition stalePc := "stalePc".
-Definition stalePhysicalPc := "stalePhysicalPc".
-Definition staleInstMode := "staleInstMode".
-Definition staleInstException := "staleInstException".
-Definition staleMemVAddr := "staleMemVAddr".
-Definition staleMemPAddr := "staleMemPAddr".
-Definition staleMemMode := "staleMemMode".
-Definition staleMemException := "staleMemException".
-Definition stalePcValid := "stalePcValid".
-Definition stalePhysicalPcValid := "stalePhysicalPcValid".
-Definition staleInstModeValid := "staleInstModeValid".
-Definition staleInstExceptionValid := "staleInstExceptionValid".
+Definition staleInstVToPValid := "staleInstVToPValid".
+Definition staleInstVToP := "staleInstVToP".
+Definition staleInstValid := "staleInstValid".
+Definition staleInst := "staleInst".
 Definition staleMemVAddrValid := "staleMemVAddrValid".
-Definition staleMemPAddrValid := "staleMemPAddrValid".
-Definition staleMemModeValid := "staleMemModeValid".
-Definition staleMemExceptionValid := "staleMemExceptionValid".
+Definition staleMemVAddr := "staleMemVAddr".
+Definition staleMemVToPValid := "staleMemVAddrVToPValid".
+Definition staleMemVToP := "staleMemVAddrVToP".
+
+(* Specification field *)
+Definition drop := "drop".
 Close Scope string.
 
 Definition MemOp := Bit 2.
@@ -175,7 +172,7 @@ Section Processor.
                              BpState @ ty.
 
   Definition isLdSt ty (inst : Inst @ ty) := (isLd inst || isSt inst)%kami_expr.
-  Definition isNm ty (inst : Inst @ ty) := (!(isLdSt inst))%kami_expr.
+  Notation isNm inst := (!(isLdSt inst))%kami_expr.
   
   Definition MemRq := STRUCT
                         { memPAddr :: PAddr;
@@ -701,18 +698,16 @@ Section Processor.
 
   Definition Stale :=
     STRUCT {
-        stalePcValid :: Bool;
+        staleValid :: Bool;
         stalePc :: VAddr;
-        stalePhysicalPcValid :: Bool;
-        stalePhysicalPc :: PAddr;
-        staleInstMode :: Mode;
-        staleInstException :: Exception;
+        staleInstVToPValid :: Bool;
+        staleInstVToP :: (Struct VToPRp);
+        staleInstValid :: Bool;
+        staleInst :: Inst;
         staleMemVAddrValid :: Bool;
         staleMemVAddr :: VAddr;
-        staleMemPAddrValid :: Bool;
-        staleMemPAddr :: PAddr;
-        staleMemMode :: Mode;
-        staleMemException :: Exception }.
+        staleMemVToPValid :: Bool;
+        staleMemVToP :: (Struct VToPRp) }.
 
   Notation Stales ty := (@NativeKind (list (ty (Struct Stale))) nil).
   Notation Stales' := (Stales _).
@@ -730,10 +725,21 @@ Section Processor.
              end
     end.
   
+  Fixpoint rmList A n (ls: list A) :=
+    match n with
+    | 0 => match ls with
+           | x :: xs => xs
+           | nil => nil
+           end
+    | S m => match ls with
+             | x :: xs => rmList m xs
+             | nil => nil
+             end
+    end.
+
   Definition processorSpec (n: nat) :=
     META {
-        Register pc : VAddr <- PcInit
-        with Register mode : Mode <- ModeInit
+        Register mode : Mode <- ModeInit
         with Register wbPc : VAddr <- PcInit
         with Register regFile : Vector Data RIndexSz <- RegFileInit
         with Register cState : CState <- CStateInit
@@ -744,40 +750,57 @@ Section Processor.
           ILET vAddr;
           ReadN stalesVal : Stales' <- stales;
           LET newStale: (Struct Stale) <- STRUCT {
-                stalePcValid ::= $$ true;
+                staleValid ::= $$ true;
                 stalePc ::= #vAddr;
-                stalePhysicalPcValid ::= $$ false;
-                stalePhysicalPc ::= $$ Default;
-                staleInstMode ::= $$ Default;
-                staleInstException ::= $$ Default;
+                staleInstVToPValid ::= $$ false;
+                staleInstVToP ::= $$ Default;
+                staleInstValid ::= $$ false;
+                staleInst ::= $$ Default;
                 staleMemVAddrValid ::= $$ false;
                 staleMemVAddr ::= $$ Default;
-                staleMemPAddrValid ::= $$ false;
-                staleMemPAddr ::= $$ Default;
-                staleMemMode ::= $$ Default;
-                staleMemException ::= $$ Default };
+                staleMemVToPValid ::= $$ false;
+                staleMemVToP ::= $$ Default };
           WriteN stales : _ <- Var _ Stales' (stalesVal ++ [newStale]);
           Retv
 
-        with MultiRule until n as i by stalePhysicalPc :=
+        with MultiRule until n as i by staleInstVToP :=
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : Struct Stale <- $$ Default;
           LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.stalePcValid;
-          Call inp2 <- instVToPCall(#entry!Stale@.stalePc);
+          Assert #entry!Stale@.staleValid;
+          Call inp <- instVToPCall(#entry!Stale@.stalePc);
           LET newEntry: (Struct Stale) <- STRUCT {
-                stalePcValid ::= #entry!Stale@.stalePcValid;
+                staleValid ::= #entry!Stale@.staleValid;
                 stalePc ::= #entry!Stale@.stalePc;
-                stalePhysicalPcValid ::= $$ true;
-                stalePhysicalPc ::= #inp2!VToPRp@.pAddr;
-                staleInstMode ::= #inp2!VToPRp@.mode;
-                staleInstException ::= #inp2!VToPRp@.exception;
+                staleInstVToPValid ::= $$ true;
+                staleInstVToP ::= #inp;
+                staleInstValid ::= #entry!Stale@.staleInstValid;
+                staleInst ::= #entry!Stale@.staleInst;
                 staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
                 staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
-                staleMemPAddrValid ::= #entry!Stale@.staleMemPAddrValid;
-                staleMemPAddr ::= #entry!Stale@.staleMemPAddr;
-                staleMemMode ::= #entry!Stale@.staleMemMode;
-                staleMemException ::= #entry!Stale@.staleMemException };
+                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
+                staleMemVToP ::= #entry!Stale@.staleMemVToP };
+          WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
+          Retv
+
+        with MultiRule until n as i by staleInst :=
+          ReadN stalesVal : Stales' <- stales;
+          LET noEntry : Struct Stale <- $$ Default;
+          LET entry : Struct Stale <- #(nth i stalesVal noEntry);
+          Assert #entry!Stale@.staleValid;
+          Assert #entry!Stale@.staleInstVToPValid;
+          Call inp <- instCall(#entry!Stale@.staleInstVToP!VToPRp@.pAddr);
+          LET newEntry: (Struct Stale) <- STRUCT {
+                staleValid ::= #entry!Stale@.staleValid;
+                stalePc ::= #entry!Stale@.stalePc;
+                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
+                staleInstVToP ::= #entry!Stale@.staleInstVToP;
+                staleInstValid ::= $$ true;
+                staleInst ::= #inp;
+                staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
+                staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
+                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
+                staleMemVToP ::= #entry!Stale@.staleMemVToP };
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
@@ -786,43 +809,138 @@ Section Processor.
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : Struct Stale <- $$ Default;
           LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.stalePcValid;
+          Assert #entry!Stale@.staleValid;
+          Assert #entry!Stale@.staleInstValid;
+          Assert (isLdSt #entry!Stale@.staleInst);
           LET newEntry: (Struct Stale) <- STRUCT {
-                stalePcValid ::= #entry!Stale@.stalePcValid;
+                staleValid ::= #entry!Stale@.staleValid;
                 stalePc ::= #entry!Stale@.stalePc;
-                stalePhysicalPcValid ::= #entry!Stale@.stalePhysicalPcValid;
-                stalePhysicalPc ::= #entry!Stale@.stalePhysicalPc;
-                staleInstMode ::= #entry!Stale@.staleInstMode;
-                staleInstException ::= #entry!Stale@.staleInstException;
+                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
+                staleInstVToP ::= #entry!Stale@.staleInstVToP;
+                staleInstValid ::= #entry!Stale@.staleInstValid;
+                staleInst ::= #entry!Stale@.staleInst;
                 staleMemVAddrValid ::= $$ true;
                 staleMemVAddr ::= #vAddr;
-                staleMemPAddrValid ::= #entry!Stale@.staleMemPAddrValid;
-                staleMemPAddr ::= #entry!Stale@.staleMemPAddr;
-                staleMemMode ::= #entry!Stale@.staleMemMode;
-                staleMemException ::= #entry!Stale@.staleMemException };
+                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
+                staleMemVToP ::= #entry!Stale@.staleMemVToP };
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
-        with MultiRule until n as i by staleMemPAddr :=
+        with MultiRule until n as i by staleMemVToP :=
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : Struct Stale <- $$ Default;
           LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.stalePcValid;
-          Call inp2 <- memVToPCall(#entry!Stale@.staleMemVAddr);
+          Assert #entry!Stale@.staleValid;
+          Assert #entry!Stale@.staleMemVAddrValid;
+          Call inp <- memVToPCall(#entry!Stale@.staleMemVAddr);
           LET newEntry: (Struct Stale) <- STRUCT {
-                stalePcValid ::= #entry!Stale@.stalePcValid;
+                staleValid ::= #entry!Stale@.staleValid;
                 stalePc ::= #entry!Stale@.stalePc;
-                stalePhysicalPcValid ::= #entry!Stale@.stalePhysicalPcValid;
-                stalePhysicalPc ::= #entry!Stale@.stalePhysicalPc;
-                staleInstMode ::= #entry!Stale@.staleInstMode;
-                staleInstException ::= #entry!Stale@.staleInstException;
+                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
+                staleInstVToP ::= #entry!Stale@.staleInstVToP;
+                staleInstValid ::= #entry!Stale@.staleInstValid;
+                staleInst ::= #entry!Stale@.staleInst;
                 staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
                 staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
-                staleMemPAddrValid ::= $$ true;
-                staleMemPAddr ::= #inp2!VToPRp@.pAddr;
-                staleMemMode ::= #inp2!VToPRp@.mode;
-                staleMemException ::= #inp2!VToPRp@.exception };
+                staleMemVToPValid ::= $$ true;
+                staleMemVToP ::= #inp };
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
+          Retv
+
+        with MultiRule until n as i by drop :=
+          ReadN stalesVal : Stales' <- stales;
+          WriteN stales : Stales' <- Var _ Stales' (rmList i stalesVal);
+          LET noEntry : Struct Stale <- $$ Default;
+          LET entry : Struct Stale <- #(hd noEntry stalesVal);
+          Retv
+
+        with Rule memRq :=
+          ReadN stalesVal : Stales' <- stales;
+          LET noEntry : Struct Stale <- $$ Default;
+          LET inp1 : Struct Stale <- #(hd noEntry stalesVal);
+          LET inst <- #inp1!Stale@.staleInst;
+          Read wbPcVal <- wbPc;
+          Read cStateVal <- cState;
+          Read regFileVals <- regFile;
+          Read modeVal <- mode;
+
+          Assert #inp1!Stale@.staleValid;
+          Assert #inp1!Stale@.staleInstVToPValid;
+          Assert #inp1!Stale@.staleInstValid;
+
+          If (isLdSt #inst)
+          then (
+            Assert #inp1!Stale@.staleMemVAddrValid;
+            Assert #inp1!Stale@.staleMemVToPValid;
+            Retv
+            );
+
+          LET execVal <- execFn #inp1!Stale@.staleInst #regFileVals@[getSrc1 #inst]
+              #regFileVals@[getSrc2 #inst];
+
+          LET execException <- IF noException #inp1!Stale@.staleInstVToP!VToPRp@.exception
+                               then #execVal!Exec@.exception
+                               else #inp1!Stale@.staleInstVToP!VToPRp@.exception;
+
+          LET memVToPException <- IF noException #execException
+                                  then #inp1!Stale@.staleMemVToP!VToPRp@.exception
+                                  else #execException;
+
+          LET cExecVal <- cExec #inst #inp1!Stale@.stalePc
+              #execVal!Exec@.nextPc #cStateVal #modeVal #memVToPException
+              #inp1!Stale@.staleInstVToP!VToPRp@.mode #inp1!Stale@.staleMemVToP!VToPRp@.mode;
+          LET cExecExcept <- cExecException #inst #inp1!Stale@.stalePc
+              #execVal!Exec@.nextPc #cStateVal #modeVal
+              #inp1!Stale@.staleInstVToP!VToPRp@.mode #inp1!Stale@.staleMemVToP!VToPRp@.mode;
+
+          LET finalException <- IF noException #memVToPException
+                                then #cExecExcept
+                                else #memVToPException;
+
+          If #wbPcVal == #inp1!Stale@.stalePc
+          then (
+            Write cState <- #cExecVal!CExec@.cState;
+            Write wbPc <- #cExecVal!CExec@.pc;
+            Write mode <- #cExecVal!CExec@.mode;
+            Call commitCall(#inp1!Stale@.stalePc);
+
+            If noException #finalException
+            then (
+              Call setAccessInstCall(#inp1!Stale@.stalePc);
+              If isSt #inst
+              then (
+                Call setAccessDataCall(#inp1!Stale@.staleMemVAddr);
+                Call setDirtyDataCall(#inp1!Stale@.staleMemVAddr);
+                Call inp2 <- memCall(createStRq #inp1!Stale@.staleMemVToP!VToPRp@.pAddr
+                                                (getByteEns #inst)
+                                                #execVal!Exec@.dst);
+                Ret #inp2
+                )
+              else (
+                If isLd #inst
+                then (
+                  Call setAccessDataCall(#inp1!Stale@.staleMemVAddr);
+                  Call inp2 <- memCall(createLdRq #inp1!Stale@.staleMemVToP!VToPRp@.pAddr);
+                  Ret #inp2
+                  )
+                else Ret $$ Default
+                as inp2;
+                Ret #inp2
+                )
+              as inp2;
+              LET finalDst <- IF isLd #inst
+                              then #inp2
+                              else #execVal!Exec@.dst;
+
+              If (useDst #inst)
+              then (
+                Write regFile <- #regFileVals@[getDst #inst <- #finalDst];
+                Retv
+                );
+              Retv
+              );
+            Retv
+            );         
           Retv
 
       }.
