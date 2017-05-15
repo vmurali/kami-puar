@@ -868,21 +868,22 @@ Section Processor.
           Assert #inp1!Stale@.staleInstVToPValid;
           Assert #inp1!Stale@.staleInstValid;
 
+          LET execVal <- execFn #inp1!Stale@.staleInst #regFileVals@[getSrc1 #inst]
+              #regFileVals@[getSrc2 #inst];
+
           If (isLdSt #inst)
           then (
             Assert #inp1!Stale@.staleMemVAddrValid;
             Assert #inp1!Stale@.staleMemVToPValid;
+            Assert #execVal!Exec@.memVAddr == #inp1!Stale@.staleMemVAddr;
             Retv
             );
-
-          LET execVal <- execFn #inp1!Stale@.staleInst #regFileVals@[getSrc1 #inst]
-              #regFileVals@[getSrc2 #inst];
 
           LET execException <- IF noException #inp1!Stale@.staleInstVToP!VToPRp@.exception
                                then #execVal!Exec@.exception
                                else #inp1!Stale@.staleInstVToP!VToPRp@.exception;
 
-          LET memVToPException <- IF noException #execException
+          LET memVToPException <- IF noException #execException && isLdSt #inst
                                   then #inp1!Stale@.staleMemVToP!VToPRp@.exception
                                   else #execException;
 
