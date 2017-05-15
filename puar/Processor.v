@@ -849,13 +849,14 @@ Section Processor.
 
         with MultiRule until n as i by drop :=
           ReadN stalesVal : Stales' <- stales;
-          WriteN stales : Stales' <- Var _ Stales' (rmList i stalesVal);
+          WriteN stales : _ <- Var _ Stales' (rmList i stalesVal);
           LET noEntry : Struct Stale <- $$ Default;
           LET entry : Struct Stale <- #(hd noEntry stalesVal);
           Retv
 
         with Rule memRq :=
           ReadN stalesVal : Stales' <- stales;
+          WriteN stales : _ <- Var _ Stales' (tl stalesVal);
           LET noEntry : Struct Stale <- $$ Default;
           LET inp1 : Struct Stale <- #(hd noEntry stalesVal);
           LET inst <- #inp1!Stale@.staleInst;
