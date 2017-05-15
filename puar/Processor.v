@@ -696,23 +696,6 @@ Section Processor.
             );
           Retv }.
 
-  Definition Stale :=
-    STRUCT {
-        staleValid :: Bool;
-        stalePc :: VAddr;
-        staleInstVToPValid :: Bool;
-        staleInstVToP :: (Struct VToPRp);
-        staleInstValid :: Bool;
-        staleInst :: Inst;
-        staleMemVAddrValid :: Bool;
-        staleMemVAddr :: VAddr;
-        staleMemVToPValid :: Bool;
-        staleMemVToP :: (Struct VToPRp) }.
-
-  Notation Stales ty := (@NativeKind (list (ty (Struct Stale))) nil).
-  Notation Stales' := (Stales _).
-  Notation addrs := (wordToNat (wones VAddrSz)).
-
   Fixpoint updList A (val: A) n ls:=
     match n with
     | 0 => match ls with
@@ -736,6 +719,23 @@ Section Processor.
              | nil => nil
              end
     end.
+
+  Definition Stale :=
+    STRUCT {
+        staleValid :: Bool;
+        stalePc :: VAddr;
+        staleInstVToPValid :: Bool;
+        staleInstVToP :: (Struct VToPRp);
+        staleInstValid :: Bool;
+        staleInst :: Inst;
+        staleMemVAddrValid :: Bool;
+        staleMemVAddr :: VAddr;
+        staleMemVToPValid :: Bool;
+        staleMemVToP :: (Struct VToPRp) }.
+
+  Notation Stales ty := (@NativeKind (list (ty (Struct Stale))) nil).
+  Notation Stales' := (Stales _).
+  Notation addrs := (wordToNat (wones VAddrSz)).
 
   Definition processorSpec (n: nat) :=
     META {
