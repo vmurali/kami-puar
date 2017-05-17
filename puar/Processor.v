@@ -1,4 +1,4 @@
-Require Import Kami Lib.Indexer Lib.Struct.
+Require Import Kami Lib.Indexer Lib.Struct Kami.Tactics Kami.SemFacts Lib.Reflection.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
@@ -58,20 +58,20 @@ Definition wbPc := "wbPc".
 Definition Valid := "Valid".
 
 Definition fifoInstVToPRq := "fifoInstVToPRq".
-Notation fifoInstVToPRqValid := (fifoInstVToPRq ++ Valid)%string.
+Definition fifoInstVToPRqValid := "fifoInstVToPRqValid".
 Definition fifoFetchRq := "fifoFetchRq".
-Notation fifoFetchRqValid := (fifoFetchRq ++ Valid)%string.
+Definition fifoFetchRqValid := "fifoFetchRqValid".
 Definition fifoFetchRp := "fifoFetchRp".
-Notation fifoFetchRpValid := (fifoFetchRp ++ Valid)%string.
+Definition fifoFetchRpValid := "fifoFetchRpValid".
 Definition fifoRegRead := "fifoRegRead".
-Notation fifoRegReadValid := (fifoRegRead ++ Valid)%string.
+Definition fifoRegReadValid := "fifoRegReadValid".
 
 Definition fifoExec := "fifoExec".
-Notation fifoExecValid := (fifoExec ++ Valid)%string.
+Definition fifoExecValid := "fifoExecValid".
 Definition fifoMemRq := "fifoMemRq".
-Notation fifoMemRqValid := (fifoMemRq ++ Valid)%string.
+Definition fifoMemRqValid := "fifoMemRqValid".
 Definition fifoMemRp := "fifoMemRp".
-Notation fifoMemRpValid := (fifoMemRp ++ Valid)%string.
+Definition fifoMemRpValid := "fifoMemRpValid".
 
 (* Rule names *)
 Definition fetchRq := "fetchRq".
@@ -550,11 +550,11 @@ Section Processor.
           Enq fifoFetchRp : _ <- #a;
           Retv
 
-        with Method (memVToPRp -- enq) (a: Struct ExecT): Void :=
+        with Method (memVToPRp -- enq) (a: Struct MemRqT): Void :=
           Enq fifoMemRq : _ <- #a;
           Retv
 
-        with Method (memRp -- enq) (a: Struct MemRqT): Void :=
+        with Method (memRp -- enq) (a: Struct MemRpT): Void :=
           Enq fifoMemRp : _ <- #a;
           Retv
       }.
@@ -946,4 +946,145 @@ Section Processor.
           Retv
 
       }.
+
+  Section Multicore.
+    Variable n: nat.
+    Notation multiProc := (getMetaFromSinNat n processor).
+    Notation multiInstVToPCall := (getMetaFromSinNat n InstVToPCall).
+    Notation multiInstCall := (getMetaFromSinNat n InstCall).
+    Notation multiMemVToPCall := (getMetaFromSinNat n MemVToPCall).
+    Notation multiMemCall := (getMetaFromSinNat n MemCall).
+
+    Notation multiProcFull := ((MetaMod multiProc)
+                                 ++++ (MetaMod multiInstVToPCall)
+                                 ++++ (MetaMod multiInstCall)
+                                 ++++ (MetaMod multiMemVToPCall)
+                                 ++++ (MetaMod multiMemCall)).
+
+    Notation multiProcFullFlattenMeta := (flattenMeta multiProcFull).
+    
+    Ltac newCbv H := cbv [Valid] in H.
+    
+    Local Definition multiProcFullFlat: MetaModule.
+    Proof.
+      pose multiProcFullFlattenMeta as m;
+        newCbv m; commonCbv m.
+      simpl in m; 
+        unfold Valid, Lib.VectorFacts.Vector_find in m.
+      simpl in m.
+
+      fold fifoInstVToPRqValid fifoFetchRqValid fifoFetchRpValid fifoRegReadValid
+           fifoExecValid fifoMemRqValid fifoMemRpValid in m.
+
+      finish_def.
+    Defined.
+
+    Ltac fullTrans m := ktrans m; unfold MethsT; rewrite <- idElementwiseId.
+
+
+    Local Theorem multiProcFullFlat_ref:
+      (modFromMeta multiProcFullFlattenMeta <<== modFromMeta multiProcFullFlat) /\
+      forall ty, MetaModEquiv ty typeUT multiProcFullFlat.
+    Proof.
+      split; cbv [multiProcFullFlat]; unfold MethsT;
+        try rewrite idElementwiseId.
+      - apply traceRefines_refl.
+      - kequiv.
+    Qed.
+
+    Local Definition multiProcFullInl': MetaModule.
+    Proof.
+      start_def multiProcFullFlat.
+
+      ggF newCbv (instVToPRq -- pop) fetchRq.
+      ggF newCbv (instVToPRq -- first) fetchRq.
+      ggF newCbv (instVToPRp -- enq) fetchRq.
+
+      ggF newCbv (instRq -- pop) fetchRp.
+      ggF newCbv (instRq -- first) fetchRp.
+      ggF newCbv (instRp -- enq) fetchRp.
+
+      ggF newCbv (memVToPRq -- pop) memVToPRq.
+      ggF newCbv (memVToPRq -- first) memVToPRq.
+      ggF newCbv (memVToPRp -- enq) memVToPRq.
+
+      ggF newCbv (memRq -- pop) memRq.
+      ggF newCbv (memRq -- first) memRq.
+      ggF newCbv (memRp -- enq) memRq.
+
+      finish_def.
+    Defined.
+
+    Definition multiProcFullInl := ltac:(let y := eval cbv [multiProcFullInl'] in
+                                         multiProcFullInl' in exact y).
+
+    Local Definition multiProcFullInl_ref':
+      (modFromMeta multiProcFullFlattenMeta <<== modFromMeta multiProcFullInl) /\
+      forall ty, MetaModEquiv ty typeUT multiProcFullInl.
+    Proof.
+      start_ref multiProcFullFlat multiProcFullFlat_ref.
+
+      ggFilt newCbv (instVToPRq -- pop) fetchRq;
+      ggFilt newCbv (instVToPRq -- first) fetchRq.
+      ggFilt newCbv (instVToPRp -- enq) fetchRq.
+
+      ggFilt newCbv (instRq -- pop) fetchRp.
+      ggFilt newCbv (instRq -- first) fetchRp.
+      ggFilt newCbv (instRp -- enq) fetchRp.
+
+      ggFilt newCbv (memVToPRq -- pop) memVToPRq.
+      ggFilt newCbv (memVToPRq -- first) memVToPRq.
+      ggFilt newCbv (memVToPRp -- enq) memVToPRq.
+
+      ggFilt newCbv (memRq -- pop) memRq.
+      ggFilt newCbv (memRq -- first) memRq.
+      ggFilt newCbv (memRp -- enq) memRq.
+
+      finish_ref.
+    Qed.
+
+    Definition multiProcFullInl_ref:
+      (modFromMetaModules multiProcFull <<== modFromMeta multiProcFullInl) /\
+      forall ty, MetaModEquiv ty typeUT multiProcFullInl.
+    Proof.
+      destruct multiProcFullInl_ref'.
+      split; auto.
+      fullTrans (modFromMeta multiProcFullFlattenMeta); auto.
+      destruct (flattenMetaEquiv multiProcFull ltac:(noDup_tac)); assumption.
+    Qed.
+
+    Lemma multiProcessor_ModEquiv:
+    MetaModPhoasWf multiProc.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma multiInstVToPCall_ModEquiv:
+    MetaModPhoasWf multiInstVToPCall.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma multiInstCall_ModEquiv:
+    MetaModPhoasWf multiInstCall.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma multiMemVToPCall_ModEquiv:
+    MetaModPhoasWf multiMemVToPCall.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma multiMemCall_ModEquiv:
+    MetaModPhoasWf multiMemCall.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
 End Processor.
