@@ -1087,4 +1087,5 @@ Section Processor.
       kequiv.
       (* END_SKIP_PROOF_OFF *)
     Qed.
+  End Multicore.
 End Processor.
