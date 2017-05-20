@@ -798,9 +798,7 @@ Section Processor.
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
-          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
           LET staleInstVToPVal : optionT (Struct VToPRp) <- #entry!Stale@.staleInstVToP;
-          Assert (isSome #stalePcVal);
           Assert (isSome #staleInstVToPVal);
           Call inp <- instCall((getSome #staleInstVToPVal)!VToPRp@.pAddr);
           LET newEntry: StaleT <- updInst #entry #inp;
@@ -812,9 +810,7 @@ Section Processor.
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
-          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
           LET staleInstVal : optionT Inst <- #entry!Stale@.staleInst;
-          Assert (isSome #stalePcVal);
           Assert (isSome #staleInstVal);
           LET newEntry: StaleT <- updMemVAddr #entry #vAddr;
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
@@ -824,9 +820,7 @@ Section Processor.
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
-          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
           LET staleMemVAddr : optionT VAddr <- #entry!Stale@.staleMemVAddr;
-          Assert (isSome #stalePcVal);
           Assert (isSome #staleMemVAddr);
           Call inp <- memVToPCall(getSome #staleMemVAddr);
           LET newEntry: StaleT <- updMemVToP #entry #inp;
