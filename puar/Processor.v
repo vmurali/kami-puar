@@ -1,4 +1,4 @@
-Require Import Kami Lib.Indexer Lib.Struct Kami.Tactics Kami.SemFacts Lib.Reflection.
+Require Import Kami Lib.Indexer Lib.Struct Kami.Tactics Kami.SemFacts Lib.Reflection Puar.Useful.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
@@ -102,6 +102,8 @@ Definition staleMemVAddrValid := "staleMemVAddrValid".
 Definition staleMemVAddr := "staleMemVAddr".
 Definition staleMemVToPValid := "staleMemVAddrVToPValid".
 Definition staleMemVToP := "staleMemVAddrVToP".
+
+Definition valid := "valid".
 
 (* Specification field *)
 Definition drop := "drop".
@@ -326,12 +328,13 @@ Section Processor.
 
   Definition bypass ty (f1Valid f2Valid f3Valid: Bool @ ty)
              (f1 f2 f3: Inst @ ty) (f1d f2d f3d d: Data @ ty)
-             (src: RIndex @ ty) :=
-    ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src && useDst f1)
+             (e1 e2: Bool @ ty)
+             (src: RIndex @ ty) (e: Bool @ ty) :=
+    ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src && useDst f1 && e1 == e)
       then f1d else
-      IF (f2Valid && isNm f2 && isNotZero (getDst f2) && getDst f2 == src && useDst f1)
+      IF (f2Valid && isNm f2 && isNotZero (getDst f2) && getDst f2 == src && useDst f2 && e2 == e)
       then f2d else
-      IF (f3Valid && isNm f3 && isNotZero (getDst f3) && getDst f3 == src && useDst f1)
+      IF (f3Valid && isNm f3 && isNotZero (getDst f3) && getDst f3 == src && useDst f3)
       then f3d else d
     )%kami_expr.
   
@@ -368,7 +371,7 @@ Section Processor.
         with Register fifoMemRq : Struct MemRqT <- Default
         with Register fifoMemRqValid : Bool <- (ConstBool false)
 
-        with Register fifoMemRp : Struct MemRqT <- Default
+        with Register fifoMemRp : Struct MemRpT <- Default
         with Register fifoMemRpValid : Bool <- (ConstBool false)
 
         with Rule instVToPRq :=
@@ -440,39 +443,51 @@ Section Processor.
             Read fifoMemRpV <- fifoMemRpValid;
 
             LET stall <- (#fifoExecV && isLd #fifoExecData!ExecT@.inst &&
-                          isNotZero (getDst #fifoExecData!ExecT@.inst) &&
-                          ((useSrc1 #inp1!RegReadT@.inst &&
-                            getDst #fifoExecData!ExecT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
-                           (useSrc2 #inp1!RegReadT@.inst &&
-                            getDst #fifoExecData!ExecT@.inst == getSrc2 #inp1!RegReadT@.inst))) ||
-                         (#fifoMemRqV && isLd #fifoMemRqData!MemRqT@.inst &&
-                          isNotZero (getDst #fifoMemRqData!MemRqT@.inst) &&
-                          ((useSrc1 #inp1!RegReadT@.inst &&
-                            getDst #fifoMemRqData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
-                           (useSrc2 #inp1!RegReadT@.inst &&
-                            getDst #fifoMemRqData!MemRqT@.inst == getSrc2 #inp1!RegReadT@.inst))) ||
-                         (#fifoMemRpV && isLd #fifoMemRpData!MemRqT@.inst &&
-                          isNotZero (getDst #fifoMemRpData!MemRqT@.inst) &&
-                          ((useSrc1 #inp1!RegReadT@.inst &&
-                            getDst #fifoMemRpData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst) ||
-                           (useSrc2 #inp1!RegReadT@.inst &&
-                            getDst #fifoMemRpData!MemRqT@.inst == getSrc1 #inp1!RegReadT@.inst)));
+                           isNotZero (getDst #fifoExecData!ExecT@.inst) &&
+                           #fifoExecData!ExecT@.wbEpoch == #inp1!RegReadT@.wbEpoch &&
+                           ((useSrc1 #inp1!RegReadT@.inst &&
+                                     getDst #fifoExecData!ExecT@.inst ==
+                             getSrc1 #inp1!RegReadT@.inst) ||
+                            (useSrc2 #inp1!RegReadT@.inst &&
+                                     getDst #fifoExecData!ExecT@.inst ==
+                             getSrc2 #inp1!RegReadT@.inst))) ||
+                (#fifoMemRqV && isLd #fifoMemRqData!MemRqT@.inst &&
+                  isNotZero (getDst #fifoMemRqData!MemRqT@.inst) &&
+                  #fifoMemRqData!MemRqT@.wbEpoch == #inp1!RegReadT@.wbEpoch &&
+                  ((useSrc1 #inp1!RegReadT@.inst &&
+                            getDst #fifoMemRqData!MemRqT@.inst ==
+                    getSrc1 #inp1!RegReadT@.inst) ||
+                   (useSrc2 #inp1!RegReadT@.inst &&
+                            getDst #fifoMemRqData!MemRqT@.inst ==
+                    getSrc2 #inp1!RegReadT@.inst))) ||
+                (#fifoMemRpV && isLd #fifoMemRpData!MemRpT@.inst &&
+                  isNotZero (getDst #fifoMemRpData!MemRpT@.inst) &&
+                  ((useSrc1 #inp1!RegReadT@.inst &&
+                            getDst #fifoMemRpData!MemRpT@.inst ==
+                    getSrc1 #inp1!RegReadT@.inst) ||
+                   (useSrc2 #inp1!RegReadT@.inst &&
+                            getDst #fifoMemRpData!MemRpT@.inst ==
+                    getSrc1 #inp1!RegReadT@.inst)));
 
             Assert ! #stall;
 
             LET bypassSrc1 <-
                 bypass
                 #fifoExecV #fifoMemRqV #fifoMemRpV
-                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRqT@.inst
-                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRqT@.dst
-                #inp1!RegReadT@.src1 (getSrc1 #inp1!RegReadT@.inst);
+                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRpT@.inst
+                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRpT@.dst
+                #inp1!RegReadT@.src1
+                #fifoExecData!ExecT@.wbEpoch #fifoMemRqData!MemRqT@.wbEpoch
+                (getSrc1 #inp1!RegReadT@.inst) #inp1!RegReadT@.wbEpoch;
 
             LET bypassSrc2 <-
                 bypass
                 #fifoExecV #fifoMemRqV #fifoMemRpV
-                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRqT@.inst
-                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRqT@.dst
-                #inp1!RegReadT@.src2 (getSrc2 #inp1!RegReadT@.inst);
+                #fifoExecData!ExecT@.inst #fifoMemRqData!MemRqT@.inst #fifoMemRpData!MemRpT@.inst
+                #fifoExecData!ExecT@.dst #fifoMemRqData!MemRqT@.dst #fifoMemRpData!MemRpT@.dst
+                #inp1!RegReadT@.src2
+                #fifoExecData!ExecT@.wbEpoch #fifoMemRqData!MemRqT@.wbEpoch
+                (getSrc2 #inp1!RegReadT@.inst) #inp1!RegReadT@.wbEpoch;
 
             LET execVal <- execFn #inp1!RegReadT@.inst #bypassSrc1 #bypassSrc2;
             
@@ -696,46 +711,61 @@ Section Processor.
             );
           Retv }.
 
-  Fixpoint updList A (val: A) n ls:=
-    match n with
-    | 0 => match ls with
-           | x :: xs => val :: xs
-           | nil => nil
-           end
-    | S m => match ls with
-             | x :: xs => updList val m xs
-             | nil => nil
-             end
-    end.
-  
-  Fixpoint rmList A n (ls: list A) :=
-    match n with
-    | 0 => match ls with
-           | x :: xs => xs
-           | nil => nil
-           end
-    | S m => match ls with
-             | x :: xs => rmList m xs
-             | nil => nil
-             end
-    end.
-
-  Definition Stale :=
+  Notation Stale :=
     STRUCT {
-        staleValid :: Bool;
-        stalePc :: VAddr;
-        staleInstVToPValid :: Bool;
-        staleInstVToP :: (Struct VToPRp);
-        staleInstValid :: Bool;
-        staleInst :: Inst;
-        staleMemVAddrValid :: Bool;
-        staleMemVAddr :: VAddr;
-        staleMemVToPValid :: Bool;
-        staleMemVToP :: (Struct VToPRp) }.
+        stalePc :: optionT VAddr;
+        staleInstVToP :: optionT (Struct VToPRp);
+        staleInst :: optionT Inst;
+        staleMemVAddr :: optionT VAddr;
+        staleMemVToP :: optionT (Struct VToPRp) }.
 
-  Notation Stales ty := (@NativeKind (list (ty (Struct Stale))) nil).
+  Notation StaleT := (Struct Stale).
+
+  Notation Stales ty := (@NativeKind (list (ty StaleT)) nil).
   Notation Stales' := (Stales _).
   Notation addrs := (wordToNat (wones VAddrSz)).
+
+  Open Scope kami_expr.
+  Notation newStalePc val :=
+    STRUCT {
+        stalePc ::= some val;
+        staleInstVToP ::= none;
+        staleInst ::= none;
+        staleMemVAddr ::= none;
+        staleMemVToP ::= none }.
+
+  Notation updInstVToP s val :=
+    STRUCT {
+        stalePc ::= s!Stale@.stalePc;
+        staleInstVToP ::= some val;
+        staleInst ::= s!Stale@.staleInst;
+        staleMemVAddr ::= s!Stale@.staleMemVAddr;
+        staleMemVToP ::= s!Stale@.staleMemVToP }.
+
+  Notation updInst s val :=
+    STRUCT {
+        stalePc ::= s!Stale@.stalePc;
+        staleInstVToP ::= s!Stale@.staleInstVToP;
+        staleInst ::= some val;
+        staleMemVAddr ::= s!Stale@.staleMemVAddr;
+        staleMemVToP ::= s!Stale@.staleMemVToP }.
+
+  Notation updMemVAddr s val :=
+    STRUCT {
+        stalePc ::= s!Stale@.stalePc;
+        staleInstVToP ::= s!Stale@.staleInstVToP;
+        staleInst ::= s!Stale@.staleInst;
+        staleMemVAddr ::= some val;
+        staleMemVToP ::= s!Stale@.staleMemVToP }.
+
+  Notation updMemVToP s val :=
+    STRUCT {
+        stalePc ::= s!Stale@.stalePc;
+        staleInstVToP ::= s!Stale@.staleInstVToP;
+        staleInst ::= s!Stale@.staleInst;
+        staleMemVAddr ::= s!Stale@.staleMemVAddr;
+        staleMemVToP ::= some val }.
+  Close Scope kami_expr.
 
   Definition processorSpec (n: nat) :=
     META {
@@ -749,101 +779,57 @@ Section Processor.
         with Repeat Rule till addrs with VAddrSz by stalePc :=
           ILET vAddr;
           ReadN stalesVal : Stales' <- stales;
-          LET newStale: (Struct Stale) <- STRUCT {
-                staleValid ::= $$ true;
-                stalePc ::= #vAddr;
-                staleInstVToPValid ::= $$ false;
-                staleInstVToP ::= $$ Default;
-                staleInstValid ::= $$ false;
-                staleInst ::= $$ Default;
-                staleMemVAddrValid ::= $$ false;
-                staleMemVAddr ::= $$ Default;
-                staleMemVToPValid ::= $$ false;
-                staleMemVToP ::= $$ Default };
+          LET newStale: StaleT <- newStalePc #vAddr;
           WriteN stales : _ <- Var _ Stales' (stalesVal ++ [newStale]);
           Retv
 
         with MultiRule until n as i by staleInstVToP :=
           ReadN stalesVal : Stales' <- stales;
-          LET noEntry : Struct Stale <- $$ Default;
-          LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.staleValid;
-          Call inp <- instVToPCall(#entry!Stale@.stalePc);
-          LET newEntry: (Struct Stale) <- STRUCT {
-                staleValid ::= #entry!Stale@.staleValid;
-                stalePc ::= #entry!Stale@.stalePc;
-                staleInstVToPValid ::= $$ true;
-                staleInstVToP ::= #inp;
-                staleInstValid ::= #entry!Stale@.staleInstValid;
-                staleInst ::= #entry!Stale@.staleInst;
-                staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
-                staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
-                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
-                staleMemVToP ::= #entry!Stale@.staleMemVToP };
+          LET noEntry : StaleT <- $$ Default;
+          LET entry : StaleT <- #(nth i stalesVal noEntry);
+          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
+          Assert (isSome #stalePcVal);
+          Call inp <- instVToPCall(getSome #stalePcVal);
+          LET newEntry: StaleT <- updInstVToP #entry #inp;
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
         with MultiRule until n as i by staleInst :=
           ReadN stalesVal : Stales' <- stales;
-          LET noEntry : Struct Stale <- $$ Default;
-          LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.staleValid;
-          Assert #entry!Stale@.staleInstVToPValid;
-          Call inp <- instCall(#entry!Stale@.staleInstVToP!VToPRp@.pAddr);
-          LET newEntry: (Struct Stale) <- STRUCT {
-                staleValid ::= #entry!Stale@.staleValid;
-                stalePc ::= #entry!Stale@.stalePc;
-                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
-                staleInstVToP ::= #entry!Stale@.staleInstVToP;
-                staleInstValid ::= $$ true;
-                staleInst ::= #inp;
-                staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
-                staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
-                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
-                staleMemVToP ::= #entry!Stale@.staleMemVToP };
+          LET noEntry : StaleT <- $$ Default;
+          LET entry : StaleT <- #(nth i stalesVal noEntry);
+          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
+          LET staleInstVToPVal : optionT (Struct VToPRp) <- #entry!Stale@.staleInstVToP;
+          Assert (isSome #stalePcVal);
+          Assert (isSome #staleInstVToPVal);
+          Call inp <- instCall((getSome #staleInstVToPVal)!VToPRp@.pAddr);
+          LET newEntry: StaleT <- updInst #entry #inp;
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
         with Repeat MultiRule until n as i till addrs with VAddrSz by staleMemVAddr :=
           ILET vAddr;
           ReadN stalesVal : Stales' <- stales;
-          LET noEntry : Struct Stale <- $$ Default;
-          LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.staleValid;
-          Assert #entry!Stale@.staleInstValid;
-          Assert (isLdSt #entry!Stale@.staleInst);
-          LET newEntry: (Struct Stale) <- STRUCT {
-                staleValid ::= #entry!Stale@.staleValid;
-                stalePc ::= #entry!Stale@.stalePc;
-                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
-                staleInstVToP ::= #entry!Stale@.staleInstVToP;
-                staleInstValid ::= #entry!Stale@.staleInstValid;
-                staleInst ::= #entry!Stale@.staleInst;
-                staleMemVAddrValid ::= $$ true;
-                staleMemVAddr ::= #vAddr;
-                staleMemVToPValid ::= #entry!Stale@.staleMemVToPValid;
-                staleMemVToP ::= #entry!Stale@.staleMemVToP };
+          LET noEntry : StaleT <- $$ Default;
+          LET entry : StaleT <- #(nth i stalesVal noEntry);
+          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
+          LET staleInstVal : optionT Inst <- #entry!Stale@.staleInst;
+          Assert (isSome #stalePcVal);
+          Assert (isSome #staleInstVal);
+          LET newEntry: StaleT <- updMemVAddr #entry #vAddr;
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
         with MultiRule until n as i by staleMemVToP :=
           ReadN stalesVal : Stales' <- stales;
-          LET noEntry : Struct Stale <- $$ Default;
-          LET entry : Struct Stale <- #(nth i stalesVal noEntry);
-          Assert #entry!Stale@.staleValid;
-          Assert #entry!Stale@.staleMemVAddrValid;
-          Call inp <- memVToPCall(#entry!Stale@.staleMemVAddr);
-          LET newEntry: (Struct Stale) <- STRUCT {
-                staleValid ::= #entry!Stale@.staleValid;
-                stalePc ::= #entry!Stale@.stalePc;
-                staleInstVToPValid ::= #entry!Stale@.staleInstVToPValid;
-                staleInstVToP ::= #entry!Stale@.staleInstVToP;
-                staleInstValid ::= #entry!Stale@.staleInstValid;
-                staleInst ::= #entry!Stale@.staleInst;
-                staleMemVAddrValid ::= #entry!Stale@.staleMemVAddrValid;
-                staleMemVAddr ::= #entry!Stale@.staleMemVAddr;
-                staleMemVToPValid ::= $$ true;
-                staleMemVToP ::= #inp };
+          LET noEntry : StaleT <- $$ Default;
+          LET entry : StaleT <- #(nth i stalesVal noEntry);
+          LET stalePcVal : optionT VAddr <- #entry!Stale@.stalePc;
+          LET staleMemVAddr : optionT VAddr <- #entry!Stale@.staleMemVAddr;
+          Assert (isSome #stalePcVal);
+          Assert (isSome #staleMemVAddr);
+          Call inp <- memVToPCall(getSome #staleMemVAddr);
+          LET newEntry: StaleT <- updMemVToP #entry #inp;
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
@@ -853,76 +839,83 @@ Section Processor.
           LET noEntry : Struct Stale <- $$ Default;
           LET entry : Struct Stale <- #(hd noEntry stalesVal);
           Retv
-
+            
         with Rule memRq :=
           ReadN stalesVal : Stales' <- stales;
           WriteN stales : _ <- Var _ Stales' (tl stalesVal);
           LET noEntry : Struct Stale <- $$ Default;
           LET inp1 : Struct Stale <- #(hd noEntry stalesVal);
-          LET inst <- #inp1!Stale@.staleInst;
+          LET inst <- getSome #inp1!Stale@.staleInst;
           Read wbPcVal <- wbPc;
           Read cStateVal <- cState;
           Read regFileVals <- regFile;
           Read modeVal <- mode;
 
-          Assert #inp1!Stale@.staleValid;
-          Assert #inp1!Stale@.staleInstVToPValid;
-          Assert #inp1!Stale@.staleInstValid;
+          Assert (isSome #inp1!Stale@.stalePc);
+          Assert (isSome #inp1!Stale@.staleInstVToP);
+          Assert (isSome #inp1!Stale@.staleInst);
 
-          LET execVal <- execFn #inp1!Stale@.staleInst #regFileVals@[getSrc1 #inst]
+          LET execVal <- execFn (getSome #inp1!Stale@.staleInst) #regFileVals@[getSrc1 #inst]
               #regFileVals@[getSrc2 #inst];
 
           If (isLdSt #inst)
           then (
-            Assert #inp1!Stale@.staleMemVAddrValid;
-            Assert #inp1!Stale@.staleMemVToPValid;
-            Assert #execVal!Exec@.memVAddr == #inp1!Stale@.staleMemVAddr;
+            Assert (isSome #inp1!Stale@.staleMemVAddr);
+            Assert (isSome #inp1!Stale@.staleMemVToP);
+            Assert #execVal!Exec@.memVAddr == (getSome #inp1!Stale@.staleMemVAddr);
             Retv
             );
 
-          LET execException <- IF noException #inp1!Stale@.staleInstVToP!VToPRp@.exception
-                               then #execVal!Exec@.exception
-                               else #inp1!Stale@.staleInstVToP!VToPRp@.exception;
+                 LET execException <- IF noException
+                                         (getSome #inp1!Stale@.staleInstVToP)!VToPRp@.exception
+                                      then #execVal!Exec@.exception
+                                      else
+                                        (getSome #inp1!Stale@.staleInstVToP)!VToPRp@.exception;
 
           LET memVToPException <- IF noException #execException && isLdSt #inst
-                                  then #inp1!Stale@.staleMemVToP!VToPRp@.exception
+                                  then
+                                    (getSome #inp1!Stale@.staleMemVToP)!VToPRp@.exception
                                   else #execException;
 
-          LET cExecVal <- cExec #inst #inp1!Stale@.stalePc
+          LET cExecVal <- cExec #inst (getSome #inp1!Stale@.stalePc)
               #execVal!Exec@.nextPc #cStateVal #modeVal #memVToPException
-              #inp1!Stale@.staleInstVToP!VToPRp@.mode #inp1!Stale@.staleMemVToP!VToPRp@.mode;
-          LET cExecExcept <- cExecException #inst #inp1!Stale@.stalePc
+              (getSome #inp1!Stale@.staleInstVToP)!VToPRp@.mode
+              (getSome #inp1!Stale@.staleMemVToP)!VToPRp@.mode;
+          LET cExecExcept <- cExecException #inst (getSome #inp1!Stale@.stalePc)
               #execVal!Exec@.nextPc #cStateVal #modeVal
-              #inp1!Stale@.staleInstVToP!VToPRp@.mode #inp1!Stale@.staleMemVToP!VToPRp@.mode;
+              (getSome #inp1!Stale@.staleInstVToP)!VToPRp@.mode
+              (getSome #inp1!Stale@.staleMemVToP)!VToPRp@.mode;
 
           LET finalException <- IF noException #memVToPException
                                 then #cExecExcept
                                 else #memVToPException;
 
-          If #wbPcVal == #inp1!Stale@.stalePc
+          If #wbPcVal == getSome #inp1!Stale@.stalePc
           then (
             Write cState <- #cExecVal!CExec@.cState;
             Write wbPc <- #cExecVal!CExec@.pc;
             Write mode <- #cExecVal!CExec@.mode;
-            Call commitCall(#inp1!Stale@.stalePc);
+            Call commitCall(getSome #inp1!Stale@.stalePc);
 
             If noException #finalException
             then (
-              Call setAccessInstCall(#inp1!Stale@.stalePc);
+              Call setAccessInstCall(getSome #inp1!Stale@.stalePc);
               If isSt #inst
               then (
-                Call setAccessDataCall(#inp1!Stale@.staleMemVAddr);
-                Call setDirtyDataCall(#inp1!Stale@.staleMemVAddr);
-                Call inp2 <- memCall(createStRq #inp1!Stale@.staleMemVToP!VToPRp@.pAddr
-                                                (getByteEns #inst)
-                                                #execVal!Exec@.dst);
+                Call setAccessDataCall(getSome #inp1!Stale@.staleMemVAddr);
+                Call setDirtyDataCall(getSome #inp1!Stale@.staleMemVAddr);
+                Call inp2 <- memCall(createStRq
+                                       (getSome #inp1!Stale@.staleMemVToP)!VToPRp@.pAddr
+                                       (getByteEns #inst)
+                                       #execVal!Exec@.dst);
                 Ret #inp2
                 )
               else (
                 If isLd #inst
                 then (
-                  Call setAccessDataCall(#inp1!Stale@.staleMemVAddr);
-                  Call inp2 <- memCall(createLdRq #inp1!Stale@.staleMemVToP!VToPRp@.pAddr);
+                  Call setAccessDataCall(getSome #inp1!Stale@.staleMemVAddr);
+                  Call inp2 <- memCall(createLdRq
+                                         (getSome #inp1!Stale@.staleMemVToP)!VToPRp@.pAddr);
                   Ret #inp2
                   )
                 else Ret $$ Default
