@@ -1042,37 +1042,37 @@ Section Processor.
 
     Lemma multiProcessor_ModEquiv:
     MetaModPhoasWf multiProc.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma multiInstVToPCall_ModEquiv:
     MetaModPhoasWf multiInstVToPCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma multiInstCall_ModEquiv:
     MetaModPhoasWf multiInstCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma multiMemVToPCall_ModEquiv:
     MetaModPhoasWf multiMemVToPCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma multiMemCall_ModEquiv:
     MetaModPhoasWf multiMemCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
   End Multicore.
 End Processor.
