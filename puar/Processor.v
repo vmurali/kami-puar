@@ -1008,7 +1008,7 @@ Section Processor.
     Local Definition multiProcFullInl_ref':
       (modFromMeta multiProcFullFlattenMeta <<== modFromMeta multiProcFullInl) /\
       forall ty, MetaModEquiv ty typeUT multiProcFullInl.
-    Proof.
+    Proof. (* SKIP_PROOF_ON
       start_ref multiProcFullFlat multiProcFullFlat_ref.
 
       ggFilt newCbv (instVToPRq -- pop) fetchRq;
@@ -1028,6 +1028,7 @@ Section Processor.
       ggFilt newCbv (memRp -- enq) memRq.
 
       finish_ref.
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Definition multiProcFullInl_ref:
@@ -1074,5 +1075,7 @@ Section Processor.
       kequiv.
       END_SKIP_PROOF_ON *) apply cheat.
     Qed.
+
+    
   End Multicore.
 End Processor.
