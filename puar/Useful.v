@@ -32,13 +32,13 @@ Definition data := "data".
 Definition valid := "valid".
 Close Scope string.
 
-Notation option T :=
+Notation opt T :=
   (STRUCT {
        valid :: Bool;
        data :: T }).
-Notation option' := (option _).
+Notation opt' := (opt _).
 
-Notation optionT T := (Struct (option T)).
+Notation optT T := (Struct (opt T)).
 
 Open Scope kami_expr.
 Notation none :=
@@ -51,8 +51,12 @@ Notation some val :=
       valid ::= $$ true;
       data ::= val }.
 
-Definition isSome ty T (v: (optionT T) @ ty) := v!(option T)@.valid.
-Definition getSome ty T (v: (optionT T) @ ty) := v!(option T)@.data.
+Definition isSome ty T (v: (optT T) @ ty) := v!(opt T)@.valid.
+Definition getSome ty T (v: (optT T) @ ty) := v!(opt T)@.data.
+
+Notation "<| t |>" := (fullType type (SyntaxKind t)).
+
+Notation "<[ t ]>" := (fullType type (@NativeKind t nil)).
 
 Close Scope kami_expr.
 
