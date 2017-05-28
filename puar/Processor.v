@@ -1273,22 +1273,18 @@ Section Processor.
     
     Open Scope fmap.
     Record combined_inv (i s: RegsT): Prop :=
-      { modeVal: <| Mode |> ;
-        modeIFind: modeVal === i.[mode] ;
-        modeSFind: modeVal === s.[mode] ;
+      { modeI: <| Mode |> ;
+        modeIFind: modeI === i.[mode] ;
 
-        wbPcVal: <| VAddr |> ;
-        wbPcIFind: wbPcVal === i.[wbPc] ;
-        wbPcSFind: wbPcVal === s.[wbPc] ;
+        wbPcI: <| VAddr |> ;
+        wbPcIFind: wbPcI === i.[wbPc] ;
 
         regFileI: <| Vector Data RIndexSz |> ;
         regFileIFind: regFileI === i.[regFile] ;
         regFileS: <| Vector Data RIndexSz |> ;
-        regFileSFind: regFileS === s.[regFile] ;
         
-        cStateVal: <| CState |> ;
-        cStateIFind: cStateVal === i.[cState] ;
-        cStateSFind: cStateVal === s.[cState] ;
+        cStateI: <| CState |> ;
+        cStateIFind: cStateI === i.[cState] ;
 
         instVToPRqData: <| Struct InstVToPRqT |> ;
         instVToPRqDataFind: instVToPRqData === i.[fifoInstVToPRq] ;
@@ -1325,21 +1321,6 @@ Section Processor.
         memRpValid: <| Bool |> ;
         memRpValidFind: memRpValid === i.[fifoMemRpValid] ;
 
-        staleList: <[ list (type StaleT) ]> ;
-        staleListFind: staleList === s.[stales] ;
-
-        wbEpochI: <| Bool |> ;
-        wbEpochIFind: wbEpochI === i.[wbEpoch] ;
-
-        listMatch:
-          rmNone (fromInstVToPRqT instVToPRqData instVToPRqValid ::
-                                  fromFetchRqT fetchRqData fetchRqValid ::
-                                  fromFetchRpT fetchRpData fetchRpValid ::
-                                  fromRegReadT regReadData regReadValid ::
-                                  fromExecT execData execValid ::
-                                  fromMemRqT memRqData memRqValid :: nil)
-          = map fromStale staleList ;
-
         regFileMatch:
           regFileS = (fun x =>
                         if memRpValid
@@ -1347,6 +1328,9 @@ Section Processor.
                              then memRpData (MemRpT !! dst)
                              else regFileI x
                         else regFileI x) ;
+
+        wbEpochI: <| Bool |> ;
+        wbEpochIFind: wbEpochI === i.[wbEpoch] ;
 
         regReadSrc1:
           regReadValid = true ->
@@ -1383,6 +1367,24 @@ Section Processor.
                                   (regFileS (evalExpr (getSrc1 _ (memRqData (MemRqT !! inst)))))
                                   (regFileS (evalExpr (getSrc2 _ (memRqData (MemRqT !! inst)))))
                           )%kami_expr) ;
+
+        wbPcSFind: wbPcI === s.[wbPc] ;
+        modeSFind: modeI === s.[mode] ;
+        regFileSFind: regFileS === s.[regFile] ;
+        cStateSFind: cStateI === s.[cState] ;
+
+        staleList: <[ list (type StaleT) ]> ;
+        staleListFind: staleList === s.[stales] ;
+
+        listMatch:
+          rmNone (fromInstVToPRqT instVToPRqData instVToPRqValid ::
+                                  fromFetchRqT fetchRqData fetchRqValid ::
+                                  fromFetchRpT fetchRpData fetchRpValid ::
+                                  fromRegReadT regReadData regReadValid ::
+                                  fromExecT execData execValid ::
+                                  fromMemRqT memRqData memRqValid :: nil)
+          = map fromStale staleList ;
+
       }.
     Close Scope fmap.
 
