@@ -58,5 +58,57 @@ Notation "<| t |>" := (fullType type (SyntaxKind t)).
 
 Notation "<[ t ]>" := (fullType type (@NativeKind t nil)).
 
+Ltac simplInl m :=
+  let y :=
+      eval cbv
+           [m modFromMeta metaRegs metaRules metaMeths
+              Concat.concat map app nameVal
+              getListFromMetaReg getListFromMetaRule
+              getListFromMetaMeth getActionFromSin getSinAction] in
+  (modFromMeta m)
+    in exact y.
+
+Fixpoint find_def A (f: A -> bool) (def: A) (l: list A) :=
+  match l with
+  | nil => def
+  | cons x xs => if f x
+                 then x
+                 else find_def f def xs
+  end.
+
+Require Import Lib.Struct.
+
+Definition def_rule: Attribute (Action Void)
+  := {| attrName := "";
+        attrType := fun ty => Return $$ WO |}%kami_expr.
+
+Ltac getRule m rn :=
+  let y := eval simpl in
+  (find_def (fun x => if string_dec (attrName x) rn then true else false)
+            def_rule (getRules m))
+    in exact y.
+
+Notation ruleMapInst thetaR imp spec rule :=
+  (forall oImp uImp ruleImp csImp oSpec,
+      thetaR oImp oSpec ->
+      ltac:(getRule imp rule) = ruleImp ->
+      SemAction oImp (attrType ruleImp type) uImp csImp WO ->
+      ((csImp = []%fmap /\ thetaR (M.union uImp oImp) oSpec) \/
+       (exists ruleSpec,
+           In ruleSpec (getRules spec) /\
+           exists uSpec,
+             SemAction oSpec (attrType ruleSpec type) uSpec csImp WO /\
+             thetaR (M.union uImp oImp) (M.union uSpec oSpec)))).
+
 Close Scope kami_expr.
 
+Ltac simplInv :=
+  intros; subst;
+  match goal with
+  | H: SemAction _ _ _ _ _ |- _ => unfold attrType at 1 in H
+  end.
+
+Lemma evalE K (e: K@type): evalExpr (#(evalExpr e)%kami_expr) = evalExpr e.
+Proof.
+  induction e; simpl in *; auto.
+Qed.

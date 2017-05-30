@@ -1023,11 +1023,12 @@ Section Processor.
 
     Definition procFullInl := ltac:(let y := eval cbv [procFullInl'] in
                                     procFullInl' in exact y).
-    
+
+    Notation procFullInlM := (modFromMeta procFullInl).
     Local Definition procFullInl_ref':
-      (modFromMeta procFullFlattenMeta <<== modFromMeta procFullInl) /\
+      (modFromMeta procFullFlattenMeta <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF
       start_ref procFullFlat procFullFlat_ref.
 
       ssFilt newCbv (instVToPRq -- pop) fetchRq;
@@ -1051,7 +1052,7 @@ Section Processor.
     Qed.
 
     Definition procFullInl_ref:
-      (modFromMetaModules procFull <<== modFromMeta procFullInl) /\
+      (modFromMetaModules procFull <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
     Proof.
       destruct procFullInl_ref'.
@@ -1386,8 +1387,97 @@ Section Processor.
           = map fromStale staleList ;
 
       }.
-    Close Scope fmap.
+
+    Definition procInlUnfold := ltac:(simplInl procFullInl).
+
+    Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
+
+    Print Ltac mapVR_Others.
+    Ltac simplMapUpds :=
+      match goal with
+      | |- context[M.find (elt := sigT ?t) ?k ?m] =>
+        let mr := mapVR_Others t 7 m in
+        rewrite <- (findMVR_find_string mr k eq_refl)
+      end.
+
+    Print Ltac mapVReify.
 
     
+    Lemma instVToPRq_inv:
+      ruleMapInst combined_inv procInlUnfold
+                  (modFromMeta (processorSpec 7)) instVToPRq.
+    Proof.
+      
+      simplInv; right.
+      SymEval'.
+      cbv [SymSemAction semExpr or_wrap and_wrap eq_rect].
+      rewrite ?M.find_empty.
+      intros.
+      repeat match goal with
+      | |- context[match (M.find (elt := sigT ?t) ?k ?x)%fmap with _ => _ end] =>
+        let mr := mapVR_Others t 0 x in
+        rewrite <- (findMVR_find_string mr k eq_refl);
+          cbv [findMVR_string StringEq.string_eq StringEq.ascii_eq eqb andb
+                              pc fifoInstVToPRq fifoInstVToPRqValid]
+             end.
+      rewrite ?evalE.
+      cbn [evalExpr].
+      Set Printing Implicit.
+      simpl in m.
+      
+
+      Print Ltac mapVR_Others.
+      Print Ltac mapVReify.
+      match goal with
+      | |- match (?x @[ ?y ])%fmap with _ => _ end =>
+        idtac; pose x; pose y; let mr := mapVR_Others t 0 m in pose mr
+      end.
+        let mr := mapVR_Others t 0 m in
+        setoid_rewrite <- (findMVR_find_string mr k eq_refl)
+      end.
+      simplMapUpds.
+      repeat match goal with
+      | [ |- context[M.find ?k ?m] ] =>
+        let rfd := mapReify m in
+        rewrite <-findMR_find with (mr:= rfd)
+      end.
+
+      findReify.
+      setoid_rewrite evalE.
+      setoid_rewrite evalE.
+      simpl.
+      findeq.
+      repeat setoid_rewrite evalE.
+      findeq.
+          M.].
+      simpl.
+      simpl unfold or_wrap, and_wrap in *.
+  repeat match goal with
+           | [ H : existT _ _ _ = existT _ _ _ |- _ ] => apply sigT_eq in H
+           | [ H : (_, _) = (_, _) |- _ ] => inv H
+           | [ H : Some _ = Some _ |- _ ] => apply invSome in H
+           | _ => discriminate
+         end.
+
+    Close Scope fmap.
+      SymEval_simpl.
+      Print Ltac SymEval.
+      intros; subst; right.
+      unfold attrType at 1 in H1.
+      red in H1.
+      cbv [attrType] at 1.
+        right.
+      combined_inv si ss ->
+      ltac:(getRule instVToPRq procInlUnfold) = a ->
+      SemAction oImp (attrType ruleImp type) uImp csImp WO ->
+      ((csImp = []%fmap /\ thetaR (M.union uImp oImp) oSpec) \/
+       (exists ruleSpec,
+           In ruleSpec (getRules spec) /\
+           exists uSpec,
+             SemAction oSpec (attrType ruleSpec type) uSpec csImp WO /\
+             thetaR (M.union uImp oImp) (M.union uSpec oSpec))).
+
+
+      True.
   End Pf.
 End Processor.
