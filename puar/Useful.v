@@ -108,7 +108,28 @@ Ltac simplInv :=
   | H: SemAction _ _ _ _ _ |- _ => unfold attrType at 1 in H
   end.
 
-Lemma evalE K (e: K@type): evalExpr (#(evalExpr e)%kami_expr) = evalExpr e.
+Lemma evalExprRewrite K (e: K@type): evalExpr (#(evalExpr e)%kami_expr) = evalExpr e.
 Proof.
   induction e; simpl in *; auto.
 Qed.
+
+Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
+
+Local Ltac simplMapUpds' t m k :=
+  let mr := mapVR_Others t 0 m in
+  rewrite <- (findMVR_find_string mr k eq_refl) in *;
+  cbv [findMVR_string StringEq.string_eq StringEq.ascii_eq eqb andb] in *.
+
+Ltac simplMapUpds :=
+  match goal with
+  | |- context[M.find (elt := sigT ?t) ?k ?m] =>
+    simplMapUpds' t m k
+  | H: context[M.find (elt := sigT ?t) ?k ?m] |- _ =>
+    simplMapUpds' t m k
+  end.
+
+Ltac SymEvalSimpl :=
+  SymEval';
+  cbv [SymSemAction semExpr or_wrap and_wrap eq_rect];
+  repeat (simplMapUpds; intros);
+  rewrite ?evalExprRewrite.

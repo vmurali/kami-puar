@@ -6,112 +6,109 @@ Set Asymmetric Patterns.
 
 Open Scope string.
 (* External method calls *)
-Definition instVToPRq := "instVToPRq".
-Definition instVToPRp := "instVToPRp".
-Definition instRq := "instRq".
-Definition instRp := "instRp".
-Definition memVToPRq := "memVToPRq".
-Definition memVToPRp := "memVToPRp".
-Definition memRq := "memRq".
-Definition memRp := "memRp".
+Notation instVToPRq := "instVToPRq".
+Notation instVToPRp := "instVToPRp".
+Notation instRq := "instRq".
+Notation instRp := "instRp".
+Notation memVToPRq := "memVToPRq".
+Notation memVToPRp := "memVToPRp".
+Notation memRq := "memRq".
+Notation memRp := "memRp".
 
-Definition commit := "commit".
-Definition setAccessInstVToP := "setAccessInstVToP".
-Definition setAccessDataVToP := "setAccessDataVToP".
-Definition setDirtyDataVToP := "setDirtyDataVToP".
+Notation commit := "commit".
+Notation setAccessInstVToP := "setAccessInstVToP".
+Notation setAccessDataVToP := "setAccessDataVToP".
+Notation setDirtyDataVToP := "setDirtyDataVToP".
 
 (* Final External method calls *)
-Definition getInstVToP := "getInstVToP".
-Definition getInst := "getInst".
-Definition getMemVToP := "getMemVToP".
-Definition doMem := "doMem".
+Notation getInstVToP := "getInstVToP".
+Notation getInst := "getInst".
+Notation getMemVToP := "getMemVToP".
+Notation doMem := "doMem".
 
 (* Field names *)
-Definition nextPc := "nextPc".
-Definition instMode := "instMode".
-Definition exception := "exception".
-Definition physicalPc := "physicalPc".
-Definition inst := "inst".
-Definition memVAddr := "memVAddr".
-Definition src1 := "src1".
-Definition src2 := "src2".
-Definition dst := "dst".
-Definition memPAddr := "memPAddr".
-Definition memData := "memData".
-Definition memMode := "memMode".
-Definition byteEns := "byteEns".
-Definition data := "data".
-Definition op := "op".
-Definition pAddr := "pAddr".
-Definition instException := "instException".
-Definition execException := "execException".
-Definition memException := "memException".
-Definition indx := "index".
+Notation nextPc := "nextPc".
+Notation instMode := "instMode".
+Notation exception := "exception".
+Notation physicalPc := "physicalPc".
+Notation inst := "inst".
+Notation memVAddr := "memVAddr".
+Notation src1 := "src1".
+Notation src2 := "src2".
+Notation dst := "dst".
+Notation memPAddr := "memPAddr".
+Notation memData := "memData".
+Notation memMode := "memMode".
+Notation byteEns := "byteEns".
+Notation data := "data".
+Notation op := "op".
+Notation pAddr := "pAddr".
+Notation instException := "instException".
+Notation execException := "execException".
+Notation memException := "memException".
+Notation indx := "index".
 
 (* Registers *)
-Definition pc := "pc".
-Definition decEpoch := "decEpoch".
-Definition execEpoch := "execEpoch".
-Definition wbEpoch := "wbEpoch".
-Definition btb := "btb".
-Definition bp := "bp".
-Definition regFile := "regFile".
-Definition cState := "cState".
-Definition mode := "mode".
-Definition wbPc := "wbPc".
+Notation pc := "pc".
+Notation decEpoch := "decEpoch".
+Notation execEpoch := "execEpoch".
+Notation wbEpoch := "wbEpoch".
+Notation btb := "btb".
+Notation bp := "bp".
+Notation regFile := "regFile".
+Notation cState := "cState".
+Notation mode := "mode".
+Notation wbPc := "wbPc".
 
-Definition Valid := "Valid".
+Notation Valid := "Valid".
 
-Definition fifoInstVToPRq := "fifoInstVToPRq".
-Definition fifoInstVToPRqValid := "fifoInstVToPRqValid".
-Definition fifoFetchRq := "fifoFetchRq".
-Definition fifoFetchRqValid := "fifoFetchRqValid".
-Definition fifoFetchRp := "fifoFetchRp".
-Definition fifoFetchRpValid := "fifoFetchRpValid".
-Definition fifoRegRead := "fifoRegRead".
-Definition fifoRegReadValid := "fifoRegReadValid".
+Notation fifoInstVToPRq := "fifoInstVToPRq".
+Notation fifoInstVToPRqValid := "fifoInstVToPRqValid".
+Notation fifoFetchRq := "fifoFetchRq".
+Notation fifoFetchRqValid := "fifoFetchRqValid".
+Notation fifoFetchRp := "fifoFetchRp".
+Notation fifoFetchRpValid := "fifoFetchRpValid".
+Notation fifoRegRead := "fifoRegRead".
+Notation fifoRegReadValid := "fifoRegReadValid".
 
-Definition fifoExec := "fifoExec".
-Definition fifoExecValid := "fifoExecValid".
-Definition fifoMemRq := "fifoMemRq".
-Definition fifoMemRqValid := "fifoMemRqValid".
-Definition fifoMemRp := "fifoMemRp".
-Definition fifoMemRpValid := "fifoMemRpValid".
+Notation fifoExec := "fifoExec".
+Notation fifoExecValid := "fifoExecValid".
+Notation fifoMemRq := "fifoMemRq".
+Notation fifoMemRqValid := "fifoMemRqValid".
+Notation fifoMemRp := "fifoMemRp".
+Notation fifoMemRpValid := "fifoMemRpValid".
 
 (* Rule names *)
-Definition fetchRq := "fetchRq".
-Definition fetchRp := "fetchRp".
-Definition regRead := "regRead".
-Definition exec := "exec".
-Definition ldRq := "ldRq".
-Definition ldRp := "ldRp".
-Definition wb := "wb".
+Notation fetchRq := "fetchRq".
+Notation fetchRp := "fetchRp".
+Notation regRead := "regRead".
+Notation exec := "exec".
+Notation ldRq := "ldRq".
+Notation ldRp := "ldRp".
+Notation wb := "wb".
 
 (* Enq (* Deq *) Pop First *)
-Definition enq := "enq".
-(* Definition deq := "deq". *)
-Definition pop := "pop".
-Definition first := "first".
+Notation enq := "enq".
+(* Notation deq := "deq". *)
+Notation pop := "pop".
+Notation first := "first".
 
 (* Specification state *)
-Definition stales := "stales".
+Notation stales := "stales".
 
 (* Specification field *)
-Definition staleValid := "staleValid".
-Definition stalePc := "stalePc".
-Definition staleInstVToPValid := "staleInstVToPValid".
-Definition staleInstVToP := "staleInstVToP".
-Definition staleInstValid := "staleInstValid".
-Definition staleInst := "staleInst".
-Definition staleMemVAddrValid := "staleMemVAddrValid".
-Definition staleMemVAddr := "staleMemVAddr".
-Definition staleMemVToPValid := "staleMemVAddrVToPValid".
-Definition staleMemVToP := "staleMemVAddrVToP".
-
-Definition valid := "valid".
-
-(* Specification field *)
-Definition drop := "drop".
+Notation staleValid := "staleValid".
+Notation stalePc := "stalePc".
+Notation staleInstVToPValid := "staleInstVToPValid".
+Notation staleInstVToP := "staleInstVToP".
+Notation staleInstValid := "staleInstValid".
+Notation staleInst := "staleInst".
+Notation staleMemVAddrValid := "staleMemVAddrValid".
+Notation staleMemVAddr := "staleMemVAddr".
+Notation staleMemVToPValid := "staleMemVAddrVToPValid".
+Notation staleMemVToP := "staleMemVAddrVToP".
+Notation drop := "drop".
+Notation valid := "valid".
 Close Scope string.
 
 Definition MemOp := Bit 2.
@@ -458,10 +455,12 @@ Section Processor.
             LET memRqWbEpoch <- #fifoMemRqData!MemRqT@.wbEpoch;
 
             LET stall <-
-                (#fifoExecV && #execLd && #execNz && #execWbEpoch == #wbEpochVal &&
-                  ((#use1 && #execDst == #src1Val) || (#use2 && #execDst == #src2Val)) ||
-                (#fifoMemRqV && #memRqLd && #memRqNz && #memRqWbEpoch == #wbEpochVal &&
-                  ((#use1 && #memRqDst == #src1Val) || (#use2 && #memRqDst == #src2Val))));
+                (#fifoExecV && #execLd && #execUse && #execNz &&
+                  #execWbEpoch == #wbEpochVal &&
+                  ((#use1 && #execDst == #src1Val) || (#use2 && #execDst == #src2Val))) ||
+                (#fifoMemRqV && #memRqLd && #memRqUse && #memRqNz &&
+                  #memRqWbEpoch == #wbEpochVal &&
+                  ((#use1 && #memRqDst == #src1Val) || (#use2 && #memRqDst == #src2Val)));
 
             Assert ! #stall;
 
@@ -969,18 +968,15 @@ Section Processor.
 
     Notation procFullFlattenMeta := (flattenMeta procFull).
     
-    Ltac newCbv H := cbv [Valid] in H.
+    Ltac newCbv H := idtac.
     
     Local Definition procFullFlat: MetaModule.
     Proof.
       pose procFullFlattenMeta as m;
         newCbv m; commonCbv m.
       simpl in m; 
-        unfold Valid, Lib.VectorFacts.Vector_find in m.
+        unfold Lib.VectorFacts.Vector_find in m.
       simpl in m.
-
-      fold fifoInstVToPRqValid fifoFetchRqValid fifoFetchRpValid fifoRegReadValid
-           fifoExecValid fifoMemRqValid fifoMemRpValid in m.
 
       finish_def.
     Defined.
@@ -1002,21 +998,21 @@ Section Processor.
     Proof.
       start_def procFullFlat.
 
-      ssF newCbv (instVToPRq -- pop) fetchRq.
-      ssF newCbv (instVToPRq -- first) fetchRq.
-      ssF newCbv (instVToPRp -- enq) fetchRq.
+      ssF newCbv (instVToPRq -- pop) (fetchRq).
+      ssF newCbv (instVToPRq -- first) (fetchRq).
+      ssF newCbv (instVToPRp -- enq) (fetchRq).
 
-      ssF newCbv (instRq -- pop) fetchRp.
-      ssF newCbv (instRq -- first) fetchRp.
-      ssF newCbv (instRp -- enq) fetchRp.
+      ssF newCbv (instRq -- pop) (fetchRp).
+      ssF newCbv (instRq -- first) (fetchRp).
+      ssF newCbv (instRp -- enq) (fetchRp).
 
-      ssF newCbv (memVToPRq -- pop) memVToPRq.
-      ssF newCbv (memVToPRq -- first) memVToPRq.
-      ssF newCbv (memVToPRp -- enq) memVToPRq.
+      ssF newCbv (memVToPRq -- pop) (memVToPRq).
+      ssF newCbv (memVToPRq -- first) (memVToPRq).
+      ssF newCbv (memVToPRp -- enq) (memVToPRq).
 
-      ssF newCbv (memRq -- pop) memRq.
-      ssF newCbv (memRq -- first) memRq.
-      ssF newCbv (memRp -- enq) memRq.
+      ssF newCbv (memRq -- pop) (memRq).
+      ssF newCbv (memRq -- first) (memRq).
+      ssF newCbv (memRp -- enq) (memRq).
 
       finish_def.
     Defined.
@@ -1028,24 +1024,24 @@ Section Processor.
     Local Definition procFullInl_ref':
       (modFromMeta procFullFlattenMeta <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
-    Proof. (* SKIP_PROOF_OFF
+    Proof. (* SKIP_PROOF_ON
       start_ref procFullFlat procFullFlat_ref.
 
-      ssFilt newCbv (instVToPRq -- pop) fetchRq;
-      ssFilt newCbv (instVToPRq -- first) fetchRq.
-      ssFilt newCbv (instVToPRp -- enq) fetchRq.
+      ssFilt newCbv (instVToPRq -- pop) (fetchRq);
+      ssFilt newCbv (instVToPRq -- first) (fetchRq).
+      ssFilt newCbv (instVToPRp -- enq) (fetchRq).
 
-      ssFilt newCbv (instRq -- pop) fetchRp.
-      ssFilt newCbv (instRq -- first) fetchRp.
-      ssFilt newCbv (instRp -- enq) fetchRp.
+      ssFilt newCbv (instRq -- pop) (fetchRp).
+      ssFilt newCbv (instRq -- first) (fetchRp).
+      ssFilt newCbv (instRp -- enq) (fetchRp).
 
-      ssFilt newCbv (memVToPRq -- pop) memVToPRq.
-      ssFilt newCbv (memVToPRq -- first) memVToPRq.
-      ssFilt newCbv (memVToPRp -- enq) memVToPRq.
+      ssFilt newCbv (memVToPRq -- pop) (memVToPRq).
+      ssFilt newCbv (memVToPRq -- first) (memVToPRq).
+      ssFilt newCbv (memVToPRp -- enq) (memVToPRq).
 
-      ssFilt newCbv (memRq -- pop) memRq.
-      ssFilt newCbv (memRq -- first) memRq.
-      ssFilt newCbv (memRp -- enq) memRq.
+      ssFilt newCbv (memRq -- pop) (memRq).
+      ssFilt newCbv (memRq -- first) (memRq).
+      ssFilt newCbv (memRp -- enq) (memRq).
 
       finish_ref.
       END_SKIP_PROOF_ON *) apply cheat.
@@ -1337,15 +1333,31 @@ Section Processor.
           regReadValid = true ->
           regReadData (RegReadT !! wbEpoch) = wbEpochI ->
           regReadData (RegReadT !! src1) =
-          rfFromExecT execData execValid (rfFromMemRqT memRqData memRqValid regFileS)
-                      (evalExpr (getSrc1 _ (regReadData (RegReadT !! inst))%kami_expr)) ;
-
+          rfFromExecT
+            execData
+            (execValid && evalExpr (useDst _ (execData (ExecT !! inst))) &&
+                       negb (evalExpr (isLd _ (execData (ExecT !! inst)))))
+            (rfFromMemRqT
+               memRqData
+               (memRqValid && evalExpr (useDst _ (execData (ExecT !! inst))) &&
+                           negb (evalExpr (isLd _ (memRqData (MemRqT !! inst)))))
+               regFileS)
+            (evalExpr (getSrc1 _ (regReadData (RegReadT !! inst))%kami_expr)) ;
+        
         regReadSrc2:
           regReadValid = true ->
           regReadData (RegReadT !! wbEpoch) = wbEpochI ->
           regReadData (RegReadT !! src2) =
-          rfFromExecT execData execValid (rfFromMemRqT memRqData memRqValid regFileS)
-                      (evalExpr (getSrc2 _ (regReadData (RegReadT !! inst))%kami_expr)) ;
+          rfFromExecT
+            execData
+            (execValid && evalExpr (useDst _ (execData (ExecT !! inst))) &&
+                       negb (evalExpr (isLd _ (execData (ExecT !! inst)))))
+            (rfFromMemRqT
+               memRqData
+               (memRqValid && evalExpr (useDst _ (execData (ExecT !! inst))) &&
+                           negb (evalExpr (isLd _ (memRqData (MemRqT !! inst)))))
+               regFileS)
+            (evalExpr (getSrc2 _ (regReadData (RegReadT !! inst))%kami_expr)) ;
 
         execVal:
           execValid = true ->
@@ -1390,94 +1402,13 @@ Section Processor.
 
     Definition procInlUnfold := ltac:(simplInl procFullInl).
 
-    Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
-
-    Print Ltac mapVR_Others.
-    Ltac simplMapUpds :=
-      match goal with
-      | |- context[M.find (elt := sigT ?t) ?k ?m] =>
-        let mr := mapVR_Others t 7 m in
-        rewrite <- (findMVR_find_string mr k eq_refl)
-      end.
-
-    Print Ltac mapVReify.
-
-    
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold
                   (modFromMeta (processorSpec 7)) instVToPRq.
     Proof.
-      
       simplInv; right.
-      SymEval'.
-      cbv [SymSemAction semExpr or_wrap and_wrap eq_rect].
-      rewrite ?M.find_empty.
-      intros.
-      repeat match goal with
-      | |- context[match (M.find (elt := sigT ?t) ?k ?x)%fmap with _ => _ end] =>
-        let mr := mapVR_Others t 0 x in
-        rewrite <- (findMVR_find_string mr k eq_refl);
-          cbv [findMVR_string StringEq.string_eq StringEq.ascii_eq eqb andb
-                              pc fifoInstVToPRq fifoInstVToPRqValid]
-             end.
-      rewrite ?evalE.
-      cbn [evalExpr].
-      Set Printing Implicit.
-      simpl in m.
-      
-
-      Print Ltac mapVR_Others.
-      Print Ltac mapVReify.
-      match goal with
-      | |- match (?x @[ ?y ])%fmap with _ => _ end =>
-        idtac; pose x; pose y; let mr := mapVR_Others t 0 m in pose mr
-      end.
-        let mr := mapVR_Others t 0 m in
-        setoid_rewrite <- (findMVR_find_string mr k eq_refl)
-      end.
-      simplMapUpds.
-      repeat match goal with
-      | [ |- context[M.find ?k ?m] ] =>
-        let rfd := mapReify m in
-        rewrite <-findMR_find with (mr:= rfd)
-      end.
-
-      findReify.
-      setoid_rewrite evalE.
-      setoid_rewrite evalE.
-      simpl.
-      findeq.
-      repeat setoid_rewrite evalE.
-      findeq.
-          M.].
-      simpl.
-      simpl unfold or_wrap, and_wrap in *.
-  repeat match goal with
-           | [ H : existT _ _ _ = existT _ _ _ |- _ ] => apply sigT_eq in H
-           | [ H : (_, _) = (_, _) |- _ ] => inv H
-           | [ H : Some _ = Some _ |- _ ] => apply invSome in H
-           | _ => discriminate
-         end.
-
-    Close Scope fmap.
-      SymEval_simpl.
-      Print Ltac SymEval.
-      intros; subst; right.
-      unfold attrType at 1 in H1.
-      red in H1.
-      cbv [attrType] at 1.
-        right.
-      combined_inv si ss ->
-      ltac:(getRule instVToPRq procInlUnfold) = a ->
-      SemAction oImp (attrType ruleImp type) uImp csImp WO ->
-      ((csImp = []%fmap /\ thetaR (M.union uImp oImp) oSpec) \/
-       (exists ruleSpec,
-           In ruleSpec (getRules spec) /\
-           exists uSpec,
-             SemAction oSpec (attrType ruleSpec type) uSpec csImp WO /\
-             thetaR (M.union uImp oImp) (M.union uSpec oSpec))).
-
-
-      True.
+      SymEvalSimpl.
+      apply cheat.
+    Qed.
   End Pf.
 End Processor.
