@@ -40,7 +40,6 @@ Notation memPAddr := "memPAddr".
 Notation memData := "memData".
 Notation memMode := "memMode".
 Notation byteEns := "byteEns".
-Notation data := "data".
 Notation op := "op".
 Notation pAddr := "pAddr".
 Notation instException := "instException".
@@ -108,7 +107,6 @@ Notation staleMemVAddr := "staleMemVAddr".
 Notation staleMemVToPValid := "staleMemVAddrVToPValid".
 Notation staleMemVToP := "staleMemVAddrVToP".
 Notation drop := "drop".
-Notation valid := "valid".
 Close Scope string.
 
 Definition MemOp := Bit 2.
@@ -803,7 +801,7 @@ Section Processor.
     | _ => ConstBool true
     end.
 
-  Definition processorSpec (n: nat) :=
+  Definition processorSpec :=
     META {
         Register mode : Mode <- ModeInit
         with Register wbPc : VAddr <- PcInit
@@ -812,14 +810,15 @@ Section Processor.
 
         with RegisterN stales : Stales type <- (NativeConst nil nil)
 
-        with Repeat Rule till addrs with VAddrSz by stalePc :=
-          ILET vAddr;
+        with Rule stalePc :=
+          Nondet vAddr: SyntaxKind VAddr;
           ReadN stalesVal : Stales' <- stales;
           LET newStale: StaleT <- newStalePc #vAddr;
           WriteN stales : _ <- Var _ Stales' (stalesVal ++ [newStale]);
           Retv
 
-        with MultiRule until n as i by staleInstVToP :=
+        with Rule staleInstVToP :=
+          Nondet i: @NativeKind nat 0;
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
@@ -830,7 +829,8 @@ Section Processor.
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
-        with MultiRule until n as i by staleInst :=
+        with Rule staleInst :=
+          Nondet i: @NativeKind nat 0;
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
@@ -841,8 +841,9 @@ Section Processor.
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
-        with Repeat MultiRule until n as i till addrs with VAddrSz by staleMemVAddr :=
-          ILET vAddr;
+        with Rule staleMemVAddr :=
+          Nondet vAddr: SyntaxKind VAddr;
+          Nondet i: @NativeKind nat 0;
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
@@ -852,7 +853,8 @@ Section Processor.
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
-        with MultiRule until n as i by staleMemVToP :=
+        with Rule staleMemVToP :=
+          Nondet i: @NativeKind nat 0;
           ReadN stalesVal : Stales' <- stales;
           LET noEntry : StaleT <- $$ Default;
           LET entry : StaleT <- #(nth i stalesVal noEntry);
@@ -863,7 +865,8 @@ Section Processor.
           WriteN stales : _ <- Var _ Stales' (updList newEntry i stalesVal);
           Retv
 
-        with MultiRule until n as i by drop :=
+        with Rule drop :=
+          Nondet i: @NativeKind nat 0;
           ReadN stalesVal : Stales' <- stales;
           WriteN stales : _ <- Var _ Stales' (rmList i stalesVal);
           LET noEntry : Struct Stale <- $$ Default;
@@ -1113,7 +1116,6 @@ Section Processor.
                  memPEntry := None |}
        else None).
                  
-
     Definition fromFetchRqT (s: <| Struct FetchRqT |>) (v: bool) :=
       (if v then
          Some {| pcEntry := s (FetchRqT !! pc);
@@ -1267,6 +1269,19 @@ Section Processor.
       | Some x :: xs => x :: rmNone xs
       | None :: xs => rmNone xs
       end.
+
+    Definition countTrue (ls: list bool) := count_occ bool_dec ls true.
+
+    Open Scope nat.
+    Lemma countTrueLtSize ls: countTrue ls <= length ls.
+    Proof.
+      induction ls; intros; unfold countTrue in *;
+        simpl; try match goal with
+                   | |- context[match ?p with _ => _ end] =>
+                     destruct p
+                   end; try Omega.omega.
+    Qed.
+    Close Scope nat.
     
     Open Scope fmap.
     Record combined_inv (i s: RegsT): Prop :=
@@ -1402,11 +1417,16 @@ Section Processor.
 
     Definition procInlUnfold := ltac:(simplInl procFullInl).
 
+    Definition procSpec' := ltac:(let y := eval cbv [processorSpec makeMetaModule multiMetaRule]
+                                  in processorSpec in exact y).
+
+    Definition procSpec := ltac:(simplInl procSpec').
+    
     Lemma instVToPRq_inv:
-      ruleMapInst combined_inv procInlUnfold
-                  (modFromMeta (processorSpec 7)) instVToPRq.
+      ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
       simplInv; right.
+      exists ltac:(getRule procSpec (stalePc)).
       SymEvalSimpl.
       apply cheat.
     Qed.
