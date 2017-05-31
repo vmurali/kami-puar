@@ -1424,5 +1424,6 @@ Section Processor.
         simplInvHyp;
         simplInvGoal.
     Qed.
+
   End Pf.
 End Processor.
