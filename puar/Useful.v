@@ -58,15 +58,16 @@ Notation "<| t |>" := (fullType type (SyntaxKind t)).
 
 Notation "<[ t ]>" := (fullType type (@NativeKind t nil)).
 
-Ltac simplInl m :=
+Ltac metaFlatten m :=
   let y :=
       eval cbv
            [m modFromMeta metaRegs metaRules metaMeths
-              Concat.concat map app nameVal
+              Concat.concat map nameVal
               getListFromMetaReg getListFromMetaRule
               getListFromMetaMeth getActionFromSin getSinAction] in
-  (modFromMeta m)
-    in exact y.
+  (modFromMeta m) in
+      let z := eval cbn [app] in y in
+          exact z.
 
 Fixpoint find_def A (f: A -> bool) (def: A) (l: list A) :=
   match l with
@@ -113,23 +114,3 @@ Proof.
   induction e; simpl in *; auto.
 Qed.
 
-Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
-
-Local Ltac simplMapUpds' t m k :=
-  let mr := mapVR_Others t 0 m in
-  rewrite <- (findMVR_find_string mr k eq_refl) in *;
-  cbv [findMVR_string StringEq.string_eq StringEq.ascii_eq eqb andb] in *.
-
-Ltac simplMapUpds :=
-  match goal with
-  | |- context[M.find (elt := sigT ?t) ?k ?m] =>
-    simplMapUpds' t m k
-  | H: context[M.find (elt := sigT ?t) ?k ?m] |- _ =>
-    simplMapUpds' t m k
-  end.
-
-Ltac SymEvalSimpl :=
-  SymEval';
-  cbv [SymSemAction semExpr or_wrap and_wrap eq_rect];
-  repeat (simplMapUpds; intros);
-  rewrite ?evalExprRewrite.

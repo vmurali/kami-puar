@@ -802,7 +802,7 @@ Section Processor.
     end.
 
   Definition processorSpec :=
-    META {
+    SIN {
         Register mode : Mode <- ModeInit
         with Register wbPc : VAddr <- PcInit
         with Register regFile : Vector Data RIndexSz <- RegFileInit
@@ -1262,13 +1262,46 @@ Section Processor.
                       else rf x
         else rf
       else rf.
-    
-    Fixpoint rmNone A (ls: list (option A)) :=
-      match ls with
-      | nil => nil
-      | Some x :: xs => x :: rmNone xs
-      | None :: xs => rmNone xs
-      end.
+
+    Section rmNone.
+      Variable A: Type.
+      Fixpoint rmNone (ls: list (option A)) :=
+        match ls with
+        | nil => nil
+        | Some x :: xs => x :: rmNone xs
+        | None :: xs => rmNone xs
+        end.
+
+      Fixpoint partition B n (ls: list B) :=
+        match n with
+        | 0 => match ls with
+               | nil => (nil, nil)
+               | x :: xs => (x :: nil, xs)
+               end
+        | S m => match ls with
+                 | nil => (nil, nil)
+                 | x :: xs =>
+                   (x :: fst (partition m xs), snd (partition m xs))
+                 end
+        end.
+
+      Lemma rmNonePartition: forall n (ls: list (option A)),
+          rmNone ls = rmNone (fst (partition n ls)) ++ rmNone (snd (partition n ls)).
+      Proof.
+        induction n; destruct ls; simpl; auto.
+        - destruct o; reflexivity.
+        - destruct o; simpl; f_equal; auto.
+      Qed.
+    End rmNone.
+        
+    (* Fixpoint rmNone A (ls: list (option A)) := *)
+    (*   match ls with *)
+    (*   | nil => nil *)
+    (*   | x :: xs => match x with *)
+    (*                | Some y => [y] *)
+    (*                | None => nil *)
+    (*                end ++ rmNone xs *)
+    (*   end. *)
 
     Definition countTrue (ls: list bool) := count_occ bool_dec ls true.
 
@@ -1405,30 +1438,112 @@ Section Processor.
         staleListFind: staleList === s.[stales] ;
 
         listMatch:
-          rmNone (fromInstVToPRqT instVToPRqData instVToPRqValid ::
-                                  fromFetchRqT fetchRqData fetchRqValid ::
-                                  fromFetchRpT fetchRpData fetchRpValid ::
-                                  fromRegReadT regReadData regReadValid ::
-                                  fromExecT execData execValid ::
-                                  fromMemRqT memRqData memRqValid :: nil)
+          rmNone (fromMemRqT memRqData memRqValid ::
+                             fromExecT execData execValid ::
+                             fromRegReadT regReadData regReadValid ::
+                             fromFetchRpT fetchRpData fetchRpValid ::
+                             fromFetchRqT fetchRqData fetchRqValid ::
+                             fromInstVToPRqT instVToPRqData instVToPRqValid :: nil)
           = map fromStale staleList ;
 
       }.
 
-    Definition procInlUnfold := ltac:(simplInl procFullInl).
+    Definition procInlUnfold := ltac:(metaFlatten procFullInl).
 
-    Definition procSpec' := ltac:(let y := eval cbv [processorSpec makeMetaModule multiMetaRule]
-                                  in processorSpec in exact y).
+    Definition procSpec' :=
+      ltac:(let y :=
+                eval cbv [processorSpec
+                            makeSinModule sinModuleToMetaModule
+                            sinRegToMetaReg sinRuleToMetaRule sinMethToMetaMeth
+                            sinRegs sinRules sinMeths
+                            regGen ruleGen methGen regName ruleName methName
+                            map]
+            in (sinModuleToMetaModule O processorSpec) in exact y).
 
-    Definition procSpec := ltac:(simplInl procSpec').
-    
+    Definition procSpec := ltac:(metaFlatten procSpec').
+
+    Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
+
+    Local Ltac simplMapUpds' t m k :=
+      let mr := mapVR_Others t O m in
+      rewrite <- (findMVR_find_string mr k eq_refl) in *;
+      cbn [findMVR_string] in *;
+      rewrite ?StringEq.string_eq_dec_false by (intro; discriminate).
+
+    Ltac simplMapUpds :=
+      match goal with
+      | |- context[M.find (elt := sigT ?t) ?k ?m] =>
+        simplMapUpds' t m k
+      | H: context[M.find (elt := sigT ?t) ?k ?m] |- _ =>
+        simplMapUpds' t m k
+      end.
+
+    Ltac SymEvalSimpl :=
+      SymEval';
+      cbv [SymSemAction semExpr or_wrap and_wrap eq_rect];
+      repeat (simplMapUpds; intros);
+      rewrite ?evalExprRewrite.
+
+    Ltac substFind :=
+      match goal with
+      | H: (?y === ?n .[?s])%fmap , H': (?v === ?n .[ ?s])%fmap |- _ =>
+        rewrite H in H';
+        apply invSome in H';
+        apply Eqdep.EqdepTheory.inj_pair2 in H'; rewrite <- ?H' in *; clear H' v; intros
+      end.
+
+    Lemma evalExprVarRewrite: forall k e, evalExpr (Var type k e) = e.
+    Proof.
+      intros; reflexivity.
+    Qed.
+
+    Ltac initProcRight m r :=
+      simplInv; right;
+      exists ltac:(getRule m r);
+      split; [cbv [In getRules m]; auto|
+              unfold attrType at 1;
+              match goal with
+              | H: _ ?si ?ss |- _ =>
+                match type of si with
+                | RegsT => match type of ss with
+                           | RegsT => destruct H
+                           end
+                end
+              end;
+              SymEvalSimpl;
+              repeat substFind;
+              subst;
+              eexists; split;
+              [repeat econstructor; try (reflexivity || eassumption)|
+               rewrite ?evalExprVarRewrite;
+               esplit; simplMapUpds; try (reflexivity || eassumption)]
+             ].
+
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
-      simplInv; right.
-      exists ltac:(getRule procSpec (stalePc)).
-      SymEvalSimpl.
-      apply cheat.
+      initProcRight procSpec (stalePc).
+      rewrite map_app.
+      setoid_rewrite <- listMatch.
+      cbn [map fromStale].
+      assert (sth: instVToPRqValid = false) by (destruct instVToPRqValid;
+                                                [match goal with
+                                                 | H: true = true -> False |- _ =>
+                                                   exfalso; apply (H eq_refl)
+                                                 end | reflexivity]).
+      subst.
+      cbv [fromInstVToPRqT].
+      unfold evalExpr at 1.
+      unfold evalConstT.
+      rewrite (rmNonePartition 4) at 1;
+        cbv [partition fst snd].
+      unfold rmNone at 2.
+      setoid_rewrite (rmNonePartition 4) at 2;
+        cbv [partition fst snd].
+      unfold rmNone at 3.
+      rewrite ?app_nil_r, ?app_nil_l.
+      repeat f_equal.
+      reflexivity.
     Qed.
   End Pf.
 End Processor.
