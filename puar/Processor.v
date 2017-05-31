@@ -1403,6 +1403,7 @@ Section Processor.
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
+      (* SKIP_PROOF_ON
       initInvRight procSpec (stalePc).
       rewrite map_app.
       rewrite (rmNonePartition 4) in listMatch.
@@ -1412,14 +1413,17 @@ Section Processor.
       f_equal.
       - procSpecificUnfold; rmNoneNilLtac; auto.
       - reflexivity.
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma wb_inv:
       ruleMapInst combined_inv procInlUnfold procSpec wb.
     Proof.
+      (* SKIP_PROOF_ON
       simplInv; left;
         simplInvHyp;
         simplInvGoal.
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
   End Pf.
