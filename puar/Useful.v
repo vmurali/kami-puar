@@ -261,13 +261,13 @@ Ltac initInvRight m r :=
           simplInvGoal].
 
 Ltac simplBoolFalse :=
-  match goal with
-  | H: ?a = ?b -> False |- _ =>
-        match type of a with
-        | ?t' =>
-          let t := eval cbn in t' in
-              match t with
-                | bool =>  apply bool_false in H; cbv [negb] in H; subst
-              end
-        end
-  end.
+  repeat match goal with
+         | H: ?a = ?b -> False |- _ =>
+           match type of a with
+           | ?t' =>
+             let t := eval cbn in t' in
+                 match t with
+                 | bool =>  apply bool_false in H; cbv [negb] in H; subst
+                 end
+           end
+         end.
