@@ -944,7 +944,8 @@ Section Processor.
           Retv }.
 
   Section Pf.
-    Notation single := (sinModuleToMetaModule 0).
+    Variable n: nat.
+    Notation single := (sinModuleToMetaModule n).
     Notation proc := (single processor).
     Notation instVToPCall := (single InstVToPCall).
     Notation instCall := (single InstCall).
@@ -1393,7 +1394,7 @@ Section Processor.
                             sinRegs sinRules sinMeths
                             regGen ruleGen methGen regName ruleName methName
                             map]
-            in (sinModuleToMetaModule O processorSpec) in exact y).
+            in (sinModuleToMetaModule n processorSpec) in exact y).
 
     Definition procSpec := ltac:(metaFlatten procSpec').
 
@@ -1403,7 +1404,7 @@ Section Processor.
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (stalePc).
       rewrite map_app.
       rewrite (rmNonePartition 4) in listMatch.
@@ -1413,17 +1414,17 @@ Section Processor.
       f_equal.
       - procSpecificUnfold; rmNoneNilLtac; auto.
       - reflexivity.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma wb_inv:
       ruleMapInst combined_inv procInlUnfold procSpec wb.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       simplInv; left;
         simplInvHyp;
         simplInvGoal.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
   End Pf.
