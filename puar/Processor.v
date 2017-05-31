@@ -789,18 +789,6 @@ Section Processor.
         staleMemVToP ::= some val }.
   Close Scope kami_expr.
 
-  Definition indexIn A i (ls: list A) :=
-    match Coq.Arith.Peano_dec.eq_nat_dec i (length ls) with
-    | left _ => ConstBool true
-    | right _ => ConstBool false
-    end.
-
-  Definition notNil A (ls: list A) :=
-    match ls with
-    | nil => ConstBool false
-    | _ => ConstBool true
-    end.
-
   Definition processorSpec :=
     SIN {
         Register mode : Mode <- ModeInit
@@ -1263,59 +1251,6 @@ Section Processor.
         else rf
       else rf.
 
-    Section rmNone.
-      Variable A: Type.
-      Fixpoint rmNone (ls: list (option A)) :=
-        match ls with
-        | nil => nil
-        | Some x :: xs => x :: rmNone xs
-        | None :: xs => rmNone xs
-        end.
-
-      Fixpoint partition B n (ls: list B) :=
-        match n with
-        | 0 => match ls with
-               | nil => (nil, nil)
-               | x :: xs => (x :: nil, xs)
-               end
-        | S m => match ls with
-                 | nil => (nil, nil)
-                 | x :: xs =>
-                   (x :: fst (partition m xs), snd (partition m xs))
-                 end
-        end.
-
-      Lemma rmNonePartition: forall n (ls: list (option A)),
-          rmNone ls = rmNone (fst (partition n ls)) ++ rmNone (snd (partition n ls)).
-      Proof.
-        induction n; destruct ls; simpl; auto.
-        - destruct o; reflexivity.
-        - destruct o; simpl; f_equal; auto.
-      Qed.
-    End rmNone.
-        
-    (* Fixpoint rmNone A (ls: list (option A)) := *)
-    (*   match ls with *)
-    (*   | nil => nil *)
-    (*   | x :: xs => match x with *)
-    (*                | Some y => [y] *)
-    (*                | None => nil *)
-    (*                end ++ rmNone xs *)
-    (*   end. *)
-
-    Definition countTrue (ls: list bool) := count_occ bool_dec ls true.
-
-    Open Scope nat.
-    Lemma countTrueLtSize ls: countTrue ls <= length ls.
-    Proof.
-      induction ls; intros; unfold countTrue in *;
-        simpl; try match goal with
-                   | |- context[match ?p with _ => _ end] =>
-                     destruct p
-                   end; try Omega.omega.
-    Qed.
-    Close Scope nat.
-    
     Open Scope fmap.
     Record combined_inv (i s: RegsT): Prop :=
       { modeI: <| Mode |> ;
@@ -1461,63 +1396,6 @@ Section Processor.
             in (sinModuleToMetaModule O processorSpec) in exact y).
 
     Definition procSpec := ltac:(metaFlatten procSpec').
-
-    Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
-
-    Local Ltac simplMapUpds' t m k :=
-      let mr := mapVR_Others t O m in
-      rewrite <- (findMVR_find_string mr k eq_refl) in *;
-      cbn [findMVR_string] in *;
-      rewrite ?StringEq.string_eq_dec_false by (intro; discriminate).
-
-    Ltac simplMapUpds :=
-      match goal with
-      | |- context[M.find (elt := sigT ?t) ?k ?m] =>
-        simplMapUpds' t m k
-      | H: context[M.find (elt := sigT ?t) ?k ?m] |- _ =>
-        simplMapUpds' t m k
-      end.
-
-    Ltac SymEvalSimpl :=
-      SymEval';
-      cbv [SymSemAction semExpr or_wrap and_wrap eq_rect];
-      repeat (simplMapUpds; intros);
-      rewrite ?evalExprRewrite.
-
-    Ltac substFind :=
-      match goal with
-      | H: (?y === ?n .[?s])%fmap , H': (?v === ?n .[ ?s])%fmap |- _ =>
-        rewrite H in H';
-        apply invSome in H';
-        apply Eqdep.EqdepTheory.inj_pair2 in H'; rewrite <- ?H' in *; clear H' v; intros
-      end.
-
-    Lemma evalExprVarRewrite: forall k e, evalExpr (Var type k e) = e.
-    Proof.
-      intros; reflexivity.
-    Qed.
-
-    Ltac initProcRight m r :=
-      simplInv; right;
-      exists ltac:(getRule m r);
-      split; [cbv [In getRules m]; auto|
-              unfold attrType at 1;
-              match goal with
-              | H: _ ?si ?ss |- _ =>
-                match type of si with
-                | RegsT => match type of ss with
-                           | RegsT => destruct H
-                           end
-                end
-              end;
-              SymEvalSimpl;
-              repeat substFind;
-              subst;
-              eexists; split;
-              [repeat econstructor; try (reflexivity || eassumption)|
-               rewrite ?evalExprVarRewrite;
-               esplit; simplMapUpds; try (reflexivity || eassumption)]
-             ].
 
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
