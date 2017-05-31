@@ -1402,24 +1402,17 @@ Section Processor.
     Proof.
       initProcRight procSpec (stalePc).
       rewrite map_app.
-      setoid_rewrite <- listMatch.
-      cbn [map fromStale].
-      assert (sth: instVToPRqValid = false) by (destruct instVToPRqValid;
-                                                [match goal with
-                                                 | H: true = true -> False |- _ =>
-                                                   exfalso; apply (H eq_refl)
-                                                 end | reflexivity]).
-      subst.
-      cbv [fromInstVToPRqT].
-      unfold evalExpr at 1.
-      unfold evalConstT.
-      rewrite (rmNonePartition 4) at 1;
-        cbv [partition fst snd].
+      rewrite (rmNonePartition 4) in listMatch.
+      rewrite (rmNonePartition 4).
+      cbv [partition fst snd] in *.
+      apply bool_false in H5; simpl in H5; subst.
+      cbv [fromInstVToPRqT] in *.
+      unfold evalExpr at 1;
+        unfold evalConstT.
+      unfold rmNone at 2 in listMatch.
       unfold rmNone at 2.
-      setoid_rewrite (rmNonePartition 4) at 2;
-        cbv [partition fst snd].
-      unfold rmNone at 3.
-      rewrite ?app_nil_r, ?app_nil_l.
+      rewrite ?app_nil_r in listMatch.
+      setoid_rewrite <- listMatch.
       repeat f_equal.
       reflexivity.
     Qed.

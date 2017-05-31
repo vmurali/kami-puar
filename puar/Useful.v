@@ -170,8 +170,7 @@ End rmNone.
 
 Definition countTrue (ls: list bool) := count_occ bool_dec ls true.
 
-Open Scope nat.
-Lemma countTrueLtSize ls: countTrue ls <= length ls.
+Lemma countTrueLtSize ls: (countTrue ls <= length ls)%nat.
 Proof.
   induction ls; intros; unfold countTrue in *;
     simpl; try match goal with
@@ -179,7 +178,6 @@ Proof.
                  destruct p
                end; try Omega.omega.
 Qed.
-Close Scope nat.
 
 Lemma bool_false: forall a b, (a = b -> False) -> a = negb b.
 Proof.
