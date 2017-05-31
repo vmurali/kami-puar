@@ -1397,6 +1397,9 @@ Section Processor.
 
     Definition procSpec := ltac:(metaFlatten procSpec').
 
+    Ltac procSpecificUnfold :=
+      cbn [fromInstVToPRqT fromFetchRqT fromFetchRpT fromRegReadT fromExecT fromMemRqT] in *.
+
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
@@ -1405,16 +1408,10 @@ Section Processor.
       rewrite (rmNonePartition 4) in listMatch.
       rewrite (rmNonePartition 4).
       cbv [partition fst snd] in *.
-      apply bool_false in H5; simpl in H5; subst.
-      cbv [fromInstVToPRqT] in *.
-      unfold evalExpr at 1;
-        unfold evalConstT.
-      unfold rmNone at 2 in listMatch.
-      unfold rmNone at 2.
-      rewrite ?app_nil_r in listMatch.
-      setoid_rewrite <- listMatch.
-      repeat f_equal.
-      reflexivity.
+      simplBoolFalse.
+      f_equal.
+      - procSpecificUnfold; rmNoneNilLtac; auto.
+      - reflexivity.
     Qed.
 
     Lemma wb_inv:

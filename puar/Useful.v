@@ -157,7 +157,15 @@ Section rmNone.
     - destruct o; reflexivity.
     - destruct o; simpl; f_equal; auto.
   Qed.
+
+  Lemma rmNoneNil: rmNone [None] = (nil: list A).
+  Proof.
+    reflexivity.
+  Qed.
+
 End rmNone.
+
+Ltac rmNoneNilLtac := rewrite ?rmNoneNil, ?app_nil_r, ?app_nil_l in *.
 
 (* Fixpoint rmNone A (ls: list (option A)) := *)
 (*   match ls with *)
@@ -251,3 +259,15 @@ Ltac initInvRight m r :=
           simplInvHyp;
           eexists;
           simplInvGoal].
+
+Ltac simplBoolFalse :=
+  match goal with
+  | H: ?a = ?b -> False |- _ =>
+        match type of a with
+        | ?t' =>
+          let t := eval cbn in t' in
+              match t with
+                | bool =>  apply bool_false in H; cbv [negb] in H; subst
+              end
+        end
+  end.
