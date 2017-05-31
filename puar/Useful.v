@@ -181,7 +181,13 @@ Proof.
 Qed.
 Close Scope nat.
 
-
+Lemma bool_false: forall a b, (a = b -> False) -> a = negb b.
+Proof.
+  intros.
+  destruct a, b; auto.
+  specialize (H eq_refl); contradiction.
+Qed.
+                            
 
 Require Import Kami.SymEvalTac Kami.SymEval Kami.MapReifyEx.
 
