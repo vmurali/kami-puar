@@ -222,25 +222,32 @@ Proof.
   intros; reflexivity.
 Qed.
 
-Ltac initProcRight m r :=
+Ltac simplInvHyp :=
+  match goal with
+  | H: _ ?si ?ss |- _ =>
+    match type of si with
+    | RegsT => match type of ss with
+               | RegsT => destruct H
+               end
+    end
+  end;
+  SymEvalSimpl;
+  repeat substFind;
+  subst.
+
+Ltac simplInvGoal :=
+  split;
+  [repeat econstructor; try (reflexivity || eassumption)|
+   rewrite ?evalExprVarRewrite;
+   esplit; simplMapUpds; try (reflexivity || eassumption)].
+
+
+
+Ltac initInvRight m r :=
   simplInv; right;
   exists ltac:(getRule m r);
   split; [cbv [In getRules m]; auto|
           unfold attrType at 1;
-          match goal with
-          | H: _ ?si ?ss |- _ =>
-            match type of si with
-            | RegsT => match type of ss with
-                       | RegsT => destruct H
-                       end
-            end
-          end;
-          SymEvalSimpl;
-          repeat substFind;
-          subst;
-          eexists; split;
-          [repeat econstructor; try (reflexivity || eassumption)|
-           rewrite ?evalExprVarRewrite;
-           esplit; simplMapUpds; try (reflexivity || eassumption)]
-         ].
-
+          simplInvHyp;
+          eexists;
+          simplInvGoal].

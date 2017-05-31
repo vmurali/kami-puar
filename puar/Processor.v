@@ -1400,7 +1400,7 @@ Section Processor.
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
-      initProcRight procSpec (stalePc).
+      initInvRight procSpec (stalePc).
       rewrite map_app.
       rewrite (rmNonePartition 4) in listMatch.
       rewrite (rmNonePartition 4).
@@ -1415,6 +1415,14 @@ Section Processor.
       setoid_rewrite <- listMatch.
       repeat f_equal.
       reflexivity.
+    Qed.
+
+    Lemma wb_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec wb.
+    Proof.
+      simplInv; left;
+        simplInvHyp;
+        simplInvGoal.
     Qed.
   End Pf.
 End Processor.
