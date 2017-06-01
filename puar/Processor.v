@@ -16,9 +16,10 @@ Notation memRq := "memRq".
 Notation memRp := "memRp".
 
 Notation commit := "commit".
-Notation setAccessInstVToP := "setAccessInstVToP".
-Notation setAccessDataVToP := "setAccessDataVToP".
-Notation setDirtyDataVToP := "setDirtyDataVToP".
+Notation cmdInstVToP := "cmdInstVToP".
+Notation cmdDataVToP := "cmdDataVToP".
+Notation cmdInst := "cmdInst".
+Notation cmdData := "cmdData".
 
 (* Final External method calls *)
 Notation getInstVToP := "getInstVToP".
@@ -115,7 +116,8 @@ Definition MemOp := Bit 2.
 
 Section Processor.
   Variable VAddrSz PAddrSz NumDataBytes RIndexSz: nat.
-  Variable Inst MemRq CState Mode MemException ExecException FinalException: Kind.
+  Variable Inst MemRq CState Mode MemException ExecException FinalException
+    CmdInstVToP CmdDataVToP CmdInst CmdData: Kind.
   Definition Data := Bit (8 * NumDataBytes).
   Notation VAddr := (Bit VAddrSz).
   Definition PAddr := Bit PAddrSz.
@@ -151,7 +153,11 @@ Section Processor.
                         { cState :: CState;
                           mode :: Mode;
                           exception :: optT FinalException;
-                          nextPc :: VAddr
+                          nextPc :: VAddr;
+                          cmdInstVToP :: CmdInstVToP;
+                          cmdDataVToP :: CmdDataVToP;
+                          cmdInst :: CmdInst;
+                          cmdData :: CmdData
                         }.
   
   Definition VToPRp := STRUCT
@@ -275,9 +281,10 @@ Section Processor.
   Definition memCall := MethodSig doMem (MemRq): Data.
   Definition commitCall := MethodSig commit (VAddr): Void.
 
-  Definition setAccessInstCall := MethodSig setAccessInstVToP (VAddr): Void.
-  Definition setAccessDataCall := MethodSig setAccessDataVToP (VAddr): Void.
-  Definition setDirtyDataCall := MethodSig setDirtyDataVToP (VAddr): Void.
+  Definition cmdInstVToPCall := MethodSig cmdInstVToP (CmdInstVToP): Void.
+  Definition cmdDataVToPCall := MethodSig cmdDataVToP (CmdDataVToP): Void.
+  Definition cmdInstCall := MethodSig cmdInst (CmdInst): Void.
+  Definition cmdDataCall := MethodSig cmdData (CmdData): Void.
 
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -706,14 +713,14 @@ Section Processor.
 
             If ! (isSome #cExecVal!CExec@.exception)
             then (
-              Call setAccessInstCall(#inp1!MemRqT@.pc);
+              Call cmdInstVToPCall(#cExecVal!CExec@.cmdInstVToP);
+              Call cmdDataVToPCall(#cExecVal!CExec@.cmdDataVToP);
+              Call cmdInstCall(#cExecVal!CExec@.cmdInst);
+              Call cmdDataCall(#cExecVal!CExec@.cmdData);
                   
               If isLdSt _ instVal
               then (
-                Call setAccessDataCall(#inp1!MemRqT@.memVAddr);
                 Call inp2 <- memCall(createMemRq _ instVal memPAddrVal dstVal);
-                If isSt _ instVal  
-                then (Call setDirtyDataCall(#inp1!MemRqT@.memVAddr); Retv);
                 Ret #inp2
                 )
               else (
@@ -724,9 +731,10 @@ Section Processor.
                               then #inp2
                               else #inp1!MemRqT@.dst;
 
-              Call memRpEnq(STRUCT { indx ::= getDst _ instVal;
-                                     dst ::= #finalDst
-                           });
+              If (useDst _ instVal)
+              then (Call memRpEnq(STRUCT { indx ::= getDst _ instVal;
+                                           dst ::= #finalDst
+                                 }); Retv);
               Retv
               );  
             Retv  
@@ -914,14 +922,14 @@ Section Processor.
 
             If ! (isSome #cExecVal!CExec@.exception)
             then (
-              Call setAccessInstCall(#pcVal);
+              Call cmdInstVToPCall(#cExecVal!CExec@.cmdInstVToP);
+              Call cmdDataVToPCall(#cExecVal!CExec@.cmdDataVToP);
+              Call cmdInstCall(#cExecVal!CExec@.cmdInst);
+              Call cmdDataCall(#cExecVal!CExec@.cmdData);
                   
               If isLdSt _ instVal
               then (
-                Call setAccessDataCall(#memVAddrVal);
                 Call inp2 <- memCall(createMemRq _ instVal memPAddrVal dstVal);
-                If isSt _ instVal
-                then (Call setDirtyDataCall(#memVAddrVal); Retv);
                 Ret #inp2
                 )
               else (
