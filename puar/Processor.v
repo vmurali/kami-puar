@@ -1435,5 +1435,42 @@ Section Processor.
       END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
+Require Import Kami.MapReifyEx.
+    
+    Lemma fetchRq_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec fetchRq.
+    Proof.
+      initInvRight procSpec (staleInstVToP). 
+      - unfold indexIn.
+        cbv [evalExpr].
+        rewrite (rmNonePartition 4) in listMatch.
+        cbv [partition fst snd] in *.
+        clear - listMatch.
+        apply (f_equal (@length _)) in listMatch.
+        rewrite map_length, app_length in listMatch.
+        match type of listMatch with
+        | ?P + _ = ?Q =>
+          let cmp := fresh "cmp" in
+          assert (cmp: (P < Q)%nat) by (simpl in *; Omega.omega);
+          instantiate (1 := P)
+        end.
+        match goal with
+        | |- context [if ?P then _ else _] => destruct P; auto
+        end.
+      - rewrite ?evalExprRewrite.
+        match goal with
+        | |- context[evalExpr (# (evalExpr ?P))%kami_expr] =>
+          idtac
+        end.
+        rewrite evalExprRewrite.
+
+        rewrite app_length in listMatch.
+        Lemma test: forall b, @evalConstT Bool (ConstBool b) = b.
+        Proof.
+          intros; reflexivity.
+        Qed.
+        Set Printing Implicit.
+        Set Printing All.
+        unfold evalConstT.
   End Pf.
 End Processor.

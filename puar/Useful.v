@@ -83,6 +83,8 @@ Definition def_rule: Attribute (Action Void)
   := {| attrName := "";
         attrType := fun ty => Return $$ WO |}%kami_expr.
 
+Arguments StringEq.string_eq !s1 !s2.
+
 Ltac getRule m rn :=
   let y := eval simpl in
   (find_def (fun x => if string_dec (attrName x) rn then true else false)
@@ -119,7 +121,7 @@ Section rmNone.
   Variable A: Type.
 
   Definition indexIn i (ls: list A) :=
-    match Coq.Arith.Peano_dec.eq_nat_dec i (length ls) with
+    match Compare_dec.lt_dec i (length ls) with
     | left _ => ConstBool true
     | right _ => ConstBool false
     end.
