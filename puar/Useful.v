@@ -3,29 +3,145 @@ Require Import List Kami.
 Set Implicit Arguments.
 Set Asymmetric Patterns.
 
-Fixpoint updList A (val: A) n ls:=
-  match n with
-  | 0 => match ls with
-         | x :: xs => val :: xs
-         | nil => nil
-         end
-  | S m => match ls with
-           | x :: xs => updList val m xs
-           | nil => nil
-           end
-  end.
+Section list.
+  Variable A B: Type.
+  Variable f: A -> B -> A.
 
-Fixpoint rmList A n (ls: list A) :=
-  match n with
-  | 0 => match ls with
-         | x :: xs => xs
-         | nil => nil
-         end
-  | S m => match ls with
-           | x :: xs => rmList m xs
-           | nil => nil
-           end
-  end.
+  Fixpoint nth_upd val n ls :=
+    match ls with
+    | nil => nil
+    | x :: xs => match n with
+                 | 0 => f x val :: xs
+                 | S m => x :: nth_upd val m xs
+                 end
+    end.
+
+  Fixpoint updList (val: A) n ls :=
+    match ls with
+    | nil => nil
+    | x :: xs => match n with
+                 | 0 => val :: xs
+                 | S m => x :: updList val m xs
+                 end
+    end.
+
+  Fixpoint rmList n (ls: list A) :=
+    match ls with
+    | nil => nil
+    | x :: xs => match n with
+                 | 0 => xs
+                 | S m => x :: rmList m xs
+                 end
+    end.
+
+  Lemma nth_len (def: A) l1:
+    forall a l2, nth (length l1) (l1 ++ a :: l2) def = a.
+  Proof.
+    induction l1; intros; simpl; auto.
+  Qed.
+    
+  
+  (* Fixpoint updList A (val: A) n ls:= *)
+  (*   match n with *)
+  (*   | 0 => match ls with *)
+  (*          | x :: xs => val :: xs *)
+  (*          | nil => nil *)
+  (*          end *)
+  (*   | S m => match ls with *)
+  (*            | x :: xs => updList val m xs *)
+  (*            | nil => nil *)
+  (*            end *)
+  (*   end. *)
+
+  (* Fixpoint rmList A n (ls: list A) := *)
+  (*   match n with *)
+  (*   | 0 => match ls with *)
+  (*          | x :: xs => xs *)
+  (*          | nil => nil *)
+  (*          end *)
+  (*   | S m => match ls with *)
+  (*            | x :: xs => rmList m xs *)
+  (*            | nil => nil *)
+  (*            end *)
+  (*   end. *)
+
+  Definition indexIn i (ls: list A) :=
+    match Compare_dec.lt_dec i (length ls) with
+    | left _ => ConstBool true
+    | right _ => ConstBool false
+    end.
+
+  Definition notNil (ls: list A) :=
+    match ls with
+    | nil => ConstBool false
+    | _ => ConstBool true
+    end.
+
+  Fixpoint rmNone (ls: list (option A)) :=
+    match ls with
+    | nil => nil
+    | Some x :: xs => x :: rmNone xs
+    | None :: xs => rmNone xs
+    end.
+  (* Fixpoint rmNone A (ls: list (option A)) := *)
+  (*   match ls with *)
+  (*   | nil => nil *)
+  (*   | x :: xs => match x with *)
+  (*                | Some y => [y] *)
+  (*                | None => nil *)
+  (*                end ++ rmNone xs *)
+  (*   end. *)
+
+
+  Fixpoint partition C n (ls: list C) :=
+    match ls with
+    | nil => (nil, nil)
+    | x :: xs => match n with
+                 | 0 => (x :: nil, xs)
+                 | S m => (x :: fst (partition m xs), snd (partition m xs))
+                 end
+    end.
+  (* Fixpoint partition B n (ls: list B) := *)
+  (*   match n with *)
+  (*   | 0 => match ls with *)
+  (*          | nil => (nil, nil) *)
+  (*          | x :: xs => (x :: nil, xs) *)
+  (*          end *)
+  (*   | S m => match ls with *)
+  (*            | nil => (nil, nil) *)
+  (*            | x :: xs => *)
+  (*              (x :: fst (partition m xs), snd (partition m xs)) *)
+  (*            end *)
+  (*   end. *)
+
+  Lemma rmNonePartition: forall n (ls: list (option A)),
+      rmNone ls = rmNone (fst (partition n ls)) ++ rmNone (snd (partition n ls)).
+  Proof.
+    intros n ls.
+    generalize n; clear n.
+    induction ls; destruct n; simpl; auto.
+    - destruct a; reflexivity.
+    - destruct a; simpl; f_equal; auto.
+  Qed.
+
+  Lemma rmNoneNil: rmNone [None] = (nil: list A).
+  Proof.
+    reflexivity.
+  Qed.
+End list.
+
+Ltac rmNoneNilLtac := rewrite ?rmNoneNil, ?app_nil_r, ?app_nil_l in *.
+
+Notation rmSome def x := match x with
+                         | Some y => y
+                         | None => def
+                         end.
+
+Notation isValid x := match x with
+                      | Some _ => ConstBool true
+                      | None => ConstBool false
+                      end.
+
 
 Open Scope string.
 Definition data := "data".
@@ -117,67 +233,6 @@ Proof.
 Qed.
 
 
-Section rmNone.
-  Variable A: Type.
-
-  Definition indexIn i (ls: list A) :=
-    match Compare_dec.lt_dec i (length ls) with
-    | left _ => ConstBool true
-    | right _ => ConstBool false
-    end.
-
-  Definition notNil (ls: list A) :=
-    match ls with
-    | nil => ConstBool false
-    | _ => ConstBool true
-    end.
-
-  Fixpoint rmNone (ls: list (option A)) :=
-    match ls with
-    | nil => nil
-    | Some x :: xs => x :: rmNone xs
-    | None :: xs => rmNone xs
-    end.
-
-  Fixpoint partition B n (ls: list B) :=
-    match n with
-    | 0 => match ls with
-           | nil => (nil, nil)
-           | x :: xs => (x :: nil, xs)
-           end
-    | S m => match ls with
-             | nil => (nil, nil)
-             | x :: xs =>
-               (x :: fst (partition m xs), snd (partition m xs))
-             end
-    end.
-
-  Lemma rmNonePartition: forall n (ls: list (option A)),
-      rmNone ls = rmNone (fst (partition n ls)) ++ rmNone (snd (partition n ls)).
-  Proof.
-    induction n; destruct ls; simpl; auto.
-    - destruct o; reflexivity.
-    - destruct o; simpl; f_equal; auto.
-  Qed.
-
-  Lemma rmNoneNil: rmNone [None] = (nil: list A).
-  Proof.
-    reflexivity.
-  Qed.
-
-End rmNone.
-
-Ltac rmNoneNilLtac := rewrite ?rmNoneNil, ?app_nil_r, ?app_nil_l in *.
-
-(* Fixpoint rmNone A (ls: list (option A)) := *)
-(*   match ls with *)
-(*   | nil => nil *)
-(*   | x :: xs => match x with *)
-(*                | Some y => [y] *)
-(*                | None => nil *)
-(*                end ++ rmNone xs *)
-(*   end. *)
-
 Definition countTrue (ls: list bool) := count_occ bool_dec ls true.
 
 Lemma countTrueLtSize ls: (countTrue ls <= length ls)%nat.
@@ -245,13 +300,70 @@ Ltac simplInvHyp :=
   repeat substFind;
   subst.
 
+(* Ltac simplInvGoal := *)
+(*   split; *)
+(*   [repeat econstructor; try (reflexivity || eassumption)| *)
+(*    rewrite ?evalExprVarRewrite; *)
+(*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
+
+Lemma SemIfElse k1 old (p: Expr type (SyntaxKind Bool))
+      (a a': ActionT type k1) (r1: type k1) k2 (cont: type k1 -> ActionT type k2)
+      newRegs1 newRegs2 calls1 calls2 (r2: type k2) unewRegs ucalls:
+  M.Disj newRegs1 newRegs2 ->
+  M.Disj calls1 calls2 ->
+  SemAction old (cont r1) newRegs2 calls2 r2 ->
+  unewRegs = M.union newRegs1 newRegs2 ->
+  ucalls = M.union calls1 calls2 ->
+  (match evalExpr p with
+   | true => SemAction old a newRegs1 calls1 r1
+   | false => SemAction old a' newRegs1 calls1 r1
+   end) ->
+  SemAction old (IfElse p a a' cont) unewRegs ucalls r2.
+Proof.
+  intros.
+  case_eq (evalExpr p); let X := fresh in intros X; rewrite X in *.
+  - econstructor; eassumption.
+  - econstructor; eassumption.
+Qed.
+
 Ltac simplInvGoal :=
   split;
-  [repeat econstructor; try (reflexivity || eassumption)|
+  [repeat econstructor; try (reflexivity || eassumption) |
    rewrite ?evalExprVarRewrite;
    esplit; simplMapUpds; try (reflexivity || eassumption)].
 
+(* Ltac simplInvGoal := *)
+(*   split; *)
+(*   [repeat match goal with *)
+(*           | |- SemAction _ (If _ then _ else _ as _; _)%kami_action _ _ _ => *)
+(*             eapply SemIfElse *)
+(*           | |- SemAction _ _ _ _ _ => econstructor *)
+(*           end; try (reflexivity || eassumption) | *)
+(*    rewrite ?evalExprVarRewrite; *)
+(*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
 
+
+(* Inductive Mark := mark. *)
+
+(* Ltac simplInvGoal := *)
+(*   split; *)
+(*   [repeat match goal with *)
+(*           | |- SemAction _ (If _ then _ else _ as _; _)%kami_action _ _ _ => *)
+(*             eapply SemIfElse; try match goal with *)
+(*                                   | |- if ?p then _ else _ => case_eq p; *)
+(*                                                               let X := fresh in intros X *)
+(*                                   end; match goal with *)
+(*                                        | H: Mark |- _ => idtac *)
+(*                                        | _ => pose proof mark *)
+(*                                        end *)
+(*           | |- SemAction _ _ _ _ _ => econstructor *)
+(*           end; *)
+(*    match goal with *)
+(*    | H: Mark |- _ => clear H *)
+(*    | _ => try (reflexivity || eassumption) *)
+(*    end | *)
+(*    rewrite ?evalExprVarRewrite; *)
+(*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
 
 Ltac initInvRight m r :=
   simplInv; right;
