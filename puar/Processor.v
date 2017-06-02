@@ -1426,6 +1426,7 @@ Section Processor.
     Lemma fetchRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec fetchRq.
     Proof.
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleInstVToP).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1441,38 +1442,36 @@ Section Processor.
         match goal with
         | |- context [if ?P then _ else _] => destruct P; auto
         end.
-      - reflexivity.
-      - rewrite M.union_empty_L.
-        setoid_rewrite (rmNonePartition 4) at 2.
+      - setoid_rewrite (rmNonePartition 4) at 2.
         cbv [partition fst snd].
         unfold rmNone at 3.
         unfold fromInstVToPRqT.
         rewrite nth_len.
         reflexivity.
-      - apply M.Disj_empty_2.
-      - apply M.Disj_empty_2.
-      - admit.
-      - 
-        right; let X := fresh in intro X; simpl in X;
-                                   apply M.F.P.F.empty_in_iff in X.
-        assumption.
-      - constructor.
-          
-        repeat f_equal.
-        rewrite ?evalExprRewrite.
+      - simplBoolFalse.
+        rewrite (rmNonePartition 3) in staleListFind.
+        setoid_rewrite (rmNonePartition 3) at 2.
+        setoid_rewrite (rmNonePartition 3) at 4.
+        rewrite (rmNonePartition 4) at 1.
+        cbv [partition fst snd] in *.
+        unfold evalExpr at 3.
+        unfold evalConstT, fromInstVToPRqT.
+        unfold fromFetchRqT at 2.
+        unfold fromFetchRqT at 2.
+        unfold rmNone at 6.
+        rmNoneNilLtac.
+        rewrite nth_upd_length.
+        rewrite (rmNonePartition 3).
+        cbv [partition fst snd].
+        f_equal.
+        simpl; unfold updInstVToP, VectorFacts.Vector_find; simpl; f_equal.
         match goal with
-        | |- context[evalExpr (# (evalExpr ?P))%kami_expr] =>
-          idtac
+        | |- context[if if ?p then true else false then _ else _] => destruct p
         end.
-        rewrite evalExprRewrite.
-
-        rewrite app_length in listMatch.
-        Lemma test: forall b, @evalConstT Bool (ConstBool b) = b.
-        Proof.
-          intros; reflexivity.
-        Qed.
-        Set Printing Implicit.
-        Set Printing All.
-        unfold evalConstT.
+        + rewrite e; reflexivity.
+        + unfold not in n0; simplBoolFalse.
+          rewrite n0; reflexivity.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
   End Pf.
 End Processor.

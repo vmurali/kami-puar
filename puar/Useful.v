@@ -16,6 +16,13 @@ Section list.
                  end
     end.
 
+  Lemma nth_upd_length (b: B) (l1: list A): forall a l2,
+      nth_upd b (length l1) (l1 ++ a :: l2) = l1 ++ f a b :: l2.
+  Proof.
+    induction l1; simpl; auto; intros.
+    f_equal; auto.
+  Qed.
+
   Fixpoint updList (val: A) n ls :=
     match ls with
     | nil => nil
@@ -144,8 +151,8 @@ Notation isValid x := match x with
 
 
 Open Scope string.
-Definition data := "data".
-Definition valid := "valid".
+Notation data := "data".
+Notation valid := "valid".
 Close Scope string.
 
 Notation opt T :=
