@@ -278,6 +278,7 @@ Ltac simplMapUpds :=
 Ltac SymEvalSimpl :=
   SymEval';
   cbv [SymSemAction semExpr or_wrap and_wrap eq_rect];
+  repeat split;
   repeat (simplMapUpds; intros);
   rewrite ?evalExprRewrite.
 
@@ -288,6 +289,11 @@ Ltac substFind :=
     apply invSome in H';
     apply Eqdep.EqdepTheory.inj_pair2 in H'; rewrite <- ?H' in *; clear H' v; intros
   end.
+
+Lemma evalFalse: evalExpr ($$ false)%kami_expr = false.
+Proof.
+  reflexivity.
+Qed.
 
 Lemma evalExprVarRewrite: forall k e, evalExpr (Var type k e) = e.
 Proof.
@@ -334,10 +340,16 @@ Proof.
 Qed.
 
 Ltac simplInvGoal :=
-  split;
-  [repeat econstructor; try (reflexivity || eassumption) |
-   rewrite ?evalExprVarRewrite;
-   esplit; simplMapUpds; try (reflexivity || eassumption)].
+  match goal with
+  | |- _ /\ _ =>
+    split;
+    [repeat econstructor; try (reflexivity || eassumption) |
+     rewrite ?evalExprVarRewrite;
+     esplit; try simplMapUpds; try (reflexivity || eassumption)]
+  | |- _ =>
+    rewrite ?evalExprVarRewrite;
+    esplit; try simplMapUpds; try (reflexivity || eassumption)
+  end.
 
 (* Ltac simplInvGoal := *)
 (*   split; *)
