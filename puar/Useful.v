@@ -41,6 +41,12 @@ Section list.
                  end
     end.
 
+  Lemma rmList_app (l1: list A):
+    forall a l2, rmList (length l1) (l1 ++ a :: l2) = l1 ++ l2.
+  Proof.
+    induction l1; simpl; intros; auto; f_equal; auto.
+  Qed.
+
   Lemma nth_len (def: A) l1:
     forall a l2, nth (length l1) (l1 ++ a :: l2) def = a.
   Proof.

@@ -706,8 +706,9 @@ Section Processor.
               instVal nextPcVal execExceptionVal memVAddrVal memPAddrVal memModeVal
               memExceptionVal modeVal cStateVal interrupts;
 
-          Assert (#wbEpochVal == #inp1!MemRqT@.wbEpoch
-                  && #wbPcVal == #inp1!MemRqT@.pc);
+          Assert (#wbPcVal == #inp1!MemRqT@.pc);
+          (* && #wbEpochVal == #inp1!MemRqT@.wbEpoch *)
+                  
           Write cState <- #cExecVal!CExec@.cState;
           Write wbPc <- #cExecVal!CExec@.nextPc;
           Write mode <- #cExecVal!CExec@.mode;
@@ -749,10 +750,10 @@ Section Processor.
         with Rule memRqDrop :=
           Call _ <- memRqFirst();
           Call inp1 <- memRqPop();
-          Read wbEpochVal <- wbEpoch;
           Read wbPcVal <- wbPc;
-          Assert ! (#wbEpochVal == #inp1!MemRqT@.wbEpoch
-                    && #wbPcVal == #inp1!MemRqT@.pc);
+          Assert ! (#wbPcVal == #inp1!MemRqT@.pc);
+          (* Read wbEpochVal <- wbEpoch; *)
+          (* && #wbEpochVal == #inp1!MemRqT@.wbEpoch *)
           Retv
 
       }.
@@ -887,6 +888,15 @@ Section Processor.
                                                                     modeEntry := m;
                                                                     exceptEntry := e' |}
                                                       i stalesVal);
+          Retv
+
+        with Rule drop :=
+          ReadN stalesVal : Stales' <- stales;
+          Nondet i: @NativeKind nat 0;
+          WriteN stales : _ <- Var _ Stales' (rmList i stalesVal);
+          LET vAddrDef : VAddr <- $$ Default;
+          LETN entry : (StaleT' vAddrDef) <- Var _ (StaleT' vAddrDef)
+                                          (hd (newStalePc vAddrDef) stalesVal);
           Retv
             
         with Rule memRq :=
@@ -1929,8 +1939,48 @@ Section Processor.
         simplBoolFalse.
         rewrite H, H0.
         reflexivity.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
+    Lemma regReadDrop_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec regReadDrop.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (drop);
+        try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
+          repeat substFind.
+      rewrite evalFalse.
+      unfold fromFetchRpT.
+      rewrite (rmNonePartition 2) at 1.
+      setoid_rewrite (rmNonePartition 2) at 3.
+      cbv [partition fst snd].
+      setoid_rewrite (rmNonePartition 0) at 4.
+      cbv [partition fst snd].
+      unfold rmNone at 4.
+      unfold app at 3.
+      erewrite rmList_app.
+      repeat f_equal.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma memRqDrop_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec memRqDrop.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (drop);
+        try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
+          repeat substFind; rewrite <- Decidable.not_or_iff in *.
+      - unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - auto.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+
+    match goal with
+      | |- context[Useful.rmList (rmNone
+      
     
   End Pf.
 End Processor.
