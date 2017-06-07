@@ -138,6 +138,7 @@ Section list.
 End list.
 
 Ltac rmNoneNilLtac := rewrite ?rmNoneNil, ?app_nil_r, ?app_nil_l in *.
+(* Arguments rmNone A ls: simpl never. *)
 
 Notation rmSome def x := match x with
                          | Some y => y
@@ -295,6 +296,11 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma evalTrue: evalExpr ($$ true)%kami_expr = true.
+Proof.
+  reflexivity.
+Qed.
+
 Lemma evalExprVarRewrite: forall k e, evalExpr (Var type k e) = e.
 Proof.
   intros; reflexivity.
@@ -387,7 +393,7 @@ Ltac simplInvGoal :=
 Ltac initInvRight m r :=
   simplInv; right;
   exists ltac:(getRule m r);
-  split; [cbv [In getRules m]; auto|
+  split; [cbv [In getRules m]; tauto|
           unfold attrType at 1;
           simplInvHyp;
           eexists;

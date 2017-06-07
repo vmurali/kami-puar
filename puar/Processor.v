@@ -16,12 +16,10 @@ Notation memRq := "memRq".
 Notation memRp := "memRp".
 
 Notation commit := "commit".
-Notation cmdInstVToP := "cmdInstVToP".
-Notation cmdDataVToP := "cmdDataVToP".
+Notation cmdNonUser := "cmdNonUser".
 Notation cmdInst := "cmdInst".
 Notation cmdData := "cmdData".
 Notation getInterrupts := "getInterrupts".
-Notation cmdInterrupts := "cmdInterrupts".
 
 (* Final External method calls *)
 Notation getInstVToP := "getInstVToP".
@@ -87,6 +85,7 @@ Notation regRead := "regRead".
 Notation regReadDrop := "regDrop".
 Notation exec := "exec".
 Notation execDrop := "execDrop".
+Notation memVToPRqNone := "memVToPRqNone".
 Notation wb := "wb".
 Notation memRqDrop := "memRqDrop".
 
@@ -108,8 +107,8 @@ Notation staleInstValid := "staleInstValid".
 Notation staleInst := "staleInst".
 Notation staleMemVAddrValid := "staleMemVAddrValid".
 Notation staleMemVAddr := "staleMemVAddr".
-Notation staleMemVToPValid := "staleMemVAddrVToPValid".
-Notation staleMemVToP := "staleMemVAddrVToP".
+Notation staleMemVToPValid := "staleMemVToPValid".
+Notation staleMemVToP := "staleMemVToP".
 Notation drop := "drop".
 Close Scope string.
 
@@ -120,7 +119,7 @@ Definition MemOp := Bit 2.
 Section Processor.
   Variable VAddrSz PAddrSz NumDataBytes RIndexSz: nat.
   Variable Inst MemRq CState Mode MemException ExecException FinalException Interrupts
-    CmdInstVToP CmdDataVToP CmdInst CmdData CmdInterrupts: Kind.
+    CmdNonUser CmdInst CmdData: Kind.
   Definition Data := Bit (8 * NumDataBytes).
   Notation VAddr := (Bit VAddrSz).
   Definition PAddr := Bit PAddrSz.
@@ -157,11 +156,9 @@ Section Processor.
                           mode :: Mode;
                           exception :: optT FinalException;
                           nextPc :: VAddr;
-                          cmdInstVToP :: CmdInstVToP;
-                          cmdDataVToP :: CmdDataVToP;
                           cmdInst :: CmdInst;
                           cmdData :: CmdData;
-                          cmdInterrupts :: CmdInterrupts
+                          cmdNonUser :: CmdNonUser
                         }.
   
   Definition VToPRp := STRUCT
@@ -278,12 +275,10 @@ Section Processor.
   Definition memCall := MethodSig doMem (MemRq): Data.
   Definition commitCall := MethodSig commit (VAddr): Void.
 
-  Definition cmdInstVToPCall := MethodSig cmdInstVToP (CmdInstVToP): Void.
-  Definition cmdDataVToPCall := MethodSig cmdDataVToP (CmdDataVToP): Void.
+  Definition cmdNonUserCall := MethodSig cmdNonUser (CmdNonUser): Void.
   Definition cmdInstCall := MethodSig cmdInst (CmdInst): Void.
   Definition cmdDataCall := MethodSig cmdData (CmdData): Void.
   Definition getInterruptsCall := MethodSig getInterrupts (Void): Interrupts.
-  Definition cmdInterruptsCall := MethodSig cmdInterrupts (CmdInterrupts): Void.
 
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -642,16 +637,10 @@ Section Processor.
   Definition MemVToPCall :=
     SIN {
         Rule memVToPRq :=
-          Call _ <- memVToPRqFirst();
           Call inp1 <- memVToPRqPop();
           LET instVal <- #inp1!ExecT@.inst;
-          If isLdSt _ instVal   
-          then (
-            Call inp2 <- memVToPCall(#inp1!ExecT@.exec!Exec@.memVAddr);
-            Ret #inp2
-            )
-          else Ret $$ Default
-          as inp2;     
+          Assert (isLdSt _ instVal);
+          Call inp2 <- memVToPCall(#inp1!ExecT@.exec!Exec@.memVAddr);
           Call memVToPRpEnq(STRUCT {
                                 wbEpoch ::= #inp1!ExecT@.wbEpoch;
                                 pc ::= #inp1!ExecT@.pc;
@@ -664,7 +653,28 @@ Section Processor.
                                 memMode ::= #inp2!VToPRp@.mode;
                                 memException ::= #inp2!VToPRp@.exception
                            });
-          Retv }.
+          Retv
+            
+        with Rule memVToPRqNone :=
+          Call _ <- memVToPRqFirst();
+          Call inp1 <- memVToPRqPop();
+          LET instVal <- #inp1!ExecT@.inst;
+          Assert ! (isLdSt _ instVal);
+          LET inp2 <- $$ Default;
+          Call memVToPRpEnq(STRUCT {
+                                wbEpoch ::= #inp1!ExecT@.wbEpoch;
+                                pc ::= #inp1!ExecT@.pc;
+                                physicalPc ::= #inp1!ExecT@.physicalPc;
+                                instMode ::= #inp1!ExecT@.instMode;
+                                instException ::= #inp1!ExecT@.instException;
+                                inst ::= #inp1!ExecT@.inst;
+                                exec ::= #inp1!ExecT@.exec;
+                                memPAddr ::= #inp2!VToPRp@.pAddr;
+                                memMode ::= #inp2!VToPRp@.mode;
+                                memException ::= #inp2!VToPRp@.exception
+                           });
+          Retv
+      }.
                                  
   Definition MemCall :=
     SIN {
@@ -689,8 +699,8 @@ Section Processor.
           LET memExceptionVal <- #inp1!MemRqT@.memException;
           LET dstVal <- #inp1!MemRqT@.exec!Exec@.data;
 
-          LET interrupts <- $$ Default;
-          (* Call interrupts <- getInterruptsCall(); *)
+          (* LET interrupts <- $$ Default; *)
+          Call interrupts <- getInterruptsCall();
           
           LET cExecVal <- cExec _ pcVal physicalPcVal instModeVal instExceptionVal
               instVal nextPcVal execExceptionVal memVAddrVal memPAddrVal memModeVal
@@ -711,11 +721,9 @@ Section Processor.
 
           If ! (isSome #cExecVal!CExec@.exception)
           then (
-            Call cmdInstVToPCall(#cExecVal!CExec@.cmdInstVToP);
-            Call cmdDataVToPCall(#cExecVal!CExec@.cmdDataVToP);
+            Call cmdNonUserCall(#cExecVal!CExec@.cmdNonUser);
             Call cmdInstCall(#cExecVal!CExec@.cmdInst);
             Call cmdDataCall(#cExecVal!CExec@.cmdData);
-            Call cmdInterruptsCall(#cExecVal!CExec@.cmdInterrupts);
                   
             If isLdSt _ instVal
             then (
@@ -866,7 +874,9 @@ Section Processor.
           Nondet i: @NativeKind nat 0;
           Assert $$ (indexIn i stalesVal);
           LET vAddrDef : VAddr <- $$ Default;
-          Call inp <- memVToPCall(#(sPc (nth i stalesVal (newStalePc vAddrDef))));
+          Assert $$ (isValid (sMemVAddr (nth i stalesVal (newStalePc vAddrDef))));
+          Call inp <- memVToPCall(#(rmSome vAddrDef
+                                           (sMemVAddr (nth i stalesVal (newStalePc vAddrDef)))));
           LET p <- #inp!VToPRp@.pAddr;
           LET m <- #inp!VToPRp@.mode;
           LET e <- getSome #inp!VToPRp@.exception;
@@ -938,8 +948,8 @@ Section Processor.
             Retv
             );
 
-          LET interrupts <- $$ Default;
-          (* Call interrupts <- getInterruptsCall(); *)
+          (* LET interrupts <- $$ Default; *)
+          Call interrupts <- getInterruptsCall();
                  
           LET cExecVal <- cExec _ pcVal physicalPcVal instModeVal instExceptionVal
               instVal nextPcVal execExceptionVal memVAddrVal memPAddrVal memModeVal
@@ -953,11 +963,9 @@ Section Processor.
 
           If ! (isSome #cExecVal!CExec@.exception)
           then (
-            Call cmdInstVToPCall(#cExecVal!CExec@.cmdInstVToP);
-            Call cmdDataVToPCall(#cExecVal!CExec@.cmdDataVToP);
+            Call cmdNonUserCall(#cExecVal!CExec@.cmdNonUser);
             Call cmdInstCall(#cExecVal!CExec@.cmdInst);
             Call cmdDataCall(#cExecVal!CExec@.cmdData);
-            Call cmdInterruptsCall(#cExecVal!CExec@.cmdInterrupts);
             
             If isLdSt _ instVal
             then (
@@ -1039,9 +1047,12 @@ Section Processor.
       ssF newCbv (instRq -- first) (fetchRp).
       ssF newCbv (instRp -- enq) (fetchRp).
 
-      ssF newCbv (memVToPRq -- pop) (memVToPRq).
-      ssF newCbv (memVToPRq -- first) (memVToPRq).
-      ssF newCbv (memVToPRp -- enq) (memVToPRq).
+      ssNoF newCbv (memVToPRq -- pop) (memVToPRq).
+      ssNoF newCbv (memVToPRp -- enq) (memVToPRq).
+
+      ssF newCbv (memVToPRq -- pop) (memVToPRqNone).
+      ssF newCbv (memVToPRq -- first) (memVToPRqNone).
+      ssF newCbv (memVToPRp -- enq) (memVToPRqNone).
 
       ssNoF newCbv (memRq -- pop) (memRqDrop).
       ssNoF newCbv (memRq -- first) (memRqDrop).
@@ -1082,9 +1093,12 @@ Section Processor.
       ssFilt newCbv (instRq -- first) (fetchRp).
       ssFilt newCbv (instRp -- enq) (fetchRp).
 
-      ssFilt newCbv (memVToPRq -- pop) (memVToPRq).
-      ssFilt newCbv (memVToPRq -- first) (memVToPRq).
-      ssFilt newCbv (memVToPRp -- enq) (memVToPRq).
+      ssNoFilt newCbv (memVToPRq -- pop) (memVToPRq).
+      ssNoFilt newCbv (memVToPRp -- enq) (memVToPRq).
+
+      ssFilt newCbv (memVToPRq -- pop) (memVToPRqNone).
+      ssFilt newCbv (memVToPRq -- first) (memVToPRqNone).
+      ssFilt newCbv (memVToPRp -- enq) (memVToPRqNone).
 
       ssNoFilt newCbv (memRq -- pop) (memRqDrop).
       ssNoFilt newCbv (memRq -- first) (memRqDrop).
@@ -1234,15 +1248,19 @@ Section Processor.
                                    |};
                  sInst := Some (s (MemRqT !! inst));
                  sMemVAddr := Some (s (MemRqT !! exec) (Exec !! memVAddr));
-                 sMemVToP := Some {|pAddrEntry := s (MemRqT !! memPAddr);
-                                    modeEntry := s (MemRqT !! memMode);
-                                    exceptEntry :=
-                                      if s (MemRqT !! memException)
-                                           ((opt MemException) !! valid)
-                                      then Some (s (MemRqT !! memException)
-                                                   ((opt MemException) !! data))
-                                      else None
-                                   |};|}
+                 sMemVToP :=
+                   if evalExpr (isLdSt _ (s (MemRqT !! inst)))
+                   then Some {|pAddrEntry := s (MemRqT !! memPAddr);
+                               modeEntry := s (MemRqT !! memMode);
+                               exceptEntry :=
+                                 if s (MemRqT !! memException)
+                                      ((opt MemException) !! valid)
+                                 then Some (s (MemRqT !! memException)
+                                              ((opt MemException) !! data))
+                                 else None
+                             |}
+                   else None
+              |}
        else None).
     
     (* Definition execExecT (s1: <| Struct ExecT |>) (s2: <| Struct Exec |>) := *)
@@ -1491,7 +1509,7 @@ Section Processor.
 
     Ltac procSpecificUnfold :=
       cbn [fromInstVToPRqT fromFetchRqT fromFetchRpT fromRegReadT fromExecT fromMemRqT] in *.
-    
+
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
@@ -1705,11 +1723,11 @@ Section Processor.
         unfold fromExecT at 1.
         unfold rmNone at 2, evalExpr at 1, evalConstT at 1.
         unfold app at 2.
-        Arguments rmNone A ls: simpl never.
-        simpl.
         setoid_rewrite (rmNonePartition 0) at 3.
         cbv [partition fst snd].
         rmNoneNilLtac.
+        (* Arguments rmNone A ls: simpl never. *)
+        simpl.
         unfold updMemVAddr; simpl.
         repeat f_equal.
         unfold VectorFacts.Vector_find; simpl.
@@ -1758,16 +1776,161 @@ Section Processor.
         unfold fromExecT at 1.
         unfold rmNone at 2, evalExpr at 1, evalConstT at 1.
         unfold app at 2.
-        Arguments rmNone A ls: simpl never.
-        simpl.
         setoid_rewrite (rmNonePartition 0) at 3.
         cbv [partition fst snd].
         rmNoneNilLtac.
+        (* Arguments rmNone A ls: simpl never. *)
+        simpl.
         unfold updMemVAddr; simpl.
         repeat f_equal.
         unfold VectorFacts.Vector_find; simpl.
         reflexivity.
       (* END_SKIP_PROOF_OFF *)
     Qed.
+
+    Lemma memVToPRq_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec memVToPRq.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (staleMemVToP);
+        try solve [let X := fresh in intros X; simpl in X; discriminate].
+      - simplBoolFalse; repeat substFind.
+        rewrite (rmNonePartition 0).
+        cbv [partition fst snd].
+        unfold fromMemRqT; unfold rmNone at 1.
+        rewrite ?app_nil_l.
+        rewrite (rmNonePartition 0).
+        cbv [partition fst snd].
+        unfold fromExecT; unfold rmNone at 1, app.
+        instantiate (1 := 0).
+        reflexivity.
+      - simplBoolFalse; repeat substFind.
+        rewrite (rmNonePartition 0).
+        cbv [partition fst snd].
+        unfold fromMemRqT; unfold rmNone at 1.
+        rewrite ?app_nil_l.
+        rewrite (rmNonePartition 0).
+        cbv [partition fst snd].
+        unfold fromExecT; unfold rmNone at 1, app.
+        reflexivity.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold fromMemRqT, fromExecT.
+        rewrite evalFalse.
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].
+        rmNoneNilLtac.
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].        
+        unfold rmNone at 2.
+        unfold app.
+        unfold nth_upd.
+        setoid_rewrite (rmNonePartition 0) at 1.
+        cbv [partition fst snd].        
+        unfold evalExpr at 1, evalConstT at 1, rmNone at 1.
+        unfold app at 1.
+        setoid_rewrite (rmNonePartition 0) at 1.
+        cbv [partition fst snd].        
+        rmNoneNilLtac.
+        f_equal.
+        unfold updMemVToP.
+        simpl.
+        repeat f_equal.
+        unfold VectorFacts.Vector_find; simpl.
+        clear - H2.
+        match type of H2 with
+        | ?f (SyntaxKind Bool) ?ld eq_refl \/ ?f (SyntaxKind Bool) ?st eq_refl =>
+          replace f with Kami.SymEval.semExpr in H2 by reflexivity
+        end.
+        rewrite <- ?Kami.SymEval.semExpr_sound in H2.
+        simpl in H2.
+        destruct H2 as [u | u]; rewrite u; rewrite ?orb_true_l, ?orb_true_r; repeat f_equal;
+          match goal with
+          | |- (if ?p then _ else _) = _ => destruct p; reflexivity
+          end.
+    Qed.
+
+    Lemma memVToPRqNone_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec memVToPRqNone.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      simplInv; left;
+        simplInvHyp;
+      esplit; try simplMapUpds;
+        try (reflexivity || eassumption);
+        intros; simplBoolFalse; repeat substFind; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - discriminate.
+      - discriminate.
+      - simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        repeat f_equal; auto.
+      - unfold fromMemRqT, fromExecT.
+        rewrite evalFalse.
+        unfold evalExpr at 1, evalConstT at 1.
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].
+        rmNoneNilLtac.
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].
+        unfold rmNone at 2.
+        unfold app.
+        setoid_rewrite (rmNonePartition 0) at 1.
+        cbv [partition fst snd].
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].
+        rmNoneNilLtac.
+        unfold evalExpr at 1, evalConstT at 1, rmNone at 1.
+        unfold app at 1.
+        f_equal.
+        unfold VectorFacts.Vector_find; simpl.
+        simpl.
+        repeat f_equal.
+        clear - H5.
+        match type of H5 with
+        | ?f (SyntaxKind Bool) ?ld eq_refl \/ ?f (SyntaxKind Bool) ?st eq_refl -> False =>
+          replace f with Kami.SymEval.semExpr in H5 by reflexivity
+        end.
+        rewrite <- ?Kami.SymEval.semExpr_sound in H5.
+        simpl in H5.
+        rewrite Decidable.not_or_iff in H5.
+        dest.
+        simplBoolFalse.
+        rewrite H, H0.
+        reflexivity.
+    Qed.
+
+    
   End Pf.
 End Processor.
