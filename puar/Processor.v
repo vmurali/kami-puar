@@ -750,10 +750,10 @@ Section Processor.
         with Rule memRqDrop :=
           Call _ <- memRqFirst();
           Call inp1 <- memRqPop();
-          Read wbPcVal <- wbPc;
-          Assert ! (#wbPcVal == #inp1!MemRqT@.pc);
-          (* Read wbEpochVal <- wbEpoch; *)
-          (* && #wbEpochVal == #inp1!MemRqT@.wbEpoch *)
+          (* Read wbPcVal <- wbPc; *)
+          (* Assert ! (#wbPcVal == #inp1!MemRqT@.pc); *)
+          Read wbEpochVal <- wbEpoch;
+          Assert ! (#wbEpochVal == #inp1!MemRqT@.wbEpoch);
           Retv
 
       }.
@@ -1969,18 +1969,73 @@ Section Processor.
       (* SKIP_PROOF_OFF *)
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
-          repeat substFind; rewrite <- Decidable.not_or_iff in *.
-      - unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
-        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
-      - auto.
+          repeat substFind.
+      - simpl in H6.
+        fold (negb (memRqData Fin.F1)) in H6.
+        subst.
+        
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        destruct (memRqData Fin.F1); simpl in *;
+          progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *;
+          repeat f_equal; auto.
+      - simpl in H6.
+        fold (negb (memRqData Fin.F1)) in H6.
+        subst.
+        
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        destruct (memRqData Fin.F1); simpl in *;
+          progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *;
+          repeat f_equal; auto.
+      - simpl in H6.
+        fold (negb (memRqData Fin.F1)) in H6.
+        subst.
+        
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        destruct (memRqData Fin.F1); simpl in *;
+          progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *;
+          repeat f_equal; auto.
+      - simpl in H6.
+        fold (negb (memRqData Fin.F1)) in H6.
+        subst.
+        
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        destruct (memRqData Fin.F1); simpl in *;
+          progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *;
+          repeat f_equal; auto.
+      - simpl in H6.
+        fold (negb (memRqData Fin.F1)) in H6.
+        subst.
+        
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        destruct (memRqData Fin.F1); simpl in *;
+          progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *;
+          repeat f_equal; auto.
+      - rewrite evalFalse; unfold fromMemRqT.
+        instantiate (1 := 0); simpl; reflexivity.
+      (* END_SKIP_PROOF_OFF *)
+
+    Qed.
+
+    Lemma execDrop_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec execDrop.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (drop);
+        try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
+          repeat substFind.
+      rewrite evalFalse.
+      unfold fromRegReadT.
+      rewrite (rmNonePartition 1) at 1.
+      setoid_rewrite (rmNonePartition 1) at 3.
+      cbv [partition fst snd].
+      setoid_rewrite (rmNonePartition 0) at 4.
+      cbv [partition fst snd].
+      unfold rmNone at 4.
+      unfold app at 3.
+      erewrite rmList_app.
+      repeat f_equal.
       (* END_SKIP_PROOF_OFF *)
     Qed.
 
-
-    match goal with
-      | |- context[Useful.rmList (rmNone
-      
-    
   End Pf.
 End Processor.
