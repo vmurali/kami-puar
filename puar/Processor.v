@@ -707,7 +707,7 @@ Section Processor.
               memExceptionVal modeVal cStateVal interrupts;
 
           Assert (#wbPcVal == #inp1!MemRqT@.pc);
-          (* && #wbEpochVal == #inp1!MemRqT@.wbEpoch *)
+          Assert (#wbEpochVal == #inp1!MemRqT@.wbEpoch);
                   
           Write cState <- #cExecVal!CExec@.cState;
           Write wbPc <- #cExecVal!CExec@.nextPc;
