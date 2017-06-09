@@ -52,31 +52,6 @@ Section list.
   Proof.
     induction l1; intros; simpl; auto.
   Qed.
-    
-  
-  (* Fixpoint updList A (val: A) n ls:= *)
-  (*   match n with *)
-  (*   | 0 => match ls with *)
-  (*          | x :: xs => val :: xs *)
-  (*          | nil => nil *)
-  (*          end *)
-  (*   | S m => match ls with *)
-  (*            | x :: xs => updList val m xs *)
-  (*            | nil => nil *)
-  (*            end *)
-  (*   end. *)
-
-  (* Fixpoint rmList A n (ls: list A) := *)
-  (*   match n with *)
-  (*   | 0 => match ls with *)
-  (*          | x :: xs => xs *)
-  (*          | nil => nil *)
-  (*          end *)
-  (*   | S m => match ls with *)
-  (*            | x :: xs => rmList m xs *)
-  (*            | nil => nil *)
-  (*            end *)
-  (*   end. *)
 
   Definition indexIn i (ls: list A) :=
     match Compare_dec.lt_dec i (length ls) with
@@ -96,15 +71,6 @@ Section list.
     | Some x :: xs => x :: rmNone xs
     | None :: xs => rmNone xs
     end.
-  (* Fixpoint rmNone A (ls: list (option A)) := *)
-  (*   match ls with *)
-  (*   | nil => nil *)
-  (*   | x :: xs => match x with *)
-  (*                | Some y => [y] *)
-  (*                | None => nil *)
-  (*                end ++ rmNone xs *)
-  (*   end. *)
-
 
   Fixpoint partition C n (ls: list C) :=
     match ls with
@@ -114,18 +80,6 @@ Section list.
                  | S m => (x :: fst (partition m xs), snd (partition m xs))
                  end
     end.
-  (* Fixpoint partition B n (ls: list B) := *)
-  (*   match n with *)
-  (*   | 0 => match ls with *)
-  (*          | nil => (nil, nil) *)
-  (*          | x :: xs => (x :: nil, xs) *)
-  (*          end *)
-  (*   | S m => match ls with *)
-  (*            | nil => (nil, nil) *)
-  (*            | x :: xs => *)
-  (*              (x :: fst (partition m xs), snd (partition m xs)) *)
-  (*            end *)
-  (*   end. *)
 
   Lemma rmNonePartition: forall n (ls: list (option A)),
       rmNone ls = rmNone (fst (partition n ls)) ++ rmNone (snd (partition n ls)).
@@ -138,6 +92,11 @@ Section list.
   Qed.
 
   Lemma rmNoneNil: rmNone [None] = (nil: list A).
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma rmNoneSome (a: A) ls: rmNone (Some a :: ls) = a :: rmNone ls.
   Proof.
     reflexivity.
   Qed.
@@ -325,37 +284,36 @@ Ltac simplInvHyp :=
   repeat substFind;
   subst.
 
-(* Ltac simplInvGoal := *)
-(*   split; *)
-(*   [repeat econstructor; try (reflexivity || eassumption)| *)
-(*    rewrite ?evalExprVarRewrite; *)
-(*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
-
 Lemma SemIfElse k1 old (p: Expr type (SyntaxKind Bool))
-      (a a': ActionT type k1) (r1: type k1) k2 (cont: type k1 -> ActionT type k2)
-      newRegs1 newRegs2 calls1 calls2 (r2: type k2) unewRegs ucalls:
-  M.Disj newRegs1 newRegs2 ->
-  M.Disj calls1 calls2 ->
-  SemAction old (cont r1) newRegs2 calls2 r2 ->
-  unewRegs = M.union newRegs1 newRegs2 ->
-  ucalls = M.union calls1 calls2 ->
-  (match evalExpr p with
-   | true => SemAction old a newRegs1 calls1 r1
-   | false => SemAction old a' newRegs1 calls1 r1
-   end) ->
-  SemAction old (IfElse p a a' cont) unewRegs ucalls r2.
+      (a a': ActionT type k1) (r1 r1': type k1) k2 (cont: type k1 -> ActionT type k2)
+      (r2 r2': type k2) unewRegs ucalls unewRegs' ucalls':
+  ( evalExpr p = true ->
+    SemAction old (IfElse p a a' cont) unewRegs ucalls r2 ) ->
+  ( evalExpr p = false ->
+    SemAction old (IfElse p a a' cont) unewRegs' ucalls' r2' ) ->
+  forall unewRegsF ucallsF r2F,
+    unewRegsF = (if evalExpr p then unewRegs else unewRegs') ->
+    ucallsF = (if evalExpr p then ucalls else ucalls') ->
+    r2F = (if evalExpr p then r2 else r2') ->
+    SemAction old (IfElse p a a' cont) unewRegsF ucallsF r2F.
 Proof.
-  intros.
-  case_eq (evalExpr p); let X := fresh in intros X; rewrite X in *.
-  - econstructor; eassumption.
-  - econstructor; eassumption.
+  intros; try split; intros;
+    case_eq (evalExpr p); let X := fresh in intros X; rewrite X in *; subst; auto;
+                                              try discriminate.
 Qed.
 
+Ltac SemConstruct :=
+  match goal with
+  | |- SemAction _ (IfElse _ _ _ _) _ _ _ =>
+    eapply SemIfElse
+  | |- SemAction _ _ _ _ _ =>
+    econstructor
+  end.
 Ltac simplInvGoal :=
   match goal with
-  | |- _ /\ _ =>
+  | |- ?P /\ _ =>
     split;
-    [repeat econstructor; try (reflexivity || eassumption) |
+    [repeat SemConstruct; try (reflexivity || eassumption) |
      rewrite ?evalExprVarRewrite;
      esplit; try simplMapUpds; try (reflexivity || eassumption)]
   | |- _ =>
@@ -373,29 +331,6 @@ Ltac simplInvGoal :=
 (*    rewrite ?evalExprVarRewrite; *)
 (*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
 
-
-(* Inductive Mark := mark. *)
-
-(* Ltac simplInvGoal := *)
-(*   split; *)
-(*   [repeat match goal with *)
-(*           | |- SemAction _ (If _ then _ else _ as _; _)%kami_action _ _ _ => *)
-(*             eapply SemIfElse; try match goal with *)
-(*                                   | |- if ?p then _ else _ => case_eq p; *)
-(*                                                               let X := fresh in intros X *)
-(*                                   end; match goal with *)
-(*                                        | H: Mark |- _ => idtac *)
-(*                                        | _ => pose proof mark *)
-(*                                        end *)
-(*           | |- SemAction _ _ _ _ _ => econstructor *)
-(*           end; *)
-(*    match goal with *)
-(*    | H: Mark |- _ => clear H *)
-(*    | _ => try (reflexivity || eassumption) *)
-(*    end | *)
-(*    rewrite ?evalExprVarRewrite; *)
-(*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *)
-
 Ltac initInvRight m r :=
   simplInv; right;
   exists ltac:(getRule m r);
@@ -404,6 +339,59 @@ Ltac initInvRight m r :=
           simplInvHyp;
           eexists;
           simplInvGoal].
+
+
+
+(* Lemma SemIfElse k1 old (p: Expr type (SyntaxKind Bool)) *)
+(*       (a a': ActionT type k1) (r1: type k1) k2 (cont: type k1 -> ActionT type k2) *)
+(*       newRegs1 newRegs2 calls1 calls2 (r2: type k2) unewRegs ucalls: *)
+(*   M.Disj newRegs1 newRegs2 -> *)
+(*   M.Disj calls1 calls2 -> *)
+(*   SemAction old (cont r1) newRegs2 calls2 r2 -> *)
+(*   unewRegs = M.union newRegs1 newRegs2 -> *)
+(*   ucalls = M.union calls1 calls2 -> *)
+(*   (match evalExpr p with *)
+(*    | true => SemAction old a newRegs1 calls1 r1 *)
+(*    | false => SemAction old a' newRegs1 calls1 r1 *)
+(*    end) -> *)
+(*   SemAction old (IfElse p a a' cont) unewRegs ucalls r2. *)
+(* Proof. *)
+(*   intros. *)
+(*   case_eq (evalExpr p); let X := fresh in intros X; rewrite X in *. *)
+(*   - econstructor; eassumption. *)
+(*   - econstructor; eassumption. *)
+(* Qed. *)
+
+(* Ltac simplInvGoal := *)
+(*   match goal with *)
+(*   | |- _ /\ _ => *)
+(*     split; *)
+(*     [repeat econstructor; try (reflexivity || eassumption) | *)
+(*      rewrite ?evalExprVarRewrite; *)
+(*      esplit; try simplMapUpds; try (reflexivity || eassumption)] *)
+(*   | |- _ => *)
+(*     rewrite ?evalExprVarRewrite; *)
+(*     esplit; try simplMapUpds; try (reflexivity || eassumption) *)
+(*   end. *)
+
+(* (* Ltac simplInvGoal := *) *)
+(* (*   split; *) *)
+(* (*   [repeat match goal with *) *)
+(* (*           | |- SemAction _ (If _ then _ else _ as _; _)%kami_action _ _ _ => *) *)
+(* (*             eapply SemIfElse *) *)
+(* (*           | |- SemAction _ _ _ _ _ => econstructor *) *)
+(* (*           end; try (reflexivity || eassumption) | *) *)
+(* (*    rewrite ?evalExprVarRewrite; *) *)
+(* (*    esplit; simplMapUpds; try (reflexivity || eassumption)]. *) *)
+
+(* Ltac initInvRight m r := *)
+(*   simplInv; right; *)
+(*   exists ltac:(getRule m r); *)
+(*   split; [cbv [In getRules m]; tauto| *)
+(*           unfold attrType at 1; *)
+(*           simplInvHyp; *)
+(*           eexists; *)
+(*           simplInvGoal]. *)
 
 Ltac simplBoolFalse :=
   repeat match goal with
