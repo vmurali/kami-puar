@@ -2101,7 +2101,7 @@ Section Processor.
       - simpl; repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         auto.
       - simpl.
-        unfold rfFromMemRqT; simpl.
+        unfold rfFromMemRqT in *; simpl.
         repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         admit.
       - simpl.
