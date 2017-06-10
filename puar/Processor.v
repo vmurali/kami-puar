@@ -1435,11 +1435,13 @@ Section Processor.
           = staleList ;
 
         nonMemVToPRpDef:
+          memRqValid = true ->
           memRqData (MemRqT !! memVToPRp) ((opt (Struct VToPRp)) !! valid) = false ->
           memRqData (MemRqT !! memVToPRp) ((opt (Struct VToPRp)) !! data) =
           evalExpr (($$ Default)%kami_expr: (Struct VToPRp) @ type) ;
 
         nonMemVToPRpLdSt:
+          memRqValid = true ->
           evalExpr (isLdSt _ (memRqData (MemRqT !! inst))) = true ->
           memRqData (MemRqT !! memVToPRp) ((opt (Struct VToPRp)) !! valid) = true ;
 
@@ -1984,14 +1986,15 @@ Section Processor.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
         intros; repeat f_equal; auto.
-      - repeat match goal with
+      - simpl.
+        repeat match goal with
                | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
                  replace f with Kami.SymEval.semExpr in H by reflexivity;
                    rewrite <- ?Kami.SymEval.semExpr_sound in H;
                    simpl in H
                end.
-        simpl in H.
-        rewrite orb_true_iff in H.
+        simpl in H0.
+        rewrite orb_true_iff in H0.
         contradiction.
         (* END_SKIP_PROOF_OFF *)
     Qed.
@@ -2470,45 +2473,7 @@ Section Processor.
     Proof.
       apply decompositionZeroR_Id_Rule with (thetaR := combined_inv).
       - simpl.
-        esplit.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + intros; simpl in *; discriminate.
-        + intros; simpl in *; discriminate.
-        + intros; simpl in *; discriminate.
-        + intros; simpl in *; discriminate.
-        + intros; simpl in *; discriminate.
-        + intros; simpl in *; discriminate.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + reflexivity.
-        + intros; reflexivity.
-        + intros; simpl in *.
-          discriminate.
-
-          reflexivity.
-        admit.
+        esplit; simpl; intros; try (reflexivity || discriminate).
       - reflexivity.
       - reflexivity.
       - intros.
@@ -2526,12 +2491,6 @@ Section Processor.
         destruct H0. eapply memRq_inv; eauto.
         destruct H0. eapply memRqDrop_inv; eauto.
         contradiction.
-    Qed.
-
-      ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
-    Proof.
-      (* SKIP_PROOF_OFF *)
-      initInvRight procSpec (stalePc).
-    
+    Qed.    
   End Pf.
 End Processor.
