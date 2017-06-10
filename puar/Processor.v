@@ -1372,6 +1372,7 @@ Section Processor.
         
         execVal:
           execValid = true ->
+          execData (ExecT !! wbEpoch) = wbEpochI ->
           execData (ExecT !! exec) = 
           evalExpr
             (execFn _ (execData (ExecT !! inst))
@@ -1401,6 +1402,7 @@ Section Processor.
 
         memRqVal:
           memRqValid = true ->
+          memRqData (MemRqT !! wbEpoch) = wbEpochI ->
           memRqData (MemRqT !! exec) =
           evalExpr
             (execFn _ (memRqData (MemRqT !! inst))
@@ -1575,17 +1577,20 @@ Section Processor.
         rewrite regReadSrc2; repeat f_equal; clear.
         extensionality x.
         destruct (weq x (memRpData Fin.F1)); auto.
-      - clear - execVal H.
-        specialize (execVal H).
-        unfold VectorFacts.Vector_find in *; simpl in *.
-        unfold rfFromMemRqT in *.
+      - specialize (execVal H).
+        clear staleListFind.
+        repeat substFind;
+        subst;
+        unfold rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        specialize (execVal eq_refl).
         repeat match goal with
                | |- context [if ?p then _ else _] => destruct p
                end; try (reflexivity || assumption).
-      - clear - memRqVal H.
-        specialize (memRqVal H).
-        unfold VectorFacts.Vector_find in *; simpl in *.
-        unfold rfFromMemRqT in *.
+      - specialize (memRqVal H).
+        repeat substFind;
+        subst;
+        unfold rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        specialize (memRqVal eq_refl).
         repeat match goal with
                | |- context [if ?p then _ else _] => destruct p
                end; try (reflexivity || assumption).
@@ -1735,9 +1740,10 @@ Section Processor.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
         auto.
-      - intros _; simplBoolFalse; repeat substFind.
+      - intros _; simplBoolFalse; repeat substFind; subst.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        intros; 
         repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         setoid_rewrite (rmNonePartition 1) at 3.
@@ -1793,9 +1799,10 @@ Section Processor.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
         auto.
-      - intros _; simplBoolFalse; repeat substFind.
+      - intros _; simplBoolFalse; repeat substFind; subst.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        intros;
         repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         setoid_rewrite (rmNonePartition 1) at 3.
@@ -1861,23 +1868,23 @@ Section Processor.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold fromMemRqT, fromExecT.
         rewrite evalFalse.
@@ -1897,6 +1904,7 @@ Section Processor.
         cbv [partition fst snd].        
         rmNoneNilLtac.
         f_equal.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memVToPRqNone_inv:
@@ -1911,21 +1919,21 @@ Section Processor.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - discriminate.
       - discriminate.
       - simplBoolFalse; repeat substFind.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
         progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        repeat f_equal; auto.
+        intros; repeat f_equal; auto.
       - repeat match goal with
                | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
                  replace f with Kami.SymEval.semExpr in H by reflexivity;
@@ -2052,7 +2060,8 @@ Section Processor.
         end.
       - simpl.
         rewrite ?andb_false_l, ?andb_false_r in memRqVal.
-        rewrite <- (memRqVal eq_refl).
+        simpl in H10.
+        rewrite <- (memRqVal eq_refl (eq_sym H10)).
         match goal with
           | |- context[if ?p then _ else _] => destruct p; try (reflexivity || tauto)
         end.
@@ -2066,7 +2075,7 @@ Section Processor.
           meqReify_eq_tac.
         do 2 f_equal.
         
-        unfold andb in *; simpl in *; rewrite <- (memRqVal eq_refl).
+        unfold andb in *; simpl in *; rewrite <- (memRqVal eq_refl (eq_sym H10)).
         reflexivity.
       - simpl.
         simpl in H11.
@@ -2106,15 +2115,15 @@ Section Processor.
         admit.
       - simpl.
         simpl in memRqVal.
-        rewrite <- ?(memRqVal eq_refl).
+        rewrite <- ?(memRqVal eq_refl (eq_sym H10)).
         reflexivity.
       - simpl.
         simpl in memRqVal.
-        rewrite <- ?(memRqVal eq_refl).
+        rewrite <- ?(memRqVal eq_refl (eq_sym H10)).
         reflexivity.
       - simpl.
         simpl in memRqVal.
-        rewrite <- ?(memRqVal eq_refl).
+        rewrite <- ?(memRqVal eq_refl (eq_sym H10)).
         repeat f_equal.
         extensionality x.
         simpl.
@@ -2125,7 +2134,7 @@ Section Processor.
                end; reflexivity.
       - simpl.
         simpl in memRqVal.
-        rewrite <- ?(memRqVal eq_refl).
+        rewrite <- ?(memRqVal eq_refl (eq_sym H10)).
         reflexivity.
       - simpl.
         match goal with
