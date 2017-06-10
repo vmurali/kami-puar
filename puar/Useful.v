@@ -147,6 +147,12 @@ Notation "<| t |>" := (fullType type (SyntaxKind t)).
 
 Notation "<[ t ]>" := (fullType type (@NativeKind t nil)).
 
+Lemma rewriteBoolDec: forall a, (if bool_dec a a then true else false) = true.
+Proof.
+  intros;
+    destruct (bool_dec a a); tauto.
+Qed.
+
 Ltac metaFlatten m :=
   let y :=
       eval cbv

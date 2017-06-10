@@ -186,6 +186,16 @@ Section Processor.
   Variable updBp: forall ty, ty BtbState -> ty VAddr -> ty Inst -> ty Bool ->
                              BpState @ ty.
 
+  Variable useSrc1Means: forall i, evalExpr (useSrc1 type i) = false ->
+                                   forall s1 s1' s2,
+                                     evalExpr (execFn type i s1 s2) =
+                                     evalExpr (execFn type i s1' s2).
+  Variable useSrc2Means: forall i, evalExpr (useSrc2 type i) = false ->
+                                   forall s1 s2 s2',
+                                     evalExpr (execFn type i s1 s2) =
+                                     evalExpr (execFn type i s1 s2').
+            
+  
   Notation isLdSt ty inst := (isLd ty inst || isSt ty inst)%kami_expr.
   Notation isNm ty inst := (!(isLdSt ty inst))%kami_expr.
 
@@ -324,18 +334,6 @@ Section Processor.
       IF (#f3Valid && #src == #dst3)
       then #f3d else #d
     )%kami_expr.
-  
-  (* Definition bypass ty (f1Valid f2Valid f3Valid: Bool @ ty) *)
-  (*            (f1 f2: Inst @ ty) (f3: RIndex @ ty) (f1d f2d f3d d: Data @ ty) *)
-  (*            (e1 e2: Bool @ ty) *)
-  (*            (src: RIndex @ ty) (e: Bool @ ty) := *)
-  (*   ( IF (f1Valid && isNm f1 && isNotZero (getDst f1) && getDst f1 == src && useDst f1 && e1 == e) *)
-  (*     then f1d else *)
-  (*     IF (f2Valid && isNm f2 && isNotZero (getDst f2) && getDst f2 == src && useDst f2 && e2 == e) *)
-  (*     then f2d else *)
-  (*     IF (f3Valid && isNotZero f3 && f3 == src) *)
-  (*     then f3d else d *)
-  (*   )%kami_expr. *)
   
   Definition processor :=
     SIN {
@@ -711,7 +709,10 @@ Section Processor.
           Call memRpEnq(STRUCT { valid ::= (! (isSome #cExecVal!CExec@.exception)) &&
                                        useDst _ instVal;
                                  data ::= STRUCT { indx ::= getDst _ instVal;
-                                                   dst ::= #finalDst }
+                                                   dst ::=
+                                                       IF (isLd _ instVal)
+                                                       then #finalDst
+                                                       else #dstVal }
                                });
         
           (* Call commitCall(#inp1!MemRqT@.pc); *)
@@ -939,7 +940,10 @@ Section Processor.
                 dst ::= #dstVal});
 
           Write regFile <- IF ((! (isSome #cExecVal!CExec@.exception)) && useDst _ instVal)
-                           then #regFileVals@[getDst _ instVal <- #finalDst]
+                           then #regFileVals@[getDst _ instVal <-
+                                  IF (isLd _ instVal)
+                                  then #finalDst
+                                  else #dstVal]
                            else #regFileVals;
 
           (* Call commitCall(#pcVal); *)
@@ -1544,6 +1548,7 @@ Section Processor.
     Ltac procSpecificUnfold :=
       cbn [fromInstVToPRqT fromFetchRqT fromFetchRpT fromRegReadT fromExecT fromMemRqT] in *.
 
+    (*
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
@@ -2040,6 +2045,7 @@ Section Processor.
       repeat f_equal.
       (* END_SKIP_PROOF_OFF *)
     Qed.
+    *)
 
     Lemma memRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memRq.
@@ -2101,7 +2107,29 @@ Section Processor.
         simpl in H10.
         subst.
         unfold VectorFacts.Vector_find in regReadSrc1, regReadSrc2.
-        simpl in regReadSrc1, regReadSrc2.
+        simpl in regReadSrc1, regReadSrc2.        
+        (* match goal with *)
+        (* | |- context[if evalExpr ?a ?b ?c then _ else _] => destruct (evalExpr a b c) *)
+        (* end. *)
+        (* + admit. *)
+        (* + Lemma rewriteBoolDec: forall a, (if bool_dec a a then true else false) = true. *)
+        (*   Proof. *)
+        (*     intros; *)
+        (*       destruct (bool_dec a a); tauto. *)
+        (*   Qed. *)
+        (*   rewrite ?rewriteBoolDec in regReadSrc1. *)
+        (*   unfold negb at 3; simpl. *)
+        (*   simpl in regReadSrc1. *)
+        (*   rewrite ?andb_false_r, ?andb_false_l. *)
+        (*   simpl in regReadSrc1. *)
+        (*   clear - regReadSrc1 regReadNoStall. *)
+        (*   specialize (regReadNoStall eq_refl). *)
+        (*   apply orb_false_iff in regReadNoStall. *)
+        (*   destruct regReadNoStall as [rs1 rs2]. *)
+        (*   repeat rewrite andb_false_iff in rs1. *)
+        (*   apply regReadSrc1. *)
+        (*   match P with *)
+        (*   | evalExpr ?c *)
         admit.
       - simpl.
         admit.
@@ -2110,9 +2138,65 @@ Section Processor.
       - simpl; repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         auto.
       - simpl.
+        intros.
+        subst.
         unfold rfFromMemRqT in *; simpl.
-        repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
-        admit.
+        match type of H0 with
+        | context[if ?P then _ else _] => destruct P
+        end.
+        + unfold negb; simpl.
+          specialize (memRq_exec eq_refl eq_refl (eq_sym H10)).
+          rewrite memRq_exec in H0.
+          clear - H0; destruct wbEpochI; discriminate.
+        + specialize (execVal eq_refl H0).
+          simpl in memRqVal.
+          clear staleListFind.
+          simpl in H10; apply eq_sym in H10.
+          subst.
+          repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+          simpl in *.
+          rewrite rewriteBoolDec in *.
+          repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+          specialize (execNoStall eq_refl).
+          repeat (rewrite ?andb_false_iff, ?orb_false_iff in execNoStall).
+          dest.
+          unfold VectorFacts.Vector_find in *; simpl in *.
+          repeat (destruct execNoStall as [execNoStall | execNoStall];
+                  dest;
+                  repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
+                  rewrite ?execNoStall in *; simpl in *; auto).
+          * repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+            auto.
+          * { destruct H, H1.
+              - specialize (useSrc1Means _ H).
+                specialize (useSrc2Means _ H1).
+                rewrite execVal.
+                erewrite useSrc1Means.
+                erewrite useSrc2Means.
+                reflexivity.
+              - specialize (useSrc1Means _ H).
+                rewrite execVal.
+                erewrite useSrc1Means.
+                rewrite H1.
+                rewrite H1 in execVal.
+                simpl; simpl in execVal.
+                repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+                reflexivity.
+              - specialize (useSrc2Means _ H1).
+                rewrite execVal.
+                erewrite useSrc2Means.
+                rewrite H.
+                rewrite H in execVal.
+                simpl; simpl in execVal.
+                repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+                reflexivity.
+              - rewrite execVal.
+                rewrite H1, H.
+                rewrite H1, H in execVal.
+                simpl; simpl in execVal.
+                repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+                reflexivity.
+            }
       - simpl.
         simpl in memRqVal.
         rewrite <- ?(memRqVal eq_refl (eq_sym H10)).
