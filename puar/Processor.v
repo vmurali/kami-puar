@@ -1440,8 +1440,8 @@ Section Processor.
           evalExpr (($$ Default)%kami_expr: (Struct VToPRp) @ type) ;
 
         nonMemVToPRpLdSt:
-            evalExpr (isLdSt _ (memRqData (MemRqT !! inst))) = true ->
-            memRqData (MemRqT !! memVToPRp) ((opt (Struct VToPRp)) !! valid) = true ;
+          evalExpr (isLdSt _ (memRqData (MemRqT !! inst))) = true ->
+          memRqData (MemRqT !! memVToPRp) ((opt (Struct VToPRp)) !! valid) = true ;
 
         memRq_exec:
           memRqValid = true ->
@@ -2148,100 +2148,68 @@ Section Processor.
           specialize (regReadSrc2 eq_refl);
           specialize (memRq_regRead eq_refl eq_refl eq_refl);
           specialize (regReadNoStall eq_refl).
-        unfold VectorFacts.Vector_find in *;
-          simpl in *.
-        match type of regReadNoStall with
-        | ?A || ?B = false => rewrite (orb_false_iff A B) in regReadNoStall
+        match type of H0 with
+        | _ = if ?P then _ else _ => destruct P
         end.
-        dest.
-        rewrite ?rewriteBoolDec in *.
-        rewrite andb_true_l in *.
-        match goal with
-        | |- context[if evalExpr ?A ?B ?C then _ else _] => destruct (evalExpr A B C)
-        end.
-        + admit.
-        + simpl.
+        + rewrite H0 in memRq_regRead.
+          apply no_fixpoint_negb in memRq_regRead; contradiction.
+        + specialize (regReadSrc1 memRq_regRead H1).
+          simpl.
+          unfold VectorFacts.Vector_find in *; simpl in *.
+          rewrite ?rewriteBoolDec in *.
+          simpl in regReadSrc1.
+          simpl in regReadNoStall.
           match goal with
-          | |- _ = if ?P then _ else _ => case_eq P; intros
+          | |- _ = if ?P then _ else _ => destruct P; [assumption|]
           end.
-          * rewrite H1 in *; auto.
-          * rewrite H1 in regReadSrc1.
-          repeat (rewrite ?andb_false_iff, ?orb_false_iff in regReadNoStall);
-          dest;
-          repeat (destruct regReadNoStall as [regReadNoStall | regReadNoStall];
-                  dest;
-                  repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
-                  rewrite ?regReadNoStall in *; simpl in *; auto).
-        destruct H.
-        
-        
-        match goal with
-        | |- context[if evalExpr ?A ?B ?C then _ else _] => destruct (evalExpr A B C)
-        end; intros; subst; simpl in *; specialize (regReadSrc1 eq_refl);
-          specialize (regReadSrc2 eq_refl); specialize (memRq_regRead eq_refl eq_refl eq_refl);
-            specialize (regReadNoStall eq_refl);
-            unfold VectorFacts.Vector_find in *; simpl in *;
-              rewrite ?rewriteBoolDec in *;
-              repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
-              simpl in *;
-              repeat (rewrite ?andb_false_iff, ?orb_false_iff in regReadNoStall).
-        .
-        + destruct execValid; subst;
+          rewrite orb_false_iff in regReadNoStall;
+            destruct regReadNoStall as [rs1 rs2].
+          unfold andb; simpl in *.
+          rewrite H1 in *.
+          repeat match goal with
+                 | |- context[if if ?P then _ else _ then _ else _] => destruct P
+                 | |- context[if ?P then _ else _] => destruct P
+                 end; simpl in *;
             repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
-            simpl in *.
-          * admit.
-          * 
-          * specialize (memRq_exec eq_refl eq_refl eq_refl).
-            rewrite memRq_exec in *.
-            rewrite ?rewriteBoolDec in *.
-            repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
-            unfold bool_dec, negb; simpl.
-            admit.
-          * 
-        .
-        + rewrite boolDecRewrite in regReadSrc1, regReadSrc2.
-          admit.
-        + simpl.
-          assumption.
-        rewrite andb_true_l in regReadSrc1, regReadSrc2.
-        unfold andb at 6 in regReadSrc1;
-          unfold andb at 6 in regReadSrc2.
-        intros X.
-        specialize (regReadSrc1 X); specialize (regReadSrc2 X).
-        unfold rfFromExecT, rfFromMemRqT in regReadSrc1, regReadSrc2.
-        unfold rfFromExecT, rfFromMemRqT.
-
-        unfold andb in memRqVal.
-        specialize (memRq_regRead eq_refl X).
-        simpl in H10.
-        subst.
-        unfold VectorFacts.Vector_find in regReadSrc1, regReadSrc2.
-        simpl in regReadSrc1, regReadSrc2.        
-        (* match goal with *)
-        (* | |- context[if evalExpr ?a ?b ?c then _ else _] => destruct (evalExpr a b c) *)
-        (* end. *)
-        (* + admit. *)
-        (* + Lemma rewriteBoolDec: forall a, (if bool_dec a a then true else false) = true. *)
-        (*   Proof. *)
-        (*     intros; *)
-        (*       destruct (bool_dec a a); tauto. *)
-        (*   Qed. *)
-        (*   rewrite ?rewriteBoolDec in regReadSrc1. *)
-        (*   unfold negb at 3; simpl. *)
-        (*   simpl in regReadSrc1. *)
-        (*   rewrite ?andb_false_r, ?andb_false_l. *)
-        (*   simpl in regReadSrc1. *)
-        (*   clear - regReadSrc1 regReadNoStall. *)
-        (*   specialize (regReadNoStall eq_refl). *)
-        (*   apply orb_false_iff in regReadNoStall. *)
-        (*   destruct regReadNoStall as [rs1 rs2]. *)
-        (*   repeat rewrite andb_false_iff in rs1. *)
-        (*   apply regReadSrc1. *)
-        (*   match P with *)
-        (*   | evalExpr ?c *)
-        admit.
-      - simpl.
-        admit.
+            try discriminate; auto.
+      - clear staleListFind.
+        unfold rfFromExecT, rfFromMemRqT in *.
+        simpl in *;
+          repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
+          simpl in *.
+        intros;
+          subst;
+          specialize (regReadSrc1 eq_refl);
+          specialize (regReadSrc2 eq_refl);
+          specialize (memRq_regRead eq_refl eq_refl eq_refl);
+          specialize (regReadNoStall eq_refl).
+        match type of H0 with
+        | _ = if ?P then _ else _ => destruct P
+        end.
+        + rewrite H0 in memRq_regRead.
+          apply no_fixpoint_negb in memRq_regRead; contradiction.
+        + specialize (regReadSrc2 memRq_regRead H1).
+          simpl.
+          unfold VectorFacts.Vector_find in *; simpl in *.
+          rewrite ?rewriteBoolDec in *.
+          simpl in regReadSrc2.
+          simpl in regReadNoStall.
+          match goal with
+          | |- _ = if ?P then _ else _ => destruct P; [assumption|]
+          end.
+          rewrite orb_false_iff in regReadNoStall;
+            destruct regReadNoStall as [rs1 rs2].
+          unfold andb; simpl in *.
+          rewrite H1 in *.
+          repeat match goal with
+                 | |- context[if if ?P then _ else _ then _ else _] => destruct P
+                 | |- context[if ?P then _ else _] => destruct P
+                 end; simpl in *;
+            repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
+            try discriminate; auto.
+          simpl in rs2.
+          rewrite orb_true_r in *.
+          discriminate.
       - clear staleListFind; repeat substFind; subst.
         repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         simpl in *.
@@ -2268,6 +2236,7 @@ Section Processor.
             congruence.
           * repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
             reflexivity.
+        + apply H.
       - simpl; repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         auto.
       - simpl.
@@ -2494,6 +2463,75 @@ Section Processor.
         apply no_fixpoint_negb in memRq_fetchRq.
         contradiction.
         (* END_SKIP_PROOF_OFF *)
-    Admitted.
+    Qed.
+
+    Lemma procInlUnfold_refines_procSpec:
+      procInlUnfold <<== procSpec.
+    Proof.
+      apply decompositionZeroR_Id_Rule with (thetaR := combined_inv).
+      - simpl.
+        esplit.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + intros; simpl in *; discriminate.
+        + intros; simpl in *; discriminate.
+        + intros; simpl in *; discriminate.
+        + intros; simpl in *; discriminate.
+        + intros; simpl in *; discriminate.
+        + intros; simpl in *; discriminate.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + reflexivity.
+        + intros; reflexivity.
+        + intros; simpl in *.
+          discriminate.
+
+          reflexivity.
+        admit.
+      - reflexivity.
+      - reflexivity.
+      - intros.
+        simpl in H0.
+        destruct H0. eapply instVToPRq_inv; eauto.
+        destruct H0. eapply regRead_inv; eauto.
+        destruct H0. eapply regReadDrop_inv; eauto.
+        destruct H0. eapply exec_inv; eauto.
+        destruct H0. eapply execDrop_inv; eauto.
+        destruct H0. eapply wb_inv; eauto.
+        destruct H0. eapply fetchRq_inv; eauto.
+        destruct H0. eapply fetchRp_inv; eauto.
+        destruct H0. eapply memVToPRq_inv; eauto.
+        destruct H0. eapply memVToPRqNone_inv; eauto. 
+        destruct H0. eapply memRq_inv; eauto.
+        destruct H0. eapply memRqDrop_inv; eauto.
+        contradiction.
+    Qed.
+
+      ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (stalePc).
+    
   End Pf.
 End Processor.
