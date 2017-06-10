@@ -2133,8 +2133,32 @@ Section Processor.
         admit.
       - simpl.
         admit.
-      - simpl; repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
-        admit.
+      - clear staleListFind; repeat substFind; subst.
+        repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+        simpl in *.
+        intros X; specialize (regReadNoStall X).
+        unfold rfFromExecT, rfFromMemRqT in *.
+        rewrite orb_false_iff in regReadNoStall.
+        dest.
+        rewrite orb_false_r.
+        match goal with
+        | |- context[if evalExpr ?P ?Q ?R then _ else _] => destruct (evalExpr P Q R)
+        end.
+        + match goal with
+          | |- context[if bool_dec ?x ?y then _ else _] => destruct (bool_dec x y)
+          end;
+            repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
+            subst; auto.
+          match type of H with
+          | context[if bool_dec ?a ?b then _ else _] => destruct (bool_dec a b)
+          end;
+            repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *;
+            subst; auto.
+          destruct execValid.
+          * specialize (memRq_exec eq_refl eq_refl eq_refl).
+            congruence.
+          * repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
+            reflexivity.
       - simpl; repeat rewrite ?andb_false_l, ?andb_true_l, ?andb_false_r, ?andb_true_r in *.
         auto.
       - simpl.
