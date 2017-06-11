@@ -84,7 +84,7 @@ Notation fifoMemRpValid := "fifoMemRpValid".
 Notation fetchRq := "fetchRq".
 Notation fetchRp := "fetchRp".
 Notation regRead := "regRead".
-Notation regReadDrop := "regDrop".
+Notation regReadDrop := "regReadDrop".
 Notation exec := "exec".
 Notation execDrop := "execDrop".
 Notation memVToPRqNone := "memVToPRqNone".
@@ -2491,6 +2491,6 @@ Section Processor.
         destruct H0. eapply memRq_inv; eauto.
         destruct H0. eapply memRqDrop_inv; eauto.
         contradiction.
-    Qed.    
+    Qed.
   End Pf.
 End Processor.
