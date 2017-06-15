@@ -1,1 +1,1 @@
-This project will mostly contain RISC-V processors implemented in Kami
+This project will contain processors with privileged instructions implemented in Kami
