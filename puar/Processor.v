@@ -14,6 +14,16 @@ Notation memVToPRq := "memVToPRq".
 Notation memVToPRp := "memVToPRp".
 Notation memRq := "memRq".
 Notation memRp := "memRp".
+Notation readPc := "readPc".
+Notation writePc := "writePc".
+Notation readWbEpoch := "readWbEpoch".
+Notation writeWbEpoch := "writeWbEpoch".
+(* Notation readWbPc := "readWbPc". *)
+(* Notation writeWbPc := "writeWbPc". *)
+(* Notation readCState := "readCState". *)
+(* Notation writeCState := "writeCState". *)
+(* Notation readMode := "readMode". *)
+(* Notation writeMode := "writeMode". *)
 
 Notation commit := "commit".
 Notation cmdNonUser := "cmdNonUser".
@@ -286,6 +296,17 @@ Section Processor.
   Definition cmdDataCall := MethodSig cmdData (CmdData): Void.
   Definition getInterruptsCall := MethodSig getInterrupts (Void): Interrupts.
   Definition callPackage := MethodSig callAll (Struct CallPackage): Data.
+
+  Definition readPcCall := MethodSig readPc (Void): VAddr.
+  Definition writePcCall := MethodSig writePc (VAddr): Void.
+  Definition readWbEpochCall := MethodSig readWbEpoch (Void): Bool.
+  Definition writeWbEpochCall := MethodSig writeWbEpoch (Bool): Void.
+  (* Definition readWbPcCall := MethodSig readWbPc (Void): VAddr. *)
+  (* Definition writeWbPcCall := MethodSig writeWbPc (VAddr): Void. *)
+  (* Definition readCStateCall := MethodSig readCState (Void): CState. *)
+  (* Definition writeCStateCall := MethodSig writeCState (CState): Void. *)
+  (* Definition readModeCall := MethodSig readMode (Void): Mode. *)
+  (* Definition writeModeCall := MethodSig writeMode (Mode): Void. *)
   
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -338,10 +359,7 @@ Section Processor.
   Definition processor :=
     SIN {
         Register pc : VAddr <- PcInit
-        with Register mode : Mode <- ModeInit
-        with Register wbPc : VAddr <- PcInit
         with Register regFile : Vector Data RIndexSz <- RegFileInit
-        with Register cState : CState <- CStateInit
                                         
         with Register btb : BtbState <- BtbStateInit
         with Register bp : BpState <- BpStateInit
@@ -589,6 +607,46 @@ Section Processor.
           Write fifoMemRp: (Struct MemRpT) <- getSome #a;
           Write (fifoMemRp ++ Valid)%string <- isSome #a;
           Retv
+
+        with Method readPc (_: Void): VAddr :=
+          Read pcVal <- pc;
+          Ret #pcVal
+
+        with Method writePc (a: VAddr): Void :=
+          Write pc <- #a;
+          Retv
+                 
+        with Method readWbEpoch (_: Void): Bool :=
+          Read wbEpochVal <- wbEpoch;
+          Ret #wbEpochVal
+
+        with Method writeWbEpoch (a: Bool): Void :=
+          Write wbEpoch <- #a;
+          Retv
+
+        (* with Method readWbPc (_: Void): VAddr := *)
+        (*   Read wbPcVal <- wbPc; *)
+        (*   Ret #wbPcVal *)
+
+        (* with Method writeWbPc (a: VAddr): Void := *)
+        (*   Write wbPc <- #a; *)
+        (*   Retv *)
+
+        (* with Method readCState (_: Void): CState := *)
+        (*   Read cStateVal <- cState; *)
+        (*   Ret #cStateVal *)
+
+        (* with Method writeCState (a: CState): Void := *)
+        (*   Write cState <- #a; *)
+        (*   Retv *)
+
+        (* with Method readMode (_: Void): Mode := *)
+        (*   Read modeVal <- mode; *)
+        (*   Ret #modeVal *)
+
+        (* with Method writeMode (a: Mode): Void := *)
+        (*   Write mode <- #a; *)
+        (*   Retv *)
       }.
 
   Definition InstVToPCall :=
@@ -659,10 +717,14 @@ Section Processor.
                                  
   Definition MemCall :=
     SIN {
-        Rule memRq :=
+        Register wbPc : VAddr <- PcInit
+        with Register cState : CState <- CStateInit
+        with Register mode : Mode <- ModeInit
+                                  
+        with Rule memRq :=
           Call _ <- memRqFirst();
           Call inp1 <- memRqPop();
-          Read wbEpochVal <- wbEpoch;
+          Call wbEpochVal <- readWbEpochCall();
           Read wbPcVal <- wbPc;
           Read cStateVal: CState <- cState;
           Read modeVal: Mode <- mode;
@@ -683,21 +745,21 @@ Section Processor.
               instVal nextPcVal execExceptionVal memVAddrVal
               memVToPRpVal modeVal cStateVal interrupts;
 
-          Read pcRegVal <- pc;
-          Write wbEpoch <- IF (isSome #cExecVal!CExec@.exception)
-                           then ! #wbEpochVal
-                           else #wbEpochVal;
-          Write pc <- IF (isSome #cExecVal!CExec@.exception)
-                      then #cExecVal!CExec@.nextPc
-                      else #pcRegVal;
+          Call pcRegVal <- readPcCall();
+          Call writeWbEpochCall(IF (isSome #cExecVal!CExec@.exception)
+                                then ! #wbEpochVal
+                                else #wbEpochVal);
+          Call writePcCall(IF (isSome #cExecVal!CExec@.exception)
+                           then #cExecVal!CExec@.nextPc
+                           else #pcRegVal);
 
           Assert (#wbEpochVal == #inp1!MemRqT@.wbEpoch);
 
           Assert (#wbPcVal == #inp1!MemRqT@.pc);
                   
-          Write cState <- #cExecVal!CExec@.cState;
-          Write wbPc <- #cExecVal!CExec@.nextPc;
-          Write mode <- #cExecVal!CExec@.mode;
+          Write cState <- (#cExecVal!CExec@.cState);
+          Write wbPc <- (#cExecVal!CExec@.nextPc);
+          Write mode <- (#cExecVal!CExec@.mode);
 
           Call finalDst <- callPackage(STRUCT {
                 cexec ::= #cExecVal;
@@ -749,7 +811,7 @@ Section Processor.
           Call inp1 <- memRqPop();
           (* Read wbPcVal <- wbPc; *)
           (* Assert ! (#wbPcVal == #inp1!MemRqT@.pc); *)
-          Read wbEpochVal <- wbEpoch;
+          Call wbEpochVal <- readWbEpochCall();
           Assert ! (#wbEpochVal == #inp1!MemRqT@.wbEpoch);
           Retv
 
@@ -1043,6 +1105,7 @@ Section Processor.
 
       ssNoF newCbv (memRq -- pop) (memRqDrop).
       ssNoF newCbv (memRq -- first) (memRqDrop).
+      ssNoF newCbv (readWbEpoch) (memRqDrop).
 
       ssF newCbv (memRp -- enq) (memRq).
 
@@ -1059,6 +1122,17 @@ Section Processor.
       ssF newCbv (memRq -- pop) (memRq).
       ssF newCbv (memRq -- first) (memRq).
 
+      ssF newCbv (readPc) (memRq).
+      ssF newCbv (writePc) (memRq).
+      ssF newCbv (readWbEpoch) (memRq).
+      ssF newCbv (writeWbEpoch) (memRq).
+      (* ssF newCbv (readWbPc) (memRq). *)
+      (* ssF newCbv (writeWbPc) (memRq). *)
+      (* ssF newCbv (readCState) (memRq). *)
+      (* ssF newCbv (writeCState) (memRq). *)
+      (* ssF newCbv (readMode) (memRq). *)
+      (* ssF newCbv (writeMode) (memRq). *)
+
       finish_def.
     Defined.
     
@@ -1070,7 +1144,7 @@ Section Processor.
     Local Definition procFullInl_ref':
       (modFromMeta procFullFlattenMeta <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       start_ref procFullFlat procFullFlat_ref.
 
       ssFilt newCbv (instVToPRq -- pop) (fetchRq);
@@ -1096,8 +1170,19 @@ Section Processor.
       ssFilt newCbv (memRq -- pop) (memRq).
       ssFilt newCbv (memRq -- first) (memRq).
 
+      ssFilt newCbv (readPc) (memRq).
+      ssFilt newCbv (writePc) (memRq).
+      ssFilt newCbv (readWbPc) (memRq).
+      ssFilt newCbv (writeWbPc) (memRq).
+      ssFilt newCbv (readWbEpoch) (memRq).
+      ssFilt newCbv (writeWbEpoch) (memRq).
+      ssFilt newCbv (readCState) (memRq).
+      ssFilt newCbv (writeCState) (memRq).
+      ssFilt newCbv (readMode) (memRq).
+      ssFilt newCbv (writeMode) (memRq).
+
       finish_ref.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_ON *)
     Qed.
 
     Definition procFullInl_ref:

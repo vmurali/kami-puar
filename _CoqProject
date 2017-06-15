@@ -1,7 +1,2 @@
--R kami/lib Lib
--R kami/src Kami
--R kami/examples Ex
--R kami/examples/isa_rv32 Ex
--R kami/extraction Ext
--R kami/compilation Compilation
--R puar Puar
+-R Kami/Kami Kami
+-R Puar Puar

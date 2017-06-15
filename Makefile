@@ -1,4 +1,4 @@
-PUARS:=$(wildcard puar/*.v)
+PUARS:=$(wildcard Puar/*.v)
 
 .PHONY: all clean
 
