@@ -129,12 +129,10 @@ Definition MemOp := Bit 2.
 (* No exception must be 0 because I use default everywhere to denote no exception *)
 
 Section Processor.
-  Variable VAddrSz PAddrSz NumDataBytes RIndexSz: nat.
-  Variable Inst MemRq CState Mode MemException ExecException FinalException Interrupts
-    CmdNonUser CmdInst CmdData: Kind.
+  Variable NumDataBytes RIndexSz: nat.
+  Variable VAddr PAddr Inst MemRq CState Mode MemException ExecException FinalException Interrupts
+           CmdNonUser CmdInst CmdData: Kind.
   Definition Data := Bit (8 * NumDataBytes).
-  Notation VAddr := (Bit VAddrSz).
-  Definition PAddr := Bit PAddrSz.
   Variable PcInit: ConstT VAddr.
   Variable RegFileInit: ConstT (Vector Data RIndexSz).
   Variable CStateInit: ConstT CState.
@@ -301,12 +299,6 @@ Section Processor.
   Definition writePcCall := MethodSig writePc (VAddr): Void.
   Definition readWbEpochCall := MethodSig readWbEpoch (Void): Bool.
   Definition writeWbEpochCall := MethodSig writeWbEpoch (Bool): Void.
-  (* Definition readWbPcCall := MethodSig readWbPc (Void): VAddr. *)
-  (* Definition writeWbPcCall := MethodSig writeWbPc (VAddr): Void. *)
-  (* Definition readCStateCall := MethodSig readCState (Void): CState. *)
-  (* Definition writeCStateCall := MethodSig writeCState (CState): Void. *)
-  (* Definition readModeCall := MethodSig readMode (Void): Mode. *)
-  (* Definition writeModeCall := MethodSig writeMode (Mode): Void. *)
   
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -738,7 +730,6 @@ Section Processor.
           LET memVToPRpVal <- #inp1!MemRqT@.memVToPRp;
           LET dstVal <- #inp1!MemRqT@.exec!Exec@.data;
 
-          (* LET interrupts <- $$ Default; *)
           Call interrupts <- getInterruptsCall();
           
           LET cExecVal <- cExec _ pcVal instVToPRpVal
@@ -981,7 +972,6 @@ Section Processor.
           Assert ! (isLdSt _ instVal) || (isSome #(sMemVToP inp1));
           Assert ! (isLdSt _ instVal) || #memVAddrVal == #memVAddrVal1;
 
-          (* LET interrupts <- $$ Default; *)
           Call interrupts <- getInterruptsCall();
                  
           LET cExecVal <- cExec _ pcVal instVToPRpVal
@@ -1126,12 +1116,6 @@ Section Processor.
       ssF newCbv (writePc) (memRq).
       ssF newCbv (readWbEpoch) (memRq).
       ssF newCbv (writeWbEpoch) (memRq).
-      (* ssF newCbv (readWbPc) (memRq). *)
-      (* ssF newCbv (writeWbPc) (memRq). *)
-      (* ssF newCbv (readCState) (memRq). *)
-      (* ssF newCbv (writeCState) (memRq). *)
-      (* ssF newCbv (readMode) (memRq). *)
-      (* ssF newCbv (writeMode) (memRq). *)
 
       finish_def.
     Defined.
@@ -1164,22 +1148,16 @@ Section Processor.
 
       ssNoFilt newCbv (memRq -- pop) (memRqDrop).
       ssNoFilt newCbv (memRq -- first) (memRqDrop).
+      ssNoFilt newCbv (readWbEpoch) (memRqDrop).
 
-      ssFilt newCbv (memRp -- enq) (memRq).
-      
+      ssFilt newCbv (memRp -- enq) (memRq).      
       ssFilt newCbv (memRq -- pop) (memRq).
       ssFilt newCbv (memRq -- first) (memRq).
 
       ssFilt newCbv (readPc) (memRq).
       ssFilt newCbv (writePc) (memRq).
-      ssFilt newCbv (readWbPc) (memRq).
-      ssFilt newCbv (writeWbPc) (memRq).
       ssFilt newCbv (readWbEpoch) (memRq).
       ssFilt newCbv (writeWbEpoch) (memRq).
-      ssFilt newCbv (readCState) (memRq).
-      ssFilt newCbv (writeCState) (memRq).
-      ssFilt newCbv (readMode) (memRq).
-      ssFilt newCbv (writeMode) (memRq).
 
       finish_ref.
       (* END_SKIP_PROOF_ON *)
@@ -1285,18 +1263,6 @@ Section Processor.
               |}
        else None).
     
-    (* Definition execExecT (s1: <| Struct ExecT |>) (s2: <| Struct Exec |>) := *)
-    (*   s1 (ExecT !! dst) = s2 (Exec !! data) /\ *)
-    (*   s1 (ExecT !! memVAddr) = s2 (Exec !! memVAddr) /\ *)
-    (*   s1 (ExecT !! execException) = s2 (Exec !! exception) /\ *)
-    (*   s1 (ExecT !! nextPc) = s2 (Exec !! nextPc). *)
-              
-    (* Definition execMemRqT (s1: <| Struct MemRqT |>) (s2: <| Struct Exec |>) := *)
-    (*   s1 (MemRqT !! dst) = s2 (Exec !! data) /\ *)
-    (*   s1 (MemRqT !! memVAddr) = s2 (Exec !! memVAddr) /\ *)
-    (*   s1 (MemRqT !! execException) = s2 (Exec !! exception) /\ *)
-    (*   s1 (MemRqT !! nextPc) = s2 (Exec !! nextPc). *)
-
     Definition rfFromExecT (s: <| Struct ExecT |>) (e: bool) (rf: <| Vector Data RIndexSz |>)
                x :=
       if e && (if weq x (evalExpr (getDst _ (s (ExecT !! inst)))) then true else false)
