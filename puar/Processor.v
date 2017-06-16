@@ -18,12 +18,6 @@ Notation readPc := "readPc".
 Notation writePc := "writePc".
 Notation readWbEpoch := "readWbEpoch".
 Notation writeWbEpoch := "writeWbEpoch".
-(* Notation readWbPc := "readWbPc". *)
-(* Notation writeWbPc := "writeWbPc". *)
-(* Notation readCState := "readCState". *)
-(* Notation writeCState := "writeCState". *)
-(* Notation readMode := "readMode". *)
-(* Notation writeMode := "writeMode". *)
 
 Notation commit := "commit".
 Notation cmdNonUser := "cmdNonUser".
@@ -124,10 +118,6 @@ Notation staleMemVToP := "staleMemVToP".
 Notation drop := "drop".
 Close Scope string.
 
-Definition MemOp := Bit 2.
-
-(* No exception must be 0 because I use default everywhere to denote no exception *)
-
 Section Processor.
   Variable NumDataBytes RIndexSz: nat.
   Variable VAddr PAddr Inst MemRq CState Mode MemException ExecException FinalException Interrupts
@@ -157,9 +147,16 @@ Section Processor.
                          exception :: optT ExecException;
                          nextPc :: VAddr
                        }.
-  
-  Variable execFn: forall ty, ty Inst -> ty Data -> ty Data ->
-                              (Struct Exec) @ ty.
+
+  Variable isNotLongLat: forall ty, ty Inst -> Bool @ ty.
+  Variable execFnNotLongLat execFnLongLat:
+    forall ty, ty Inst -> ty Data -> ty Data ->
+               (Struct Exec) @ ty.
+
+  Definition execFn ty (inst: ty Inst) src1 src2 :=
+    (IF isNotLongLat _ inst
+     then execFnNotLongLat _ inst src1 src2
+     else execFnLongLat _ inst src1 src2)%kami_expr.
   
   Definition CExec := STRUCT
                         { cState :: CState;
@@ -515,9 +512,10 @@ Section Processor.
           LET src2Val <- #inp1!RegReadT@.src2;
           Read execEpochVal <- execEpoch;
           Read wbEpochVal <- wbEpoch;
+          Assert (isNotLongLat _ instVal);
           Assert (#execEpochVal == #inp1!RegReadT@.execEpoch
                   && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
-          LET execVal <- execFn _ instVal src1Val src2Val;
+          LET execVal <- execFnNotLongLat _ instVal src1Val src2Val;
             
           If #execVal!Exec@.nextPc != #inp1!RegReadT@.nextPc
           then (
@@ -615,30 +613,6 @@ Section Processor.
         with Method writeWbEpoch (a: Bool): Void :=
           Write wbEpoch <- #a;
           Retv
-
-        (* with Method readWbPc (_: Void): VAddr := *)
-        (*   Read wbPcVal <- wbPc; *)
-        (*   Ret #wbPcVal *)
-
-        (* with Method writeWbPc (a: VAddr): Void := *)
-        (*   Write wbPc <- #a; *)
-        (*   Retv *)
-
-        (* with Method readCState (_: Void): CState := *)
-        (*   Read cStateVal <- cState; *)
-        (*   Ret #cStateVal *)
-
-        (* with Method writeCState (a: CState): Void := *)
-        (*   Write cState <- #a; *)
-        (*   Retv *)
-
-        (* with Method readMode (_: Void): Mode := *)
-        (*   Read modeVal <- mode; *)
-        (*   Ret #modeVal *)
-
-        (* with Method writeMode (a: Mode): Void := *)
-        (*   Write mode <- #a; *)
-        (*   Retv *)
       }.
 
   Definition InstVToPCall :=
@@ -1773,6 +1747,37 @@ Section Processor.
       (* END_SKIP_PROOF_OFF *)
     Qed.
 
+    Lemma notLongLatRewrite inst src1 src2:
+      evalExpr (isNotLongLat _ inst) = true ->
+      evalExpr (execFnNotLongLat _ inst src1 src2) =
+      evalExpr (execFn _ inst src1 src2).
+    Proof.
+      intros.
+      unfold execFn; simpl.
+      rewrite H; reflexivity.
+    Qed.
+
+    Lemma longLatRewrite inst src1 src2:
+      evalExpr (isNotLongLat _ inst) = false ->
+      evalExpr (execFnLongLat _ inst src1 src2) =
+      evalExpr (execFn _ inst src1 src2).
+    Proof.
+      intros.
+      unfold execFn; simpl.
+      rewrite H; reflexivity.
+    Qed.
+
+    Lemma execFnRewrite ty inst src1 src2:
+      execFn ty inst src1 src2 =
+      (IF isNotLongLat _ inst
+       then execFnNotLongLat _ inst src1 src2
+       else execFnLongLat _ inst src1 src2)%kami_expr.
+    Proof.
+      reflexivity.
+    Qed.
+    
+    Opaque execFn.
+
     Lemma exec_inv:
       ruleMapInst combined_inv procInlUnfold procSpec exec.
     Proof.
@@ -1801,10 +1806,18 @@ Section Processor.
         auto.
       - intros; simplBoolFalse; repeat substFind; subst.
         unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
-        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
         intros; subst.
         specialize (regReadSrc1 eq_refl eq_refl).
         specialize (regReadSrc2 eq_refl eq_refl).
+        repeat match goal with
+               | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
+                 replace f with Kami.SymEval.semExpr in H by reflexivity;
+                   rewrite <- ?Kami.SymEval.semExpr_sound in H;
+                   simpl in H
+               end.
+        rewrite (notLongLatRewrite _ _ _ H4) in H6.
+        rewrite ?(notLongLatRewrite _ _ _ H4).
         match type of regReadSrc1 with
         | ?P = _ -> _ => case_eq P; intros
         end; match type of regReadSrc2 with
@@ -1814,7 +1827,7 @@ Section Processor.
           specialize (regReadSrc2 H1).
           repeat f_equal; auto.
         + specialize (regReadSrc1 H0).
-          erewrite useSrc2Means.
+          erewrite  useSrc2Means.
           repeat f_equal; eauto.
           auto.
         + specialize (regReadSrc2 H1).
@@ -1886,6 +1899,14 @@ Section Processor.
         intros; subst.
         specialize (regReadSrc1 eq_refl eq_refl).
         specialize (regReadSrc2 eq_refl eq_refl).
+        repeat match goal with
+               | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
+                 replace f with Kami.SymEval.semExpr in H by reflexivity;
+                   rewrite <- ?Kami.SymEval.semExpr_sound in H;
+                   simpl in H
+               end.
+        rewrite (notLongLatRewrite _ _ _ H4) in H6.
+        rewrite ?(notLongLatRewrite _ _ _ H4).
         match type of regReadSrc1 with
         | ?P = _ -> _ => case_eq P; intros
         end; match type of regReadSrc2 with
