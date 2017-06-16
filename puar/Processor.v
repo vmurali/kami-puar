@@ -18,6 +18,8 @@ Notation readPc := "readPc".
 Notation writePc := "writePc".
 Notation readWbEpoch := "readWbEpoch".
 Notation writeWbEpoch := "writeWbEpoch".
+Notation readLongLat := "readLongLat".
+Notation epochsMatch := "epochsMatch".
 
 Notation commit := "commit".
 Notation cmdNonUser := "cmdNonUser".
@@ -65,7 +67,7 @@ Notation regFile := "regFile".
 Notation cState := "cState".
 Notation mode := "mode".
 Notation wbPc := "wbPc".
-Notation started := "started".
+Notation longLat := "longLat".
 
 Notation Valid := "Valid".
 
@@ -97,6 +99,7 @@ Notation wb := "wb".
 Notation memRqDrop := "memRqDrop".
 Notation longLatStart := "longLatStart".
 Notation longLatFinish := "longLatFinish".
+Notation longLatDrop := "longLatDrop".
 
 (* Enq (* Deq *) Pop First *)
 Notation enq := "enq".
@@ -302,6 +305,8 @@ Section Processor.
   Definition writePcCall := MethodSig writePc (VAddr): Void.
   Definition readWbEpochCall := MethodSig readWbEpoch (Void): Bool.
   Definition writeWbEpochCall := MethodSig writeWbEpoch (Bool): Void.
+  Definition readLongLatCall := MethodSig readLongLat (Void): Bool.
+  Definition epochsMatchCall := MethodSig epochsMatch (Void): Bool.
   
   Notation "'Enq' f : kind <- v ; c" :=
     ( Read x : Bool <- (f ++ Valid)%string ;
@@ -546,8 +551,10 @@ Section Processor.
           Read wbEpochVal <- wbEpoch;
           Assert ! (#execEpochVal == #inp1!RegReadT@.execEpoch
                     && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
+          Call longLatVal <- readLongLatCall();
+          Assert ! #longLatVal;
           Retv
-                 
+
         with Rule wb :=
           Pop inp1 : Struct MemRpT <- fifoMemRp;
           Read regFileVals <- regFile;
@@ -584,11 +591,14 @@ Section Processor.
 
         with Method (regRead -- first) (_: Void): (Struct RegReadT) :=
           First inp1 : _ <- fifoRegRead;
+          Ret #inp1
+                
+        with Method epochsMatch (_: Void): Bool :=
+          First inp1 : _ <- fifoRegRead;
           Read execEpochVal <- execEpoch;
           Read wbEpochVal <- wbEpoch;  
-          Assert (#execEpochVal == #inp1!RegReadT@.execEpoch
-                  && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
-          Ret #inp1
+          Ret (#execEpochVal == #inp1!RegReadT@.execEpoch
+               && #wbEpochVal == #inp1!RegReadT@.wbEpoch)
                 
         with Method (memVToPRq -- first) (_: Void): (Struct ExecT) :=
           First inp1 : _ <- fifoExec;
@@ -682,27 +692,28 @@ Section Processor.
 
   Definition LongLatency :=
     SIN {
-        Register started : Bool <- (ConstBool false)
+        Register longLat : Bool <- (ConstBool false)
                                 
         with Rule longLatStart :=
           Call inp1 <- regReadFirst();
           LET instVal <- #inp1!RegReadT@.inst;
           Assert (! (isNotLongLat _ instVal));
-          Read startedVal <- started;
-          Assert !#startedVal;
-          Write started <- $$ true;
+          Read longLatVal <- longLat;
+          Assert !#longLatVal;
+          Write longLat <- $$ true;
           Retv
             
         with Rule longLatFinish :=
-          Call _ <- regReadFirst();
+          Call epochsMatchVal <- epochsMatchCall();
+          Assert #epochsMatchVal;
           Call inp1 <- regReadPop();
           LET instVal <- #inp1!RegReadT@.inst;
           LET src1Val <- #inp1!RegReadT@.src1;
           LET src2Val <- #inp1!RegReadT@.src2;
           Assert (! (isNotLongLat _ instVal));
-          Read startedVal: Bool <- started;
-          Assert #startedVal;
-          Write started <- $$ false;
+          Read longLatVal: Bool <- longLat;
+          Assert #longLatVal;
+          Write longLat <- $$ false;
           
           LET execVal <- execFnLongLat _ instVal src1Val src2Val;
           Call execEnq(STRUCT {
@@ -713,6 +724,19 @@ Section Processor.
                            exec ::= #execVal
                       });
           Retv
+
+        with Rule longLatDrop :=
+          Call epochsMatchVal <- epochsMatchCall();
+          Assert !#epochsMatchVal;
+          Call inp1 <- regReadPop();
+          Read longLatVal: Bool <- longLat;
+          Assert #longLatVal;
+          Write longLat <- $$ false;
+          Retv
+
+        with Method readLongLat (_: Void): Bool :=
+          Read longLatVal <- longLat;    
+          Ret #longLatVal
       }.
 
   Definition MemVToPCall :=
@@ -1129,12 +1153,17 @@ Section Processor.
       ssF newCbv (instRq -- first) (fetchRp).
       ssF newCbv (instRp -- enq) (fetchRp).
 
-      ssNoF newCbv (regRead -- first) (longLatStart).
+      ssF newCbv (regRead -- first) (longLatStart).
 
-      ssF newCbv (regRead -- first) (longLatFinish).
+      ssNoF newCbv (epochsMatch) (longLatDrop).
+      ssNoF newCbv (regRead -- pop) (longLatDrop).
+
+      ssF newCbv (epochsMatch) (longLatFinish).
       ssF newCbv (regRead -- pop) (longLatFinish).
       ssF newCbv (exec -- enq) (longLatFinish).
 
+      ssF newCbv (readLongLat) (execDrop).
+      
       ssNoF newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoF newCbv (memVToPRp -- enq) (memVToPRq).
 
@@ -1188,12 +1217,17 @@ Section Processor.
       ssFilt newCbv (instRq -- first) (fetchRp).
       ssFilt newCbv (instRp -- enq) (fetchRp).
 
-      ssNoFilt newCbv (regRead -- first) (longLatStart).
+      ssFilt newCbv (regRead -- first) (longLatStart).
 
-      ssFilt newCbv (regRead -- first) (longLatFinish).
+      ssNoFilt newCbv (epochsMatch) (longLatDrop).
+      ssNoFilt newCbv (regRead -- pop) (longLatDrop).
+
+      ssFilt newCbv (epochsMatch) (longLatFinish).
       ssFilt newCbv (regRead -- pop) (longLatFinish).
       ssFilt newCbv (exec -- enq) (longLatFinish).
 
+      ssFilt newCbv (readLongLat) (execDrop).
+      
       ssNoFilt newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoFilt newCbv (memVToPRp -- enq) (memVToPRq).
 
@@ -1803,6 +1837,27 @@ Section Processor.
       (* END_SKIP_PROOF_OFF *)
     Qed.
     
+    Lemma longLatDrop_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec longLatDrop.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (drop);
+        try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
+          repeat substFind.
+      rewrite evalFalse.
+      unfold fromRegReadT.
+      rewrite (rmNonePartition 1) at 1.
+      setoid_rewrite (rmNonePartition 1) at 3.
+      cbv [partition fst snd].
+      setoid_rewrite (rmNonePartition 0) at 4.
+      cbv [partition fst snd].
+      unfold rmNone at 4.
+      unfold app at 3.
+      erewrite rmList_app.
+      repeat f_equal.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
@@ -2659,11 +2714,22 @@ Section Processor.
         destruct H0. eapply wb_inv; eauto.
         destruct H0. eapply fetchRq_inv; eauto.
         destruct H0. eapply fetchRp_inv; eauto.
+        destruct H0. eapply longLatStart_inv; eauto.
+        destruct H0. eapply longLatFinish_inv; eauto.
+        destruct H0. eapply longLatDrop_inv; eauto.
         destruct H0. eapply memVToPRq_inv; eauto.
         destruct H0. eapply memVToPRqNone_inv; eauto. 
         destruct H0. eapply memRq_inv; eauto.
         destruct H0. eapply memRqDrop_inv; eauto.
         contradiction.
+    Qed.
+
+    Lemma procFull_refines_procSpec:
+      modFromMetaModules procFull <<== procSpec.
+    Proof.
+      fullTrans (procFullInlM).
+      - apply procFullInl_ref.
+      - apply procInlUnfold_refines_procSpec.
     Qed.
   End Pf.
 End Processor.
