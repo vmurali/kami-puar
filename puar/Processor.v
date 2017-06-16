@@ -516,6 +516,7 @@ Section Processor.
           LET instVal <- #inp1!RegReadT@.inst;
           LET src1Val <- #inp1!RegReadT@.src1;
           LET src2Val <- #inp1!RegReadT@.src2;
+          Read pcVal <- pc;
           Read execEpochVal <- execEpoch;
           Read wbEpochVal <- wbEpoch;
           Assert (isNotLongLat _ instVal);
@@ -523,12 +524,12 @@ Section Processor.
                   && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
           LET execVal <- execFnNotLongLat _ instVal src1Val src2Val;
             
-          If #execVal!Exec@.nextPc != #inp1!RegReadT@.nextPc
-          then (
-            Write pc <- #execVal!Exec@.nextPc;
-            Write execEpoch <- ! #execEpochVal;
-            Retv
-            );
+          Write pc <- (IF #execVal!Exec@.nextPc != #inp1!RegReadT@.nextPc
+                       then #execVal!Exec@.nextPc
+                       else #pcVal);
+          Write execEpoch <- (IF #execVal!Exec@.nextPc != #inp1!RegReadT@.nextPc
+                              then ! #execEpochVal
+                              else #execEpochVal);
           Enq fifoExec : Struct ExecT <-
                                 (STRUCT {
                                      wbEpoch ::= #inp1!RegReadT@.wbEpoch;
@@ -1958,18 +1959,6 @@ Section Processor.
       (* END_SKIP_PROOF_OFF *)
     Qed.
 
-    Lemma regRead_inv:
-      ruleMapInst combined_inv procInlUnfold procSpec regRead.
-    Proof.
-      (* SKIP_PROOF_OFF *)
-      simplInv; left;
-        simplInvHyp;
-      esplit; try simplMapUpds;
-        try (reflexivity || eassumption);
-        intros; simplBoolFalse; repeat substFind; auto.
-      (* END_SKIP_PROOF_OFF *)
-    Qed.
-
     Lemma exec_inv:
       ruleMapInst combined_inv procInlUnfold procSpec exec.
     Proof.
@@ -2008,8 +1997,7 @@ Section Processor.
                    rewrite <- ?Kami.SymEval.semExpr_sound in H;
                    simpl in H
                end.
-        rewrite (notLongLatRewrite _ _ _ H4) in H6.
-        rewrite ?(notLongLatRewrite _ _ _ H4).
+        rewrite ?(notLongLatRewrite _ _ _ H5).
         match type of regReadSrc1 with
         | ?P = _ -> _ => case_eq P; intros
         end; match type of regReadSrc2 with
@@ -2053,7 +2041,6 @@ Section Processor.
         setoid_rewrite (rmNonePartition 0) at 3.
         cbv [partition fst snd].
         rmNoneNilLtac.
-        (* Arguments rmNone A ls: simpl never. *)
         simpl.
         unfold updMemVAddr; simpl.
         repeat f_equal.
@@ -2064,95 +2051,17 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      - unfold indexIn.
-        cbv [evalExpr].
-        rewrite (rmNonePartition 1).
-        cbv [partition fst snd].
-        rewrite app_length.
-        match goal with
-        | |- context[(?P + ?Q)%nat] =>
-          let cmp := fresh "cmp" in
-          assert (cmp: (P < P+Q)%nat) by (simpl in *; Omega.omega);
-            instantiate (1 := P)
-        end.
-        match goal with
-        | |- context [if ?P then _ else _] => destruct P; auto
-        end.
-      - let X := fresh in intros X; simpl in X; discriminate.
-      - let X := fresh in intros X; simpl in X; discriminate.
-      - let X := fresh in intros X; simpl in X; discriminate.
-      - intros; simplBoolFalse; repeat substFind.
-        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
-        rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        auto.
-      - intros; simplBoolFalse; repeat substFind; subst.
-        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
-        progress rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
-        intros; subst.
-        specialize (regReadSrc1 eq_refl eq_refl).
-        specialize (regReadSrc2 eq_refl eq_refl).
-        repeat match goal with
-               | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
-                 replace f with Kami.SymEval.semExpr in H by reflexivity;
-                   rewrite <- ?Kami.SymEval.semExpr_sound in H;
-                   simpl in H
-               end.
-        rewrite (notLongLatRewrite _ _ _ H4) in H6.
-        rewrite ?(notLongLatRewrite _ _ _ H4).
-        match type of regReadSrc1 with
-        | ?P = _ -> _ => case_eq P; intros
-        end; match type of regReadSrc2 with
-             | ?P = _ -> _ => case_eq P; intros
-             end.
-        + specialize (regReadSrc1 H0).
-          specialize (regReadSrc2 H1).
-          repeat f_equal; auto.
-        + specialize (regReadSrc1 H0).
-          erewrite useSrc2Means.
-          repeat f_equal; eauto.
-          auto.
-        + specialize (regReadSrc2 H1).
-          erewrite useSrc1Means.
-          repeat f_equal; eauto.
-          auto.
-        + erewrite useSrc1Means.
-          erewrite useSrc2Means.
-          repeat f_equal; eauto.
-          auto.
-          auto.
-      - simplBoolFalse; repeat substFind.
-        setoid_rewrite (rmNonePartition 1) at 3.
-        cbv [partition fst snd].
-        rewrite (rmNonePartition 0).
-        cbv [partition fst snd].
-        setoid_rewrite (rmNonePartition 0) at 2.
-        cbv [partition fst snd].
-        setoid_rewrite (rmNonePartition 0) at 3.
-        cbv [partition fst snd].
-        rewrite evalFalse; rmNoneNilLtac.
-        setoid_rewrite (rmNonePartition 0) at 6.
-        cbv [partition fst snd].
-        unfold fromRegReadT.
-        unfold rmNone at 6.
-        unfold app at 4.
-        setoid_rewrite nth_upd_length.
-        unfold fromExecT at 1.
-        unfold rmNone at 2, evalExpr at 1, evalConstT at 1.
-        unfold app at 2.
-        setoid_rewrite (rmNonePartition 0) at 3.
-        cbv [partition fst snd].
-        rmNoneNilLtac.
-        (* Arguments rmNone A ls: simpl never. *)
-        simpl.
-        unfold updMemVAddr; simpl.
-        repeat f_equal.
-        unfold VectorFacts.Vector_find; simpl.
-        reflexivity.
-      - intros; simpl in *; discriminate.
-      - intros; simpl in *; discriminate.
-      - intros; simpl in *; discriminate.
-      - intros; simpl in *; discriminate.
-      - intros; simpl in *; discriminate.
+    Qed.
+
+    Lemma regRead_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec regRead.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      simplInv; left;
+        simplInvHyp;
+      esplit; try simplMapUpds;
+        try (reflexivity || eassumption);
+        intros; simplBoolFalse; repeat substFind; auto.
       (* END_SKIP_PROOF_OFF *)
     Qed.
 
