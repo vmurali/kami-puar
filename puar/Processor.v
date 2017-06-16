@@ -19,6 +19,7 @@ Notation writePc := "writePc".
 Notation readWbEpoch := "readWbEpoch".
 Notation writeWbEpoch := "writeWbEpoch".
 Notation readLongLat := "readLongLat".
+Notation writeLongLat := "writeLongLat".
 Notation epochsMatch := "epochsMatch".
 
 Notation commit := "commit".
@@ -306,6 +307,7 @@ Section Processor.
   Definition readWbEpochCall := MethodSig readWbEpoch (Void): Bool.
   Definition writeWbEpochCall := MethodSig writeWbEpoch (Bool): Void.
   Definition readLongLatCall := MethodSig readLongLat (Void): Bool.
+  Definition writeLongLatCall := MethodSig writeLongLat (Bool): Void.
   Definition epochsMatchCall := MethodSig epochsMatch (Void): Bool.
   
   Notation "'Enq' f : kind <- v ; c" :=
@@ -389,6 +391,8 @@ Section Processor.
         with Register fifoMemRp : Struct MemRpT <- Default
         with Register fifoMemRpValid : Bool <- (ConstBool false)
 
+        with Register longLat : Bool <- (ConstBool false)
+                                            
         with Rule instVToPRq :=
           Read pcVal <- pc;
           Read decEpochVal <- decEpoch;
@@ -551,7 +555,7 @@ Section Processor.
           Read wbEpochVal <- wbEpoch;
           Assert ! (#execEpochVal == #inp1!RegReadT@.execEpoch
                     && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
-          Call longLatVal <- readLongLatCall();
+          Read longLatVal <- longLat;
           Assert ! #longLatVal;
           Retv
 
@@ -655,6 +659,14 @@ Section Processor.
         with Method writeWbEpoch (a: Bool): Void :=
           Write wbEpoch <- #a;
           Retv
+
+        with Method readLongLat (_: Void): Bool :=
+          Read longLatVal <- longLat;    
+          Ret #longLatVal
+
+        with Method writeLongLat (a: Bool): Void :=
+          Write longLat <- #a;    
+          Retv
       }.
 
   Definition InstVToPCall :=
@@ -692,15 +704,13 @@ Section Processor.
 
   Definition LongLatency :=
     SIN {
-        Register longLat : Bool <- (ConstBool false)
-                                
-        with Rule longLatStart :=
+        Rule longLatStart :=
           Call inp1 <- regReadFirst();
           LET instVal <- #inp1!RegReadT@.inst;
           Assert (! (isNotLongLat _ instVal));
-          Read longLatVal <- longLat;
+          Call longLatVal <- readLongLatCall();
           Assert !#longLatVal;
-          Write longLat <- $$ true;
+          Call writeLongLatCall($$ true);
           Retv
             
         with Rule longLatFinish :=
@@ -711,9 +721,9 @@ Section Processor.
           LET src1Val <- #inp1!RegReadT@.src1;
           LET src2Val <- #inp1!RegReadT@.src2;
           Assert (! (isNotLongLat _ instVal));
-          Read longLatVal: Bool <- longLat;
+          Call longLatVal <- readLongLatCall();
           Assert #longLatVal;
-          Write longLat <- $$ false;
+          Call writeLongLatCall($$ false);
           
           LET execVal <- execFnLongLat _ instVal src1Val src2Val;
           Call execEnq(STRUCT {
@@ -729,14 +739,10 @@ Section Processor.
           Call epochsMatchVal <- epochsMatchCall();
           Assert !#epochsMatchVal;
           Call inp1 <- regReadPop();
-          Read longLatVal: Bool <- longLat;
+          Call longLatVal <- readLongLatCall();
           Assert #longLatVal;
-          Write longLat <- $$ false;
+          Call writeLongLatCall($$ false);
           Retv
-
-        with Method readLongLat (_: Void): Bool :=
-          Read longLatVal <- longLat;    
-          Ret #longLatVal
       }.
 
   Definition MemVToPCall :=
@@ -1154,16 +1160,20 @@ Section Processor.
       ssF newCbv (instRp -- enq) (fetchRp).
 
       ssF newCbv (regRead -- first) (longLatStart).
+      ssNoF newCbv (readLongLat) (longLatStart).
+      ssNoF newCbv (writeLongLat) (longLatStart).
 
       ssNoF newCbv (epochsMatch) (longLatDrop).
       ssNoF newCbv (regRead -- pop) (longLatDrop).
+      ssNoF newCbv (readLongLat) (longLatDrop).
+      ssNoF newCbv (writeLongLat) (longLatDrop).
 
       ssF newCbv (epochsMatch) (longLatFinish).
       ssF newCbv (regRead -- pop) (longLatFinish).
       ssF newCbv (exec -- enq) (longLatFinish).
+      ssF newCbv (readLongLat) (longLatFinish).
+      ssF newCbv (writeLongLat) (longLatFinish).
 
-      ssF newCbv (readLongLat) (execDrop).
-      
       ssNoF newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoF newCbv (memVToPRp -- enq) (memVToPRq).
 
@@ -1218,15 +1228,19 @@ Section Processor.
       ssFilt newCbv (instRp -- enq) (fetchRp).
 
       ssFilt newCbv (regRead -- first) (longLatStart).
+      ssNoFilt newCbv (readLongLat) (longLatStart).
+      ssNoFilt newCbv (writeLongLat) (longLatStart).
 
       ssNoFilt newCbv (epochsMatch) (longLatDrop).
       ssNoFilt newCbv (regRead -- pop) (longLatDrop).
+      ssNoFilt newCbv (readLongLat) (longLatDrop).
+      ssNoFilt newCbv (writeLongLat) (longLatDrop).
 
       ssFilt newCbv (epochsMatch) (longLatFinish).
       ssFilt newCbv (regRead -- pop) (longLatFinish).
       ssFilt newCbv (exec -- enq) (longLatFinish).
-
-      ssFilt newCbv (readLongLat) (execDrop).
+      ssFilt newCbv (readLongLat) (longLatFinish).
+      ssFilt newCbv (writeLongLat) (longLatFinish).
       
       ssNoFilt newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoFilt newCbv (memVToPRp -- enq) (memVToPRq).
