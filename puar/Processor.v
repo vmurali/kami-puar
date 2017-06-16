@@ -65,6 +65,7 @@ Notation regFile := "regFile".
 Notation cState := "cState".
 Notation mode := "mode".
 Notation wbPc := "wbPc".
+Notation started := "started".
 
 Notation Valid := "Valid".
 
@@ -94,6 +95,8 @@ Notation execDrop := "execDrop".
 Notation memVToPRqNone := "memVToPRqNone".
 Notation wb := "wb".
 Notation memRqDrop := "memRqDrop".
+Notation longLatStart := "longLatStart".
+Notation longLatFinish := "longLatFinish".
 
 (* Enq (* Deq *) Pop First *)
 Notation enq := "enq".
@@ -273,6 +276,9 @@ Section Processor.
   Definition instRqFirst := MethodSig (instRq -- first) (Void): (Struct FetchRqT).
   Definition instRpEnq := MethodSig (instRp -- enq) (Struct FetchRpT): Void.
 
+  Definition regReadPop := MethodSig (regRead -- pop) (Void): (Struct RegReadT).
+  Definition regReadFirst := MethodSig (regRead -- first) (Void): (Struct RegReadT).
+  Definition execEnq := MethodSig (exec -- enq) (Struct ExecT): Void.
   Definition memVToPRqPop := MethodSig (memVToPRq -- pop) (Void): (Struct ExecT).
   Definition memVToPRqFirst := MethodSig (memVToPRq -- first) (Void): (Struct ExecT).
   Definition memVToPRpEnq := MethodSig (memVToPRp -- enq) (Struct MemRqT): Void.
@@ -555,6 +561,10 @@ Section Processor.
           Pop inp1 : _ <- fifoFetchRq;
           Ret #inp1
 
+        with Method (regRead -- pop) (_: Void): (Struct RegReadT) :=
+          Pop inp1 : _ <- fifoRegRead;
+          Ret #inp1
+                
         with Method (memVToPRq -- pop) (_: Void): (Struct ExecT) :=
           Pop inp1 : _ <- fifoExec;
           Ret #inp1
@@ -571,6 +581,14 @@ Section Processor.
           First inp1 : _ <- fifoFetchRq;
           Ret #inp1
 
+        with Method (regRead -- first) (_: Void): (Struct RegReadT) :=
+          First inp1 : _ <- fifoRegRead;
+          Read execEpochVal <- execEpoch;
+          Read wbEpochVal <- wbEpoch;  
+          Assert (#execEpochVal == #inp1!RegReadT@.execEpoch
+                  && #wbEpochVal == #inp1!RegReadT@.wbEpoch);
+          Ret #inp1
+                
         with Method (memVToPRq -- first) (_: Void): (Struct ExecT) :=
           First inp1 : _ <- fifoExec;
           Ret #inp1
@@ -586,6 +604,19 @@ Section Processor.
         with Method (instRp -- enq) (a: Struct FetchRpT): Void :=
           Enq fifoFetchRp : _ <- #a;
           Retv
+
+        with Method (exec -- enq) (a: Struct ExecT): Void :=
+          First inp1 : _ <- fifoRegRead;
+          Enq fifoExec : _ <- #a;
+          Read pcVal <- pc;
+          Read execEpochVal <- execEpoch;
+          Write pc <- (IF #a!ExecT@.exec!Exec@.nextPc != #inp1!RegReadT@.nextPc
+                       then #a!ExecT@.exec!Exec@.nextPc
+                       else #pcVal);
+          Write execEpoch <- (IF #a!ExecT@.exec!Exec@.nextPc != #inp1!RegReadT@.nextPc
+                              then !#execEpochVal
+                              else #execEpochVal);
+          Retv    
 
         with Method (memVToPRp -- enq) (a: Struct MemRqT): Void :=
           Enq fifoMemRq : _ <- #a;
@@ -647,6 +678,41 @@ Section Processor.
                              inst ::= #inp2
                         });
           Retv }.
+
+  Definition LongLatency :=
+    SIN {
+        Register started : Bool <- (ConstBool false)
+                                
+        with Rule longLatStart :=
+          Call inp1 <- regReadFirst();
+          LET instVal <- #inp1!RegReadT@.inst;
+          Assert (! (isNotLongLat _ instVal));
+          Read startedVal <- started;
+          Assert !#startedVal;
+          Write started <- $$ true;
+          Retv
+            
+        with Rule longLatFinish :=
+          Call _ <- regReadFirst();
+          Call inp1 <- regReadPop();
+          LET instVal <- #inp1!RegReadT@.inst;
+          LET src1Val <- #inp1!RegReadT@.src1;
+          LET src2Val <- #inp1!RegReadT@.src2;
+          Assert (! (isNotLongLat _ instVal));
+          Read startedVal: Bool <- started;
+          Assert #startedVal;
+          Write started <- $$ false;
+          
+          LET execVal <- execFnLongLat _ instVal src1Val src2Val;
+          Call execEnq(STRUCT {
+                           wbEpoch ::= #inp1!RegReadT@.wbEpoch;
+                           pc ::= #inp1!RegReadT@.pc;
+                           instVToPRp ::= #inp1!RegReadT@.instVToPRp;
+                           inst ::= #inp1!RegReadT@.inst;
+                           exec ::= #execVal
+                      });
+          Retv
+      }.
 
   Definition MemVToPCall :=
     SIN {
@@ -1011,12 +1077,14 @@ Section Processor.
     Notation proc := (single processor).
     Notation instVToPCall := (single InstVToPCall).
     Notation instCall := (single InstCall).
+    Notation longLatency := (single LongLatency).
     Notation memVToPCall := (single MemVToPCall).
     Notation memCall := (single MemCall).
 
     Notation procFull := ((MetaMod proc)
                             ++++ (MetaMod instVToPCall)
                             ++++ (MetaMod instCall)
+                            ++++ (MetaMod longLatency)
                             ++++ (MetaMod memVToPCall)
                             ++++ (MetaMod memCall)).
 
@@ -1059,6 +1127,12 @@ Section Processor.
       ssF newCbv (instRq -- pop) (fetchRp).
       ssF newCbv (instRq -- first) (fetchRp).
       ssF newCbv (instRp -- enq) (fetchRp).
+
+      ssNoF newCbv (regRead -- first) (longLatStart).
+
+      ssF newCbv (regRead -- first) (longLatFinish).
+      ssF newCbv (regRead -- pop) (longLatFinish).
+      ssF newCbv (exec -- enq) (longLatFinish).
 
       ssNoF newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoF newCbv (memVToPRp -- enq) (memVToPRq).
@@ -1113,6 +1187,12 @@ Section Processor.
       ssFilt newCbv (instRq -- first) (fetchRp).
       ssFilt newCbv (instRp -- enq) (fetchRp).
 
+      ssNoFilt newCbv (regRead -- first) (longLatStart).
+
+      ssFilt newCbv (regRead -- first) (longLatFinish).
+      ssFilt newCbv (regRead -- pop) (longLatFinish).
+      ssFilt newCbv (exec -- enq) (longLatFinish).
+
       ssNoFilt newCbv (memVToPRq -- pop) (memVToPRq).
       ssNoFilt newCbv (memVToPRp -- enq) (memVToPRq).
 
@@ -1149,37 +1229,44 @@ Section Processor.
 
     Lemma processor_ModEquiv:
     MetaModPhoasWf proc.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
-    Lemma onstVToPCall_ModEquiv:
+    Lemma instVToPCall_ModEquiv:
     MetaModPhoasWf instVToPCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma instCall_ModEquiv:
     MetaModPhoasWf instCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+
+    Lemma longLatency_ModEquiv:
+    MetaModPhoasWf longLatency.
+    Proof. (* SKIP_PROOF_OFF *)
+      kequiv.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memVToPCall_ModEquiv:
     MetaModPhoasWf memVToPCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memCall_ModEquiv:
     MetaModPhoasWf memCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Definition fromInstVToPRqT (s: <| Struct InstVToPRqT |>) (v: bool) :=
@@ -1576,9 +1663,145 @@ Section Processor.
 
     Definition procSpec := ltac:(metaFlatten procSpec').
 
-    Ltac procSpecificUnfold :=
-      cbn [fromInstVToPRqT fromFetchRqT fromFetchRpT fromRegReadT fromExecT fromMemRqT] in *.
+    Lemma notLongLatRewrite inst src1 src2:
+      evalExpr (isNotLongLat _ inst) = true ->
+      evalExpr (execFnNotLongLat _ inst src1 src2) =
+      evalExpr (execFn _ inst src1 src2).
+    Proof.
+      intros.
+      unfold execFn; simpl.
+      rewrite H; reflexivity.
+    Qed.
 
+    Lemma longLatRewrite inst src1 src2:
+      evalExpr (isNotLongLat _ inst) = false ->
+      evalExpr (execFnLongLat _ inst src1 src2) =
+      evalExpr (execFn _ inst src1 src2).
+    Proof.
+      intros.
+      unfold execFn; simpl.
+      rewrite H; reflexivity.
+    Qed.
+
+    Lemma execFnRewrite ty inst src1 src2:
+      execFn ty inst src1 src2 =
+      (IF isNotLongLat _ inst
+       then execFnNotLongLat _ inst src1 src2
+       else execFnLongLat _ inst src1 src2)%kami_expr.
+    Proof.
+      reflexivity.
+    Qed.
+    
+    Opaque execFn.
+
+    Lemma longLatFinish_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec longLatFinish.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      initInvRight procSpec (staleMemVAddr).
+      - unfold indexIn.
+        cbv [evalExpr].
+        rewrite (rmNonePartition 1).
+        cbv [partition fst snd].
+        rewrite app_length.
+        match goal with
+        | |- context[(?P + ?Q)%nat] =>
+          let cmp := fresh "cmp" in
+          assert (cmp: (P < P+Q)%nat) by (simpl in *; Omega.omega);
+            instantiate (1 := P)
+        end.
+        match goal with
+        | |- context [if ?P then _ else _] => destruct P; auto
+        end.
+      - let X := fresh in intros X; simpl in X; discriminate.
+      - let X := fresh in intros X; simpl in X; discriminate.
+      - let X := fresh in intros X; simpl in X; discriminate.
+      - intros; simplBoolFalse; repeat substFind.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        auto.
+      - intros; simplBoolFalse; repeat substFind; subst.
+        unfold rfFromExecT, rfFromMemRqT, VectorFacts.Vector_find in *; simpl in *.
+        rewrite ?andb_false_r, ?andb_false_l, ?orb_false_r, ?orb_false_l in *.
+        intros; subst.
+        specialize (regReadSrc1 eq_refl eq_refl).
+        specialize (regReadSrc2 eq_refl eq_refl).
+        repeat match goal with
+               | H: context [?f (SyntaxKind Bool) ?e eq_refl] |- _ =>
+                 replace f with Kami.SymEval.semExpr in H by reflexivity;
+                   rewrite <- ?Kami.SymEval.semExpr_sound in H;
+                   simpl in H
+               end.
+        simplBoolFalse.
+        rewrite ?(longLatRewrite _ _ _ H8).
+        match type of regReadSrc1 with
+        | ?P = _ -> _ => case_eq P; intros
+        end; match type of regReadSrc2 with
+             | ?P = _ -> _ => case_eq P; intros
+             end.
+        + specialize (regReadSrc1 H0).
+          specialize (regReadSrc2 H1).
+          repeat f_equal; auto.
+        + specialize (regReadSrc1 H0).
+          erewrite  useSrc2Means.
+          repeat f_equal; eauto.
+          auto.
+        + specialize (regReadSrc2 H1).
+          erewrite useSrc1Means.
+          repeat f_equal; eauto.
+          auto.
+        + erewrite useSrc1Means.
+          erewrite useSrc2Means.
+          repeat f_equal; eauto.
+          auto.
+          auto.
+      - simplBoolFalse; repeat substFind.
+        setoid_rewrite (rmNonePartition 1) at 3.
+        cbv [partition fst snd].
+        rewrite (rmNonePartition 0).
+        cbv [partition fst snd].
+        setoid_rewrite (rmNonePartition 0) at 2.
+        cbv [partition fst snd].
+        setoid_rewrite (rmNonePartition 0) at 3.
+        cbv [partition fst snd].
+        rewrite evalFalse; rmNoneNilLtac.
+        setoid_rewrite (rmNonePartition 0) at 6.
+        cbv [partition fst snd].
+        unfold fromRegReadT.
+        unfold rmNone at 6.
+        unfold app at 4.
+        setoid_rewrite nth_upd_length.
+        unfold fromExecT at 1.
+        unfold rmNone at 2, evalExpr at 1, evalConstT at 1.
+        unfold app at 2.
+        setoid_rewrite (rmNonePartition 0) at 3.
+        cbv [partition fst snd].
+        rmNoneNilLtac.
+        (* Arguments rmNone A ls: simpl never. *)
+        simpl.
+        unfold updMemVAddr; simpl.
+        repeat f_equal.
+        unfold VectorFacts.Vector_find; simpl.
+        reflexivity.
+      - intros; simpl in *; discriminate.
+      - intros; simpl in *; discriminate.
+      - intros; simpl in *; discriminate.
+      - intros; simpl in *; discriminate.
+      - intros; simpl in *; discriminate.
+    Qed.
+
+    Lemma longLatStart_inv:
+      ruleMapInst combined_inv procInlUnfold procSpec longLatStart.
+    Proof.
+      (* SKIP_PROOF_OFF *)
+      simplInv; left;
+        simplInvHyp;
+      esplit; try simplMapUpds;
+        try (reflexivity || eassumption);
+        intros; simplBoolFalse; repeat substFind; auto.
+      (* END_SKIP_PROOF_OFF *)
+    Qed.
+    
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
@@ -1746,37 +1969,6 @@ Section Processor.
         intros; simplBoolFalse; repeat substFind; auto.
       (* END_SKIP_PROOF_OFF *)
     Qed.
-
-    Lemma notLongLatRewrite inst src1 src2:
-      evalExpr (isNotLongLat _ inst) = true ->
-      evalExpr (execFnNotLongLat _ inst src1 src2) =
-      evalExpr (execFn _ inst src1 src2).
-    Proof.
-      intros.
-      unfold execFn; simpl.
-      rewrite H; reflexivity.
-    Qed.
-
-    Lemma longLatRewrite inst src1 src2:
-      evalExpr (isNotLongLat _ inst) = false ->
-      evalExpr (execFnLongLat _ inst src1 src2) =
-      evalExpr (execFn _ inst src1 src2).
-    Proof.
-      intros.
-      unfold execFn; simpl.
-      rewrite H; reflexivity.
-    Qed.
-
-    Lemma execFnRewrite ty inst src1 src2:
-      execFn ty inst src1 src2 =
-      (IF isNotLongLat _ inst
-       then execFnNotLongLat _ inst src1 src2
-       else execFnLongLat _ inst src1 src2)%kami_expr.
-    Proof.
-      reflexivity.
-    Qed.
-    
-    Opaque execFn.
 
     Lemma exec_inv:
       ruleMapInst combined_inv procInlUnfold procSpec exec.
