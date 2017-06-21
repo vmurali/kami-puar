@@ -5,7 +5,8 @@ Set Asymmetric Patterns.
 
 Section Riscv.
   Definition XlenBytes := 4.
-  Variable VAddrSz PAddrSz: nat.
+  Definition VAddrSz := 32.
+  Variable PAddrSz: nat.
 
   Definition RIndexSz := 5.
 
@@ -142,18 +143,31 @@ Section Riscv.
                                                then d1 ~& d2
                                                else $ 0)))))))).
 
-  Definition execFn ty (inst: ty Inst) (src1 src2: ty Data):
+  Definition execFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data):
     ((Struct Exec) @ ty) :=
     STRUCT {
         data ::=
-          (IF (op4_2 _ inst) == $ 4
-           then alu #src1 (IF ((op6_5 _ inst) $[0 :>: 0]@ 2) == $ 0
-                           then (iImm _ inst)
-                           else #src2) (funct3 _ inst) (((funct7 _ inst)$[5 :>: 5]@7) == $ 1)
-           else $ 0) ;
-        memVAddr ::= $ 0 ;
+             alu #src1 (IF (op6_5 _ inst)$[0 :>: 0]@2 == $ 0
+                        then iImm _ inst
+                        else #src2) (funct3 _ inst)
+             ((funct7 _ inst)$[5 :>: 5]@7 == $ 1) ;
+        memVAddr ::=
+             (#src1 + (IF (op4_2 _ inst)$[1 :>: 1]@3 == $ 0
+                       then (IF (op6_5 _ inst)$[1 :>: 1]@2 == $ 0
+                             then iImm _ inst
+                             else sImm _ inst)
+                       else $ 0)) ;
         exception ::= none ;
-        nextPc ::= $ 0 }.
+        nextPc ::= (IF (op4_2 _ inst)$[1 :>: 0]@3 == $ 0
+                    then #pc + (IF ((funct3 _ inst == $ 0 && #src1 == #src2) ||
+                                    (funct3 _ inst == $ 1 && #src1 != #src2) ||
+                                    (funct3 _ inst == $ 4 && BinBitBool (Slt _) #src1 #src2) ||
+                                    (funct3 _ inst == $ 5 && !(BinBitBool (Slt _) #src2 #src1)) ||
+                                    (funct3 _ inst == $ 6 && (#src1 < #src2)) ||
+                                    (funct3 _ inst == $ 7 && (#src1 >= #src2)))
+                                then bImm _ inst
+                                else$ 4)
+                    else $ 0)}.
   
                    then 
                then Ret $ 0
