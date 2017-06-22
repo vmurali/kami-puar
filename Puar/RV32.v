@@ -3,7 +3,7 @@ Require Import Kami Puar.Processor Puar.Useful.
 Set Implicit Arguments.
 Set Asymmetric Patterns.
 
-Section Riscv.
+Section RV32.
   Definition XlenBytes := 4.
   Definition VAddrSz := 32.
   Variable PAddrSz: nat.
@@ -30,17 +30,21 @@ Section Riscv.
 
   Open Scope string.
   Notation fpu := "fpu".
-  Notation baddr := "baddr".
-  Notation inst := "inst".
+  Notation bAddr := "bAddr".
+  Notation bInst := "bInst".
+  Notation bInstAddr := "bInstAddr".
+  Notation unsupInst := "unsupInst".
   Close Scope string.
 
   Variable FpuException : Kind.
   
   Definition ExecException :=
     STRUCT {
-        fpu :: FpuException ;
-        baddr :: Bool ;
-        inst :: Bool }.
+        bInstAddr :: Bool ;
+        bInst :: Bool ;
+        bAddr :: Bool ;
+        unsupInst :: Bool ;
+        fpu :: FpuException }.
           
   Notation Exec := (Exec XlenBytes VAddr (Struct ExecException)).
 
@@ -143,133 +147,98 @@ Section Riscv.
                                                then d1 ~& d2
                                                else $ 0)))))))).
 
-  Definition execFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data):
-    ((Struct Exec) @ ty) :=
-    STRUCT {
+  (*
+    OP-IMM: 00, 100
+    OP:     01, 100, funct7[5]
+    AUIPC:  00, 101
+    LUI:    01, 101
+    JALR:   11, 001
+    JAL:    11, 011
+    Branch: 11, 000
+    LoadS:  00, 000, funct3[2] 0
+    LoadU:  00, 000, funct3[2] 1
+    Store:  01, 000
+    AMO:    01, 011
+   *)
+  Definition execFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
+    : ((Struct Exec) @ ty) :=
+    let nextPcVal : ((Bit 32) @ ty) :=
+        (#pc +
+         (IF (op4_2 _ inst)$[1 :>: 0]@3 == $ 0
+          then (IF ((funct3 _ inst == $ 0 && #src1 == #src2) ||
+                    (funct3 _ inst == $ 1 && #src1 != #src2) ||
+                    (funct3 _ inst == $ 4 && BinBitBool (Slt _) #src1 #src2) ||
+                    (funct3 _ inst == $ 5 &&
+                                        !(BinBitBool (Slt _) #src2 #src1)) ||
+                    (funct3 _ inst == $ 6 && (#src1 < #src2)) ||
+                    (funct3 _ inst == $ 7 && (#src1 >= #src2)))
+                then bImm _ inst
+                else$ 4)
+          else (IF (op4_2 _ inst)$[1 :>: 1]@3 == $ 0
+                then #src1 + iImm _ inst
+                else jImm _ inst)
+        )) in
+      STRUCT {
+          (*
+            ALU operations:
+            OP-IMM: src1 op iImm, 00, 100
+            OP: src1 op src2,     01, 100
+            AUIPC: pc + uImm,     00, 101
+            LUI: uImm,            01, 101
+            JAL, JALR: pc + 4,    11, 0x1
+           *)
         data ::=
-             alu #src1 (IF (op6_5 _ inst)$[0 :>: 0]@2 == $ 0
-                        then iImm _ inst
-                        else #src2) (funct3 _ inst)
-             ((funct7 _ inst)$[5 :>: 5]@7 == $ 1) ;
+             alu
+             (IF (op4_2 _ inst)$[0 :>: 0]@3 == $ 1
+              then (IF (op6_5 _ inst)$[0 :>: 0]@2 == (op6_5 _ inst)$[1 :>: 1]@2
+                    then #pc
+                    else $ 0)
+              else #src1)
+             (IF (op4_2 _ inst)$[0 :>: 0]@3 == $ 0
+              then (IF (op6_5 _ inst)$[0 :>: 0]@2 == $ 0
+                    then iImm _ inst
+                    else #src2)
+              else (IF (op6_5 _ inst)$[1 :>: 1]@2 == $ 0
+                    then uImm _ inst
+                    else $ 4))
+             (funct3 _ inst)
+             ((funct7 _ inst)$[5 :>: 5]@7 == $ 0) ;
+
+        (*
+          Memory operations:
+          Load (signed), Store: src1 + iImm, 0x, 000, funct3[2] 0
+          Load (unsigned): src1 + sImm,      00, 000, funct3[2] 1
+          AMO: src1,                         01, 011
+         *)
         memVAddr ::=
-             (#src1 + (IF (op4_2 _ inst)$[1 :>: 1]@3 == $ 0
-                       then (IF (op6_5 _ inst)$[1 :>: 1]@2 == $ 0
-                             then iImm _ inst
-                             else sImm _ inst)
+             (#src1 + (IF (op4_2 _ inst)$[0 :>: 0]@3 == $ 0
+                       then (IF (funct3 _ inst)$[2 :>: 2]@2 == $ 0
+                             then sImm _ inst
+                             else iImm _ inst)
                        else $ 0)) ;
-        exception ::= none ;
-        nextPc ::= (IF (op4_2 _ inst)$[1 :>: 0]@3 == $ 0
-                    then #pc + (IF ((funct3 _ inst == $ 0 && #src1 == #src2) ||
-                                    (funct3 _ inst == $ 1 && #src1 != #src2) ||
-                                    (funct3 _ inst == $ 4 && BinBitBool (Slt _) #src1 #src2) ||
-                                    (funct3 _ inst == $ 5 && !(BinBitBool (Slt _) #src2 #src1)) ||
-                                    (funct3 _ inst == $ 6 && (#src1 < #src2)) ||
-                                    (funct3 _ inst == $ 7 && (#src1 >= #src2)))
-                                then bImm _ inst
-                                else$ 4)
-                    else $ 0)}.
-  
-                   then 
-               then Ret $ 0
-               else (
-                   IF op4_2(inst) == $ 1
-                   then Ret $ 0
-                   else (
-                       IF op4_2(inst) 
-                            
-    (LET opcode : Opcode <- UniBitOp _ _ (Trunc _ _) #inst;
-     Ret $$ Default)%kami_action.
-    If (inst 
-    
-  
-  
+
+        (*
+          Exception:
+          JAL, JALR: instruction address misaligned
+          AMO: misaligned address
+          _: illegal instruction
+         *)
+        exception ::= cheat _ ;
+        (* exception ::= STRUCT { *)
+        (*             bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ; *)
+        (*             bInst ::= cheat _ ; *)
+        (*             bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ; *)
+        (*             unsupInst ::= cheat _ ; *)
+        (*             fpu ::= $$ Default *)
+        (*           }; *)
+        
+        (*
+          Branch operations:
+          Branch: pc + bImm,      11, 000
+          JALR: pc + src1 + iImm, 11, 001
+          JAL: pc + jImm,         11, 011
+         *)
+        nextPc ::= nextPcVal
+        }.
   Close Scope kami_expr.
-
-
-
-
-
-
-  
-
-
-  Variable NumDataBytes RIndexSz: nat.
-  Variable VAddr PAddr Inst MemRq CState Mode MemException ExecException FinalException Interrupts
-           CmdNonUser CmdInst CmdData: Kind.
-  Definition Data := Bit (8 * NumDataBytes).
-  Variable PcInit: ConstT VAddr.
-  Variable RegFileInit: ConstT (Vector Data RIndexSz).
-  Variable CStateInit: ConstT CState.
-  Variable ModeInit: ConstT Mode.
-
-  Variable BtbState BpState: Kind.
-  Variable BtbStateInit: ConstT BtbState.
-  Variable BpStateInit: ConstT BpState.
-
-  Notation RIndex := (Bit RIndexSz).
-
-  Variable getSrc1: forall ty, ty Inst -> RIndex @ ty.
-  Variable getSrc2: forall ty, ty Inst -> RIndex @ ty.
-  Variable useSrc1: forall ty, ty Inst -> Bool @ ty.
-  Variable useSrc2: forall ty, ty Inst -> Bool @ ty.
-  Variable useDst: forall ty, ty Inst -> Bool @ ty. (* This folds in whether dst is zero or not *)
-  Variable getDst: forall ty, ty Inst -> RIndex @ ty.
-
-  Definition Exec := STRUCT
-                       { data :: Data;
-                         memVAddr :: VAddr;
-                         exception :: optT ExecException;
-                         nextPc :: VAddr
-                       }.
-  
-  Variable execFn: forall ty, ty Inst -> ty Data -> ty Data ->
-                              (Struct Exec) @ ty.
-  
-  Definition CExec := STRUCT
-                        { cState :: CState;
-                          mode :: Mode;
-                          exception :: optT FinalException;
-                          nextPc :: VAddr;
-                          cmdInst :: CmdInst;
-                          cmdData :: CmdData;
-                          cmdNonUser :: CmdNonUser
-                        }.
-  
-  Definition VToPRp := STRUCT
-                         { pAddr :: PAddr;
-                           mode :: Mode;
-                           exception :: optT MemException
-                         }.
-  
-  Variable cExec:
-    forall ty,
-      ty VAddr -> ty (Struct VToPRp) -> ty Inst ->
-      ty VAddr -> ty (optT ExecException) -> ty VAddr ->
-      ty (optT (Struct VToPRp)) ->
-      ty Mode -> ty CState -> ty Interrupts -> (Struct CExec) @ ty.
-
-  Variable isLd: forall ty, ty Inst -> Bool @ ty.
-  Variable isSt: forall ty, ty Inst -> Bool @ ty.
-
-  Variable getNextBtb: forall ty, ty BtbState -> ty VAddr -> VAddr @ ty.
-  Variable updBtb: forall ty, ty BtbState -> ty VAddr -> ty VAddr -> BtbState @ ty.
-
-  Variable getBp: forall ty, ty BpState -> ty VAddr -> ty Inst -> VAddr @ ty.
-  Variable updBp: forall ty, ty BtbState -> ty VAddr -> ty Inst -> ty Bool ->
-                             BpState @ ty.
-
-  Variable useSrc1Means: forall i, evalExpr (useSrc1 type i) = false ->
-                                   forall s1 s1' s2,
-                                     evalExpr (execFn type i s1 s2) =
-                                     evalExpr (execFn type i s1' s2).
-  Variable useSrc2Means: forall i, evalExpr (useSrc2 type i) = false ->
-                                   forall s1 s2 s2',
-                                     evalExpr (execFn type i s1 s2) =
-                                     evalExpr (execFn type i s1 s2').
-            
-  
-  Notation isLdSt ty inst := (isLd ty inst || isSt ty inst)%kami_expr.
-  Notation isNm ty inst := (!(isLdSt ty inst))%kami_expr.
-
-
-  Variable createMemRq: forall ty, ty Inst -> ty PAddr -> ty Data -> MemRq @ ty.
+End RV32.
