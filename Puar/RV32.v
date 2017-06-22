@@ -162,7 +162,7 @@ Section RV32.
    *)
   Definition execFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
     : ((Struct Exec) @ ty) :=
-    let nextPcVal : ((Bit 32) @ ty) :=
+    let nextPcVal :=
         (#pc +
          (IF (op4_2 _ inst)$[1 :>: 0]@3 == $ 0
           then (IF ((funct3 _ inst == $ 0 && #src1 == #src2) ||
@@ -178,6 +178,14 @@ Section RV32.
                 then #src1 + iImm _ inst
                 else jImm _ inst)
         )) in
+    let exceptionVal := STRUCT {
+                            bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
+                            bInst ::= cheat _ ;
+                            bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
+                            unsupInst ::= cheat _ ;
+                            fpu ::= $$ Default
+                          } in
+        
       STRUCT {
           (*
             ALU operations:
@@ -223,15 +231,9 @@ Section RV32.
           AMO: misaligned address
           _: illegal instruction
          *)
-        exception ::= cheat _ ;
-        (* exception ::= STRUCT { *)
-        (*             bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ; *)
-        (*             bInst ::= cheat _ ; *)
-        (*             bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ; *)
-        (*             unsupInst ::= cheat _ ; *)
-        (*             fpu ::= $$ Default *)
-        (*           }; *)
-        
+        exception ::= STRUCT {
+                    valid ::= $$ Default ;
+                    data ::= exceptionVal } ;
         (*
           Branch operations:
           Branch: pc + bImm,      11, 000

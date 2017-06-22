@@ -151,7 +151,7 @@ Section Processor.
   Definition Exec := STRUCT
                        { data :: Data;
                          memVAddr :: VAddr;
-                         exception :: optT ExecException;
+                         exception :: ExecException;
                          nextPc :: VAddr
                        }.
 
@@ -178,13 +178,13 @@ Section Processor.
   Definition VToPRp := STRUCT
                          { pAddr :: PAddr;
                            mode :: Mode;
-                           exception :: optT MemException
+                           exception :: MemException
                          }.
   
   Variable cExec:
     forall ty,
       ty VAddr -> ty (Struct VToPRp) -> ty Inst ->
-      ty VAddr -> ty (optT ExecException) -> ty VAddr ->
+      ty VAddr -> ty ExecException -> ty VAddr ->
       ty (optT (Struct VToPRp)) ->
       ty Mode -> ty CState -> ty Interrupts -> (Struct CExec) @ ty.
 
