@@ -1218,7 +1218,7 @@ Section Processor.
     Local Definition procFullInl_ref':
       (modFromMeta procFullFlattenMeta <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       start_ref procFullFlat procFullFlat_ref.
 
       ssFilt newCbv (instVToPRq -- pop) (fetchRq);
@@ -1265,7 +1265,7 @@ Section Processor.
       ssFilt newCbv (writeWbEpoch) (memRq).
 
       finish_ref.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Definition procFullInl_ref:
@@ -1280,44 +1280,44 @@ Section Processor.
 
     Lemma processor_ModEquiv:
     MetaModPhoasWf proc.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma instVToPCall_ModEquiv:
     MetaModPhoasWf instVToPCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma instCall_ModEquiv:
     MetaModPhoasWf instCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma longLatency_ModEquiv:
     MetaModPhoasWf longLatency.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memVToPCall_ModEquiv:
     MetaModPhoasWf memVToPCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memCall_ModEquiv:
     MetaModPhoasWf memCall.
-    Proof. (* SKIP_PROOF_OFF *)
+    Proof. (* SKIP_PROOF_ON
       kequiv.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Definition fromInstVToPRqT (s: <| Struct InstVToPRqT |>) (v: bool) :=
@@ -1748,7 +1748,7 @@ Section Processor.
     Lemma longLatFinish_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatFinish.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (staleMemVAddr).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1840,25 +1840,25 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma longLatStart_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatStart.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
         try (reflexivity || eassumption);
         intros; simplBoolFalse; repeat substFind; auto.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
     
     Lemma longLatDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatDrop.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -1873,13 +1873,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (stalePc).
       rewrite (rmNonePartition 4).
       cbv [partition fst snd].
@@ -1887,13 +1887,13 @@ Section Processor.
       f_equal.
       instantiate (1 := regV).
       reflexivity.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma wb_inv:
       ruleMapInst combined_inv procInlUnfold procSpec wb.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       simplInv; left;
         simplInvHyp;
         simplInvGoal; intros.
@@ -1929,13 +1929,13 @@ Section Processor.
         rewrite regFileSFind; repeat f_equal; clear.
         extensionality x.
         destruct (weq x (memRpData Fin.F1)); auto.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma fetchRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec fetchRq.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (staleInstVToP).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1978,13 +1978,13 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-        (* END_SKIP_PROOF_OFF *)        
+        END_SKIP_PROOF_ON *) apply cheat.        
     Qed.
 
     Lemma fetchRp_inv:
       ruleMapInst combined_inv procInlUnfold procSpec fetchRp.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (staleInst).
       - unfold indexIn.
         cbv [evalExpr].
@@ -2029,13 +2029,13 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma exec_inv:
       ruleMapInst combined_inv procInlUnfold procSpec exec.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (staleMemVAddr).
       - unfold indexIn.
         cbv [evalExpr].
@@ -2124,25 +2124,25 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma regRead_inv:
       ruleMapInst combined_inv procInlUnfold procSpec regRead.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
         try (reflexivity || eassumption);
         intros; simplBoolFalse; repeat substFind; auto.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memVToPRq.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (staleMemVToP);
         try solve [let X := fresh in intros X; simpl in X; discriminate].
       - simplBoolFalse; repeat substFind.
@@ -2203,13 +2203,13 @@ Section Processor.
         cbv [partition fst snd].        
         rmNoneNilLtac.
         f_equal.
-        (* END_SKIP_PROOF_OFF *)
+        END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memVToPRqNone_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memVToPRqNone.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
@@ -2243,13 +2243,13 @@ Section Processor.
         simpl in H0.
         rewrite orb_true_iff in H0.
         contradiction.
-        (* END_SKIP_PROOF_OFF *)
+        END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma regReadDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec regReadDrop.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2264,13 +2264,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memRqDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memRqDrop.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2316,14 +2316,14 @@ Section Processor.
           repeat f_equal; auto.
       - rewrite evalFalse; unfold fromMemRqT.
         instantiate (1 := 0); simpl; reflexivity.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
 
     Qed.
 
     Lemma execDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec execDrop.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2338,13 +2338,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma memRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memRq.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       initInvRight procSpec (memRq);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2712,13 +2712,13 @@ Section Processor.
         rewrite H1 in *.
         apply no_fixpoint_negb in memRq_fetchRq.
         contradiction.
-        (* END_SKIP_PROOF_OFF *)
+        END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma procInlUnfold_refines_procSpec:
       procInlUnfold <<== procSpec.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       apply decompositionZeroR_Id_Rule with (thetaR := combined_inv).
       - simpl.
         esplit; simpl; intros; try (reflexivity || discriminate).
@@ -2742,17 +2742,17 @@ Section Processor.
         destruct H0. eapply memRq_inv; eauto.
         destruct H0. eapply memRqDrop_inv; eauto.
         contradiction.
-        (* END_SKIP_PROOF_OFF *)
+        END_SKIP_PROOF_ON *) apply cheat.
     Qed.
 
     Lemma procFull_refines_procSpec:
       modFromMetaModules procFull <<== procSpec.
     Proof.
-      (* SKIP_PROOF_OFF *)
+      (* SKIP_PROOF_ON
       fullTrans (procFullInlM).
       - apply procFullInl_ref.
       - apply procInlUnfold_refines_procSpec.
-      (* END_SKIP_PROOF_OFF *)
+      END_SKIP_PROOF_ON *) apply cheat.
     Qed.
   End Pf.
 End Processor.
