@@ -178,15 +178,7 @@ Section RV32.
                 then #src1 + iImm _ inst
                 else jImm _ inst)
         )) in
-    let exceptionVal := STRUCT {
-                            bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
-                            bInst ::= cheat _ ;
-                            bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
-                            unsupInst ::= cheat _ ;
-                            fpu ::= $$ Default
-                          } in
-        
-      STRUCT {
+        STRUCT {
           (*
             ALU operations:
             OP-IMM: src1 op iImm, 00, 100
@@ -231,9 +223,15 @@ Section RV32.
           AMO: misaligned address
           _: illegal instruction
          *)
-        exception ::= STRUCT {
-                    valid ::= $$ Default ;
-                    data ::= exceptionVal } ;
+        exception ::=
+                  STRUCT {
+                    bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
+                    bInst ::= cheat _ ;
+                    bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
+                    unsupInst ::= cheat _ ;
+                    fpu ::= $$ Default
+                  } ;
+
         (*
           Branch operations:
           Branch: pc + bImm,      11, 000
