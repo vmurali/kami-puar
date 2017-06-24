@@ -151,6 +151,22 @@ Section RV32.
                                                then d1 ~& d2
                                                else $ 0)))))))).
 
+  Local Definition getExecException ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
+    STRUCT {
+        bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
+        bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
+        extF ::= ((op4_2 _ inst == $ 1 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0) ||
+                  (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 2)) ;
+        extM ::= (op4_2 _ inst)$[2 :>: 2]@3 == $ 0 && op6_5 _ inst == $ 2 ;
+        ext64 ::= op4_2 _ inst == $ 6 && op6_5 _ inst$[1 :>: 1]@2 == $ 0 ;
+        extC ::= op1_0 _ inst != $ 3 ;
+        other ::= ((op4_2 _ inst == $ 2 && op6_5 _ inst != $ 2) ||
+                   (((op4_2 _ inst)$[2 :>: 2]@3 == $ 1)
+                      && ((((op4_2 _ inst)$[1 :>: 1]@3 == $ 1) ||
+                           ((op4_2 _ inst)$[0 :>: 0]@3 == $ 1))
+                            && (op6_5 _ inst)$[1 :>: 1]@2 == $ 1) ||
+                    op4_2 _ inst == $ 3)) }.
+
   (*
     OP-IMM: 00, 100
     OP:     01, 100, funct7[5]
@@ -227,21 +243,7 @@ Section RV32.
           AMO: misaligned address
           _: illegal instruction
          *)
-        exception ::=
-                  STRUCT {
-                    bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
-                    bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
-                    extF ::= ((op4_2 _ inst == $ 1 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0) ||
-                              (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 2)) ;
-                    extM ::= (op4_2 _ inst)$[2 :>: 2]@3 == $ 0 && op6_5 _ inst == $ 2 ;
-                    ext64 ::= op4_2 _ inst == $ 6 && op6_5 _ inst$[1 :>: 1]@2 == $ 0 ;
-                    extC ::= op1_0 _ inst != $ 3 ;
-                    other ::= ((op4_2 _ inst == $ 2 && op6_5 _ inst != $ 2) ||
-                               (((op4_2 _ inst)$[2 :>: 2]@3 == $ 1)
-                                  && ((((op4_2 _ inst)$[1 :>: 1]@3 == $ 1) ||
-                                       ((op4_2 _ inst)$[0 :>: 0]@3 == $ 1))
-                                        && (op6_5 _ inst)$[1 :>: 1]@2 == $ 1) ||
-                                op4_2 _ inst == $ 3)) } ;
+        exception ::= getExecException pc inst nextPcVal ;
 
         (*
           Branch operations:
@@ -251,5 +253,19 @@ Section RV32.
          *)
         nextPc ::= nextPcVal
         }.
+
+  Definition isLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
+    (getExecException pc inst nextPcVal)!ExecException@.extF ||
+    (getExecException pc inst nextPcVal)!ExecException@.extM.
+
+  Definition execLongLatFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
+    : ((Struct Exec) @ ty) :=
+    STRUCT {
+        data ::= $$ Default ;
+        memVAddr ::= $$ Default ;
+        exception ::= getExecException pc inst ($$ Default) ;
+        nextPc ::= $$ Default }.
+
+  
   Close Scope kami_expr.
 End RV32.
