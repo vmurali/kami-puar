@@ -254,10 +254,13 @@ Section RV32.
         nextPc ::= nextPcVal
         }.
 
-  Definition isLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
-    (getExecException pc inst nextPcVal)!ExecException@.extF ||
-    (getExecException pc inst nextPcVal)!ExecException@.extM.
+  Local Definition isLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
+    ((getExecException pc inst nextPcVal)!ExecException@.extF)
+    || (getExecException pc inst nextPcVal)!ExecException@.extM.
 
+  Definition isNotLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
+    ! (isLongLat pc inst nextPcVal).
+  
   Definition execLongLatFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
     : ((Struct Exec) @ ty) :=
     STRUCT {
