@@ -192,11 +192,14 @@ Section Processor.
   Variable isSt: forall ty, ty Inst -> Bool @ ty.
 
   Variable getNextBtb: forall ty, ty BtbState -> ty VAddr -> VAddr @ ty.
-  Variable updBtb: forall ty, ty BtbState -> ty VAddr -> ty VAddr -> BtbState @ ty.
+  Variable updBtb: forall ty, ty BtbState -> ty VAddr -> ty Bool -> ty VAddr -> BtbState @ ty.
 
   Variable getBp: forall ty, ty BpState -> ty VAddr -> ty Inst -> VAddr @ ty.
-  Variable updBp: forall ty, ty BtbState -> ty VAddr -> ty Inst -> ty Bool ->
+  Variable updBp: forall ty, ty BpState -> ty VAddr -> ty Inst -> ty Bool ->
+                             ty Bool -> ty VAddr ->
                              BpState @ ty.
+
+  Variable next: forall ty, ty VAddr -> VAddr @ ty.
 
   Variable useSrc1Means: forall pc i, evalExpr (useSrc1 type i) = false ->
                                       forall s1 s1' s2,
@@ -794,7 +797,7 @@ Section Processor.
           Read cStateVal: CState <- cState;
           Read modeVal: Mode <- mode;
 
-          LET pcVal <- #inp1!MemRqT@.pc;
+          LET pcVal : VAddr <- #inp1!MemRqT@.pc;
           LET instVToPRpVal <- #inp1!MemRqT@.instVToPRp;
           LET instVal <- #inp1!MemRqT@.inst;
           LET nextPcVal <- #inp1!MemRqT@.exec!Exec@.nextPc;
@@ -839,8 +842,17 @@ Section Processor.
                                                        IF (isLd _ instVal)
                                                        then #finalDst
                                                        else #dstVal }
-                               });
-        
+                       });
+
+          Read btbStateVal: BtbState <- btb;
+          LET isException <- isSome #cExecVal!CExec@.exception;
+          LET nextPcVal: VAddr <- #cExecVal!CExec@.nextPc;
+          Write btb <- updBtb _ btbStateVal pcVal isException nextPcVal;
+          
+          LET isTaken <- #nextPcVal != next _ pcVal;
+          Read bpStateVal: BpState <- bp;
+          Write bp <- updBp _ bpStateVal pcVal instVal isException isTaken nextPcVal;
+          
           (* Call commitCall(#inp1!MemRqT@.pc); *)
 
           (* If ! (isSome #cExecVal!CExec@.exception) *)

@@ -3,6 +3,13 @@ Require Import Kami Puar.Processor Puar.Useful.
 Set Implicit Arguments.
 Set Asymmetric Patterns.
 
+Open Scope string.
+Notation fst := "fst".
+Notation snd := "snd".
+Close Scope string.
+
+Definition Pair (A B: Kind) := STRUCT { fst :: A ; snd :: B }.
+
 Section RV32.
   Definition XlenBytes := 4.
   Definition VAddrSz := 32.
@@ -15,10 +22,15 @@ Section RV32.
   Definition Inst := Bit 32.
 
   Definition Mode := Bit 2.
-  
-  Variable BtbSz BpSz: nat.
 
-  Definition BtbState := Vector (optT VAddr) BtbSz.
+  Definition BtbSz := 10.
+  Definition BpSz := 20.
+
+  Definition BtbTagSz := VAddrSz - (BtbSz + 2).
+  Definition BtbDataSz := VAddrSz - 2.
+  Definition BtbData := Bit BtbDataSz.
+
+  Definition BtbState := Vector (optT (Struct (Pair (Bit BtbTagSz) BtbData))) BtbSz.
   Definition BpState := Vector (Bit 2) BpSz.
   
   Variable PcInit: ConstT VAddr.
@@ -76,9 +88,6 @@ Section RV32.
 
   Definition op6_5 ty (inst: ty Inst) :=
     #inst$[6 :>: 5]@32.
-  
-  Definition op6_2 ty (inst: ty Inst) :=
-    #inst$[6 :>: 2]@32.
   
   Definition funct3 ty (inst: ty Inst) :=
     #inst$[14 :>: 12]@32.
@@ -269,6 +278,86 @@ Section RV32.
         exception ::= getExecException pc inst ($$ Default) ;
         nextPc ::= $$ Default }.
 
-  
+  Definition useSrc1 ty (inst: ty Inst) :=
+    (op4_2 _ inst == $ 0 && op6_5 _ inst != $ 2)
+    || (op4_2 _ inst == $ 1 && op6_5 _ inst == $ 3)
+    || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 3 && (funct3 _ inst)$[2 :>: 2]@3 == $ 0).
+
+  Definition useSrc2 ty (inst: ty Inst) :=
+    (op4_2 _ inst == $ 0 && (op6_5 _ inst)$[0 :>: 0]@2 != $ 1)
+    || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 1).
+
+  Definition useDst ty (inst: ty Inst) :=
+    (rd _ inst != $ 0)
+      && ((op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0)
+          || (op4_2 _ inst == $ 1 && op6_5 _ inst == $ 3)
+          || (op4_2 _ inst == $ 3 && op6_5 _ inst == $ 3)
+          || (op4_2 _ inst == $ 4 && op6_5 _ inst != $ 2)
+          || (op4_2 _ inst == $ 5 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0)).
+
+  Definition isLd ty (inst: ty Inst) := op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0.
+  Definition isSt ty (inst: ty Inst) := op4_2 _ inst == $ 0 && op6_5 _ inst == $ 1.
+
+  Definition next ty (pc: ty VAddr) := #pc + $ 4.  
+
+  (* Definition getNextBtb ty (btbState: ty BtbState) (pc: ty VAddr) := *)
+  (*   let btbIndex := UniBit (Trunc BtbSz 2) *)
+  (*                          (UniBit (Trunc (BtbSz + 2) (VAddrSz - (BtbSz + 2))) #pc) in *)
+  (*   (IF #btbState@[btbIndex]!(opt (Struct (Pair (Bit BtbTagSz) BtbData)))@.valid && *)
+  (*       (#btbState@[btbIndex]!(opt (Struct (Pair (Bit BtbTagSz) BtbData)))@.data! *)
+  (*         (Pair (Bit BtbTagSz) BtbData)@.fst == *)
+  (*        (UniBit (TruncLsb (BtbSz + 2) (VAddrSz - (BtbSz + 2))) #pc)) *)
+  (*    then {#btbState@[btbIndex]!(opt (Struct (Pair (Bit BtbTagSz) BtbData)))@.data! *)
+  (*           (Pair (Bit BtbTagSz) BtbData)@.snd, ($$ Default) : (Bit 2) @ ty } *)
+  (*    else #pc + $ 4). *)
+
+  (* Definition updBtb ty (btbState: ty BtbState) (pc: ty VAddr) (isException: ty Bool) *)
+  (*            (nextPcVal: ty VAddr) := *)
+  (*   let btbIndex := UniBit (Trunc BtbSz 2) *)
+  (*                          (UniBit (Trunc (BtbSz + 2) (VAddrSz - (BtbSz + 2))) #pc) in *)
+  (*   #btbState@[btbIndex <- *)
+  (*                       (IF (#nextPcVal != (#pc + $ 4)) *)
+  (*                        then STRUCT { *)
+  (*                                 valid ::= $$ true; *)
+  (*                                 data ::= STRUCT { *)
+  (*                                        fst ::= UniBit (TruncLsb (BtbSz + 2) *)
+  (*                                                                 (VAddrSz - (BtbSz + 2))) #pc; *)
+  (*                                        snd ::= UniBit (TruncLsb 2 BtbDataSz) #nextPcVal } *)
+  (*                               } *)
+  (*                        else STRUCT { *)
+  (*                                 valid ::= $$ false; *)
+  (*                                 data ::= $$ Default *)
+  (*                               } *)
+  (*             )]. *)
+
+  (* Definition getNextBp ty (bpState: ty BpState) (pc: ty VAddr) := *)
+  (*   let bpIndex := UniBit (Trunc BpSz 2) *)
+  (*                          (UniBit (Trunc (BpSz + 2) (VAddrSz - (BpSz + 2))) #pc) in *)
+  (*   (IF #bpState@[bpIndex]!(opt (Struct (Pair (Bit BpTagSz) BpData)))@.valid && *)
+  (*       (#bpState@[bpIndex]!(opt (Struct (Pair (Bit BpTagSz) BpData)))@.data! *)
+  (*         (Pair (Bit BpTagSz) BpData)@.fst == *)
+  (*        (UniBit (TruncLsb (BpSz + 2) (VAddrSz - (BpSz + 2))) #pc)) *)
+  (*    then {#bpState@[bpIndex]!(opt (Struct (Pair (Bit BpTagSz) BpData)))@.data! *)
+  (*           (Pair (Bit BpTagSz) BpData)@.snd, ($$ Default) : (Bit 2) @ ty } *)
+  (*    else #pc + $ 4). *)
+
+  (* Definition updBp ty (bpState: ty BpState) (pc: ty VAddr) (isException: ty Bool) *)
+  (*            (nextPcVal: ty VAddr) := *)
+  (*   let bpIndex := UniBit (Trunc BpSz 2) *)
+  (*                          (UniBit (Trunc (BpSz + 2) (VAddrSz - (BpSz + 2))) #pc) in *)
+  (*   #bpState@[bpIndex <- *)
+  (*                       (IF (#nextPcVal != (#pc + $ 4)) *)
+  (*                        then STRUCT { *)
+  (*                                 valid ::= $$ true; *)
+  (*                                 data ::= STRUCT { *)
+  (*                                        fst ::= UniBit (TruncLsb (BpSz + 2) *)
+  (*                                                                 (VAddrSz - (BpSz + 2))) #pc; *)
+  (*                                        snd ::= UniBit (TruncLsb 2 BpDataSz) #nextPcVal } *)
+  (*                               } *)
+  (*                        else STRUCT { *)
+  (*                                 valid ::= $$ false; *)
+  (*                                 data ::= $$ Default *)
+  (*                               } *)
+  (*             )]. *)
   Close Scope kami_expr.
 End RV32.
