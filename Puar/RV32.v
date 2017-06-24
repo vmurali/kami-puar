@@ -164,7 +164,7 @@ Section RV32.
     Store:  01, 000
     AMO:    01, 011
    *)
-  Definition execFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
+  Definition execNotLongLatFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
     : ((Struct Exec) @ ty) :=
     let nextPcVal :=
         (#pc +
