@@ -29,11 +29,13 @@ Section RV32.
   Definition Data := ltac:(let y := eval simpl in (Bit (8 * XlenBytes)) in exact y).
 
   Open Scope string.
-  Notation fpu := "fpu".
-  Notation bAddr := "bAddr".
-  Notation bInst := "bInst".
   Notation bInstAddr := "bInstAddr".
-  Notation unsupInst := "unsupInst".
+  Notation bAddr := "bAddr".
+  Notation extF := "extF".
+  Notation extM := "extM".
+  Notation ext64 := "ext64".
+  Notation extC := "extC".
+  Notation other := "other".
   Close Scope string.
 
   Variable FpuException : Kind.
@@ -41,10 +43,12 @@ Section RV32.
   Definition ExecException :=
     STRUCT {
         bInstAddr :: Bool ;
-        bInst :: Bool ;
         bAddr :: Bool ;
-        unsupInst :: Bool ;
-        fpu :: FpuException }.
+        extF :: Bool ;
+        extM :: Bool ;
+        ext64 :: Bool ;
+        extC :: Bool ;
+        other :: Bool }.
           
   Notation Exec := (Exec XlenBytes VAddr (Struct ExecException)).
 
@@ -226,11 +230,18 @@ Section RV32.
         exception ::=
                   STRUCT {
                     bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
-                    bInst ::= cheat _ ;
                     bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
-                    unsupInst ::= cheat _ ;
-                    fpu ::= $$ Default
-                  } ;
+                    extF ::= ((op4_2 _ inst == $ 1 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0) ||
+                              (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 2)) ;
+                    extM ::= (op4_2 _ inst)$[2 :>: 2]@3 == $ 0 && op6_5 _ inst == $ 2 ;
+                    ext64 ::= op4_2 _ inst == $ 6 && op6_5 _ inst$[1 :>: 1]@2 == $ 0 ;
+                    extC ::= op1_0 _ inst != $ 3 ;
+                    other ::= ((op4_2 _ inst == $ 2 && op6_5 _ inst != $ 2) ||
+                               (((op4_2 _ inst)$[2 :>: 2]@3 == $ 1)
+                                  && ((((op4_2 _ inst)$[1 :>: 1]@3 == $ 1) ||
+                                       ((op4_2 _ inst)$[0 :>: 0]@3 == $ 1))
+                                        && (op6_5 _ inst)$[1 :>: 1]@2 == $ 1) ||
+                                op4_2 _ inst == $ 3)) } ;
 
         (*
           Branch operations:
