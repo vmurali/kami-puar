@@ -57,7 +57,6 @@ Section RV32.
         bInstAddr :: Bool ;
         bAddr :: Bool ;
         extF :: Bool ;
-        extM :: Bool ;
         ext64 :: Bool ;
         extC :: Bool ;
         other :: Bool }.
@@ -165,16 +164,17 @@ Section RV32.
         bInstAddr ::= #pc$[1 :>: 0]@32 != $ 0 ;
         bAddr ::= nextPcVal$[1 :>: 0]@32 != $ 0 ;
         extF ::= ((op4_2 _ inst == $ 1 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0) ||
-                  (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 2)) ;
-        extM ::= (op4_2 _ inst)$[2 :>: 2]@3 == $ 0 && op6_5 _ inst == $ 2 ;
+                  (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 2) ||
+                  ((op4_2 _ inst)$[2 :>: 2]@3 == $ 0 && op6_5 _ inst == $ 2)) ;
         ext64 ::= op4_2 _ inst == $ 6 && op6_5 _ inst$[1 :>: 1]@2 == $ 0 ;
         extC ::= op1_0 _ inst != $ 3 ;
-        other ::= ((op4_2 _ inst == $ 2 && op6_5 _ inst != $ 2) ||
-                   (((op4_2 _ inst)$[2 :>: 2]@3 == $ 1)
-                      && ((((op4_2 _ inst)$[1 :>: 1]@3 == $ 1) ||
-                           ((op4_2 _ inst)$[0 :>: 0]@3 == $ 1))
-                            && (op6_5 _ inst)$[1 :>: 1]@2 == $ 1) ||
-                    op4_2 _ inst == $ 3)) }.
+        other ::= ((op4_2 _ inst == $ 2 && op6_5 _ inst != $ 2)
+                     ||
+                     (((op4_2 _ inst)$[2 :>: 2]@3 == $ 1)
+                        && ((((op4_2 _ inst)$[1 :>: 1]@3 == $ 1)
+                               || ((op4_2 _ inst)$[0 :>: 0]@3 == $ 1))
+                              && (op6_5 _ inst)$[1 :>: 1]@2 == $ 1)) ||
+                     op4_2 _ inst == $ 7) }.
 
   (*
     OP-IMM: 00, 100
@@ -264,8 +264,7 @@ Section RV32.
         }.
 
   Local Definition isLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
-    ((getExecException pc inst nextPcVal)!ExecException@.extF)
-    || (getExecException pc inst nextPcVal)!ExecException@.extM.
+    ((getExecException pc inst nextPcVal)!ExecException@.extF).
 
   Definition isNotLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
     ! (isLongLat pc inst nextPcVal).
