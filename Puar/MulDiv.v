@@ -103,8 +103,33 @@ Section Multiplier64.
           NumBitsPerPhase m_pos m_neg p
           (fun np => Write "p" <- #np; Retv)
     }.
-                             
+
+  Definition boothMultiplierSpec :=
+    MODULE {
+      Register "p" : Bit (2 * NumBits) <- Default
+
+      with Method "boothRegister"(src: Struct BoothInStr): Void :=
+        LET m : Bit NumBits <- #src!BoothInStr@."multiplicand";
+        LET m_ext : Bit (2 * NumBits) <- UniBit (SignExtendTrunc _ _) #m;
+        LET r : Bit NumBits <- #src!BoothInStr@."multiplier";
+        LET r_ext : Bit (2 * NumBits) <- UniBit (SignExtendTrunc _ _) #m;
+
+        Write "p" <- #m_ext *s #r_ext;
+        Retv
+
+      with Method "boothGetResult"(): Struct BoothOutStr :=
+        Read p : Bit (NumBits + NumBits) <- "p";
+        LET high : Bit NumBits <- UniBit (TruncLsb _ _) #p;
+        LET low : Bit NumBits <- UniBit (Trunc _ _) #p;
+
+        LET ret : Struct BoothOutStr <- STRUCT { "high" ::= $$Default; "low" ::= #low };
+        Ret #ret
+    }.
+
 End Multiplier64.
+
+Section Divider.
+End Divider.
 
 Section Processor.
   Variable NumDataBytes: nat.
