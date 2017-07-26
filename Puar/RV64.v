@@ -290,6 +290,31 @@ Section RV64.
   Definition isNotLongLat ty (pc: ty VAddr) (inst: ty Inst) (nextPcVal: VAddr @ ty) :=
     ! (isLongLat pc inst nextPcVal).
 
+  Definition useSrc1 ty (inst: ty Inst) :=
+    (op4_2 _ inst == $ 0 && op6_5 _ inst != $ 2)
+    || (op4_2 _ inst == $ 1 && op6_5 _ inst == $ 3)
+    || (op4_2 _ inst == $ 3 && op6_5 _ inst == $ 1)
+    || ((op4_2 _ inst == $ 4 || op4_2 _ inst == $ 6)
+           && (((op6_5 _ inst)$[1 :>: 1]@2 == $ 0)))
+    || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 3 && (funct3 _ inst)$[2 :>: 2]@3 == $ 0).
+
+  Definition useSrc2 ty (inst: ty Inst) :=
+    (op4_2 _ inst == $ 0 && (op6_5 _ inst)$[0 :>: 0]@2 == $ 1)
+    || ((op4_2 _ inst == $ 4 || op4_2 _ inst == $ 6) && op6_5 _ inst == $ 1).
+
+
+  Definition useDst ty (inst: ty Inst) :=
+    (rd _ inst != $ 0)
+      && ((op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0)
+          || ((op4_2 _ inst == $ 1 || op4_2 _ inst == $ 3) && op6_5 _ inst == $ 3)
+          || ((op4_2 _ inst == $ 4 || op4_2 _ inst == $ 6) && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0)
+          || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 3)
+          || (op4_2 _ inst == $ 5 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0)).
+
+  Definition isAmo ty (inst: ty Inst) := op4_2 _ inst == $ 3 && op6_5 _ inst == $ 1.
+  Definition isLd ty (inst: ty Inst) := (op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0) || isAmo _ inst.
+  Definition isSt ty (inst: ty Inst) := (op4_2 _ inst == $ 0 && op6_5 _ inst == $ 1) || isAmo _ inst.
+
 
   (* MUST CHECK HERE ONWARDS *)
   
@@ -300,28 +325,8 @@ Section RV64.
         memVAddr ::= $$ Default ;
         exception ::= getExecException pc inst ($$ Default) ;
         nextPc ::= $$ Default }.
-
-  Definition useSrc1 ty (inst: ty Inst) :=
-    (op4_2 _ inst == $ 0 && op6_5 _ inst != $ 2)
-    || (op4_2 _ inst == $ 1 && op6_5 _ inst == $ 3)
-    || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 3 && (funct3 _ inst)$[2 :>: 2]@3 == $ 0).
-
-  Definition useSrc2 ty (inst: ty Inst) :=
-    (op4_2 _ inst == $ 0 && (op6_5 _ inst)$[0 :>: 0]@2 != $ 1)
-    || (op4_2 _ inst == $ 4 && op6_5 _ inst == $ 1).
-
-  Definition useDst ty (inst: ty Inst) :=
-    (rd _ inst != $ 0)
-      && ((op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0)
-          || (op4_2 _ inst == $ 1 && op6_5 _ inst == $ 3)
-          || (op4_2 _ inst == $ 3 && op6_5 _ inst == $ 3)
-          || (op4_2 _ inst == $ 4 && op6_5 _ inst != $ 2)
-          || (op4_2 _ inst == $ 5 && (op6_5 _ inst)$[1 :>: 1]@2 == $ 0)).
-
-  Definition isLd ty (inst: ty Inst) := op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0.
-  Definition isSt ty (inst: ty Inst) := op4_2 _ inst == $ 0 && op6_5 _ inst == $ 1.
-
-  Definition next ty (pc: ty VAddr) := #pc + $ 4.  
+  
+  Definition next ty (pc: ty VAddr) := #pc + $ 4.
 
   (* Definition getNextBtb ty (btbState: ty BtbState) (pc: ty VAddr) := *)
   (*   let btbIndex := UniBit (Trunc BtbSz 2) *)
@@ -383,4 +388,4 @@ Section RV64.
   (*                               } *)
   (*             )]. *)
   Close Scope kami_expr.
-End RV32.
+End RV64.
