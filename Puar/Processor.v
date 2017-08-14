@@ -1116,41 +1116,41 @@ Section Processor.
     Proof.
       start_def procFullFlat.
 
-      ssF newCbv (instVToPRq -- pop) (fetchRq).
-      ssF newCbv (instVToPRq -- first) (fetchRq).
-      ssF newCbv (instVToPRp -- enq) (fetchRq).
+      ssF newCbv (instVToPRq -- pop) "fetchRq"%string.
+      ssF newCbv (instVToPRq -- first) "fetchRq"%string.
+      ssF newCbv (instVToPRp -- enq) "fetchRq"%string.
 
-      ssF newCbv (instRq -- pop) (fetchRp).
-      ssF newCbv (instRq -- first) (fetchRp).
-      ssF newCbv (instRp -- enq) (fetchRp).
+      ssF newCbv (instRq -- pop) "fetchRp"%string.
+      ssF newCbv (instRq -- first) "fetchRp"%string.
+      ssF newCbv (instRp -- enq) "fetchRp"%string.
 
-      ssF newCbv (regRead -- first) (longLatStart).
-      ssNoF newCbv (readLongLat) (longLatStart).
-      ssNoF newCbv (writeLongLat) (longLatStart).
+      ssF newCbv (regRead -- first) "longLatStart"%string.
+      ssNoF newCbv "readLongLat"%string "longLatStart"%string.
+      ssNoF newCbv "writeLongLat"%string "longLatStart"%string.
 
-      ssNoF newCbv (epochsMatch) (longLatDrop).
-      ssNoF newCbv (regRead -- pop) (longLatDrop).
-      ssNoF newCbv (readLongLat) (longLatDrop).
-      ssNoF newCbv (writeLongLat) (longLatDrop).
+      ssNoF newCbv "epochsMatch"%string "longLatDrop"%string.
+      ssNoF newCbv (regRead -- pop) "longLatDrop"%string.
+      ssNoF newCbv "readLongLat"%string "longLatDrop"%string.
+      ssNoF newCbv "writeLongLat"%string "longLatDrop"%string.
 
-      ssF newCbv (epochsMatch) (longLatFinish).
-      ssF newCbv (regRead -- pop) (longLatFinish).
-      ssF newCbv (exec -- enq) (longLatFinish).
-      ssF newCbv (readLongLat) (longLatFinish).
-      ssF newCbv (writeLongLat) (longLatFinish).
+      ssF newCbv "epochsMatch"%string "longLatFinish"%string.
+      ssF newCbv (regRead -- pop) "longLatFinish"%string.
+      ssF newCbv (exec -- enq) "longLatFinish"%string.
+      ssF newCbv "readLongLat"%string "longLatFinish"%string.
+      ssF newCbv "writeLongLat"%string "longLatFinish"%string.
 
-      ssNoF newCbv (memVToPRq -- pop) (memVToPRq).
-      ssNoF newCbv (memVToPRp -- enq) (memVToPRq).
+      ssNoF newCbv (memVToPRq -- pop) "memVToPRq"%string.
+      ssNoF newCbv (memVToPRp -- enq) "memVToPRq"%string.
 
-      ssF newCbv (memVToPRq -- pop) (memVToPRqNone).
-      ssF newCbv (memVToPRq -- first) (memVToPRqNone).
-      ssF newCbv (memVToPRp -- enq) (memVToPRqNone).
+      ssF newCbv (memVToPRq -- pop) "memVToPRqNone"%string.
+      ssF newCbv (memVToPRq -- first) "memVToPRqNone"%string.
+      ssF newCbv (memVToPRp -- enq) "memVToPRqNone"%string.
 
-      ssNoF newCbv (memRq -- pop) (memRqDrop).
-      ssNoF newCbv (memRq -- first) (memRqDrop).
-      ssNoF newCbv (readWbEpoch) (memRqDrop).
+      ssNoF newCbv (memRq -- pop) "memRqDrop"%string.
+      ssNoF newCbv (memRq -- first) "memRqDrop"%string.
+      ssNoF newCbv "readWbEpoch"%string "memRqDrop"%string.
 
-      ssF newCbv (memRp -- enq) (memRq).
+      ssF newCbv (memRp -- enq) "memRq"%string.
 
       finish_def.
     Defined.
@@ -1162,13 +1162,13 @@ Section Processor.
     Proof.
       start_def procFullInl'4.
 
-      ssF newCbv (memRq -- pop) (memRq).
-      ssF newCbv (memRq -- first) (memRq).
+      ssF newCbv (memRq -- pop) "memRq"%string.
+      ssF newCbv (memRq -- first) "memRq"%string.
 
-      ssF newCbv (readPc) (memRq).
-      ssF newCbv (writePc) (memRq).
-      ssF newCbv (readWbEpoch) (memRq).
-      ssF newCbv (writeWbEpoch) (memRq).
+      ssF newCbv "readPc"%string "memRq"%string.
+      ssF newCbv "writePc"%string "memRq"%string.
+      ssF newCbv "readWbEpoch"%string "memRq"%string.
+      ssF newCbv "writeWbEpoch"%string "memRq"%string.
 
       finish_def.
     Defined.
@@ -1181,54 +1181,54 @@ Section Processor.
     Local Definition procFullInl_ref':
       (modFromMeta procFullFlattenMeta <<== procFullInlM) /\
       forall ty, MetaModEquiv ty typeUT procFullInl.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       start_ref procFullFlat procFullFlat_ref.
 
-      ssFilt newCbv (instVToPRq -- pop) (fetchRq);
-      ssFilt newCbv (instVToPRq -- first) (fetchRq).
-      ssFilt newCbv (instVToPRp -- enq) (fetchRq).
+      ssFilt newCbv (instVToPRq -- pop) "fetchRq"%string;
+      ssFilt newCbv (instVToPRq -- first) "fetchRq"%string.
+      ssFilt newCbv (instVToPRp -- enq) "fetchRq"%string.
 
-      ssFilt newCbv (instRq -- pop) (fetchRp).
-      ssFilt newCbv (instRq -- first) (fetchRp).
-      ssFilt newCbv (instRp -- enq) (fetchRp).
+      ssFilt newCbv (instRq -- pop) "fetchRp"%string.
+      ssFilt newCbv (instRq -- first) "fetchRp"%string.
+      ssFilt newCbv (instRp -- enq) "fetchRp"%string.
 
-      ssFilt newCbv (regRead -- first) (longLatStart).
-      ssNoFilt newCbv (readLongLat) (longLatStart).
-      ssNoFilt newCbv (writeLongLat) (longLatStart).
+      ssFilt newCbv (regRead -- first) "longLatStart"%string.
+      ssNoFilt newCbv "readLongLat"%string "longLatStart"%string.
+      ssNoFilt newCbv "writeLongLat"%string "longLatStart"%string.
 
-      ssNoFilt newCbv (epochsMatch) (longLatDrop).
-      ssNoFilt newCbv (regRead -- pop) (longLatDrop).
-      ssNoFilt newCbv (readLongLat) (longLatDrop).
-      ssNoFilt newCbv (writeLongLat) (longLatDrop).
+      ssNoFilt newCbv "epochsMatch"%string "longLatDrop"%string.
+      ssNoFilt newCbv (regRead -- pop) "longLatDrop"%string.
+      ssNoFilt newCbv "readLongLat"%string "longLatDrop"%string.
+      ssNoFilt newCbv "writeLongLat"%string "longLatDrop"%string.
 
-      ssFilt newCbv (epochsMatch) (longLatFinish).
-      ssFilt newCbv (regRead -- pop) (longLatFinish).
-      ssFilt newCbv (exec -- enq) (longLatFinish).
-      ssFilt newCbv (readLongLat) (longLatFinish).
-      ssFilt newCbv (writeLongLat) (longLatFinish).
+      ssFilt newCbv "epochsMatch"%string "longLatFinish"%string.
+      ssFilt newCbv (regRead -- pop) "longLatFinish"%string.
+      ssFilt newCbv (exec -- enq) "longLatFinish"%string.
+      ssFilt newCbv "readLongLat"%string "longLatFinish"%string.
+      ssFilt newCbv "writeLongLat"%string "longLatFinish"%string.
       
-      ssNoFilt newCbv (memVToPRq -- pop) (memVToPRq).
-      ssNoFilt newCbv (memVToPRp -- enq) (memVToPRq).
+      ssNoFilt newCbv (memVToPRq -- pop) "memVToPRq"%string.
+      ssNoFilt newCbv (memVToPRp -- enq) "memVToPRq"%string.
 
-      ssFilt newCbv (memVToPRq -- pop) (memVToPRqNone).
-      ssFilt newCbv (memVToPRq -- first) (memVToPRqNone).
-      ssFilt newCbv (memVToPRp -- enq) (memVToPRqNone).
+      ssFilt newCbv (memVToPRq -- pop) "memVToPRqNone"%string.
+      ssFilt newCbv (memVToPRq -- first) "memVToPRqNone"%string.
+      ssFilt newCbv (memVToPRp -- enq) "memVToPRqNone"%string.
 
-      ssNoFilt newCbv (memRq -- pop) (memRqDrop).
-      ssNoFilt newCbv (memRq -- first) (memRqDrop).
-      ssNoFilt newCbv (readWbEpoch) (memRqDrop).
+      ssNoFilt newCbv (memRq -- pop) "memRqDrop"%string.
+      ssNoFilt newCbv (memRq -- first) "memRqDrop"%string.
+      ssNoFilt newCbv "readWbEpoch"%string "memRqDrop"%string.
 
-      ssFilt newCbv (memRp -- enq) (memRq).      
-      ssFilt newCbv (memRq -- pop) (memRq).
-      ssFilt newCbv (memRq -- first) (memRq).
+      ssFilt newCbv (memRp -- enq) "memRq"%string.      
+      ssFilt newCbv (memRq -- pop) "memRq"%string.
+      ssFilt newCbv (memRq -- first) "memRq"%string.
 
-      ssFilt newCbv (readPc) (memRq).
-      ssFilt newCbv (writePc) (memRq).
-      ssFilt newCbv (readWbEpoch) (memRq).
-      ssFilt newCbv (writeWbEpoch) (memRq).
+      ssFilt newCbv "readPc"%string "memRq"%string.
+      ssFilt newCbv "writePc"%string "memRq"%string.
+      ssFilt newCbv "readWbEpoch"%string "memRq"%string.
+      ssFilt newCbv "writeWbEpoch"%string "memRq"%string.
 
       finish_ref.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Definition procFullInl_ref:
@@ -1243,44 +1243,44 @@ Section Processor.
 
     Lemma processor_ModEquiv:
     MetaModPhoasWf proc.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma instVToPCall_ModEquiv:
     MetaModPhoasWf instVToPCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma instCall_ModEquiv:
     MetaModPhoasWf instCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma longLatency_ModEquiv:
     MetaModPhoasWf longLatency.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memVToPCall_ModEquiv:
     MetaModPhoasWf memVToPCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memCall_ModEquiv:
     MetaModPhoasWf memCall.
-    Proof. (* SKIP_PROOF_ON
+    Proof. (* SKIP_PROOF_OFF *)
       kequiv.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Definition fromInstVToPRqT (s: <| Struct InstVToPRqT |>) (v: bool) :=
@@ -1703,7 +1703,7 @@ Section Processor.
     Lemma longLatFinish_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatFinish.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleMemVAddr).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1795,25 +1795,25 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma longLatStart_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatStart.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
         try (reflexivity || eassumption);
         intros; simplBoolFalse; repeat substFind; auto.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
     
     Lemma longLatDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec longLatDrop.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -1828,13 +1828,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma instVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (stalePc).
       rewrite (rmNonePartition 4).
       cbv [partition fst snd].
@@ -1842,13 +1842,13 @@ Section Processor.
       f_equal.
       instantiate (1 := regV).
       reflexivity.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma wb_inv:
       ruleMapInst combined_inv procInlUnfold procSpec wb.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       simplInv; left;
         simplInvHyp;
         simplInvGoal; intros.
@@ -1884,13 +1884,13 @@ Section Processor.
         rewrite regFileSFind; repeat f_equal; clear.
         extensionality x.
         destruct (weq x (memRpData Fin.F1)); auto.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma fetchRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec fetchRq.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleInstVToP).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1933,13 +1933,13 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-        END_SKIP_PROOF_ON *) apply cheat.        
+        (* END_SKIP_PROOF_OFF *)        
     Qed.
 
     Lemma fetchRp_inv:
       ruleMapInst combined_inv procInlUnfold procSpec fetchRp.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleInst).
       - unfold indexIn.
         cbv [evalExpr].
@@ -1984,13 +1984,13 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma exec_inv:
       ruleMapInst combined_inv procInlUnfold procSpec exec.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleMemVAddr).
       - unfold indexIn.
         cbv [evalExpr].
@@ -2079,25 +2079,25 @@ Section Processor.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
       - intros; simpl in *; discriminate.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma regRead_inv:
       ruleMapInst combined_inv procInlUnfold procSpec regRead.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
         try (reflexivity || eassumption);
         intros; simplBoolFalse; repeat substFind; auto.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memVToPRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memVToPRq.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (staleMemVToP);
         try solve [let X := fresh in intros X; simpl in X; discriminate].
       - simplBoolFalse; repeat substFind.
@@ -2158,13 +2158,13 @@ Section Processor.
         cbv [partition fst snd].        
         rmNoneNilLtac.
         f_equal.
-        END_SKIP_PROOF_ON *) apply cheat.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memVToPRqNone_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memVToPRqNone.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       simplInv; left;
         simplInvHyp;
       esplit; try simplMapUpds;
@@ -2198,13 +2198,13 @@ Section Processor.
         simpl in H0.
         rewrite orb_true_iff in H0.
         contradiction.
-        END_SKIP_PROOF_ON *) apply cheat.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma regReadDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec regReadDrop.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2219,13 +2219,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memRqDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memRqDrop.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2271,14 +2271,14 @@ Section Processor.
           repeat f_equal; auto.
       - rewrite evalFalse; unfold fromMemRqT.
         instantiate (1 := 0); simpl; reflexivity.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
 
     Qed.
 
     Lemma execDrop_inv:
       ruleMapInst combined_inv procInlUnfold procSpec execDrop.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (drop);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2293,13 +2293,13 @@ Section Processor.
       unfold app at 3.
       erewrite rmList_app.
       repeat f_equal.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma memRq_inv:
       ruleMapInst combined_inv procInlUnfold procSpec memRq.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       initInvRight procSpec (memRq);
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
@@ -2648,13 +2648,13 @@ Section Processor.
         rewrite H1 in *.
         apply no_fixpoint_negb in memRq_fetchRq.
         contradiction.
-        END_SKIP_PROOF_ON *) apply cheat.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma procInlUnfold_refines_procSpec:
       procInlUnfold <<== procSpec.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       apply decompositionZeroR_Id_Rule with (thetaR := combined_inv).
       - simpl.
         esplit; simpl; intros; try (reflexivity || discriminate).
@@ -2678,17 +2678,17 @@ Section Processor.
         destruct H0. eapply memRq_inv; eauto.
         destruct H0. eapply memRqDrop_inv; eauto.
         contradiction.
-        END_SKIP_PROOF_ON *) apply cheat.
+        (* END_SKIP_PROOF_OFF *)
     Qed.
 
     Lemma procFull_refines_procSpec:
       modFromMetaModules procFull <<== procSpec.
     Proof.
-      (* SKIP_PROOF_ON
+      (* SKIP_PROOF_OFF *)
       fullTrans (procFullInlM).
       - apply procFullInl_ref.
       - apply procInlUnfold_refines_procSpec.
-      END_SKIP_PROOF_ON *) apply cheat.
+      (* END_SKIP_PROOF_OFF *)
     Qed.
   End Pf.
 End Processor.
