@@ -9,7 +9,8 @@ Section Processor.
 
   Variable isNotLongLat: forall ty, ty Inst -> Bool @ ty.
   
-  Variable isMul: forall ty, ty Inst -> Bool @ ty.
+  Variable isMulL: forall ty, ty Inst -> Bool @ ty.
+  Variable isMulH: forall ty, ty Inst -> Bool @ ty.
   Variable isDiv: forall ty, ty Inst -> Bool @ ty.
   Variable isRem: forall ty, ty Inst -> Bool @ ty.
 
@@ -22,7 +23,10 @@ Section Processor.
   Section Spec.
     Variable NumDataBytes: nat.
 
-    Definition Data := Bit (8 * NumDataBytes).
+    Definition DataBits := 8 * NumDataBytes.
+    Definition Data := Bit DataBits.
+    Definition EDataBits := DataBits + DataBits.
+    Definition EData := Bit EDataBits.
     Local Notation Exec := (Exec NumDataBytes VAddr ExecException).
 
     Definition execFnLongLatSpec ty (pc: ty VAddr)
@@ -33,18 +37,31 @@ Section Processor.
                        "memVAddr" ::= $$Default;
                        "exception" ::= $$Default;
                        "nextPc" ::= $$Default (* (pc + 4)? *) })%kami_expr.
-      refine (IF (isMul _ inst)
-              then _
-              else (IF (isDiv _ inst)
-                    then _
-                    else (IF (isRem _ inst)
-                          then _
-                          else $$Default)))%kami_expr.
-      - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
-                then #val1 *s #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
-                      then #val1 *su #val2
-                      else #val1 * #val2))%kami_expr.
+      refine (IF (isMulL _ inst) then _
+              else (IF (isMulH _ inst) then _
+                    else (IF (isDiv _ inst) then _
+                          else (IF (isRem _ inst) then _
+                                else $$Default))))%kami_expr.
+      - refine (UniBit
+                  (Trunc _ _)
+                  (IF (getMulDivSign _ inst == $$MulDivSignSS)
+                   then ((UniBit (SignExtendTrunc _ EDataBits) #val1)
+                         *s (UniBit (SignExtendTrunc _ EDataBits) #val2))
+                   else (IF (getMulDivSign _ inst == $$MulDivSignSU)
+                         then ((UniBit (SignExtendTrunc _ EDataBits) #val1)
+                               *su (UniBit (ZeroExtendTrunc _ EDataBits) #val2))
+                         else ((UniBit (ZeroExtendTrunc _ EDataBits) #val1)
+                               * (UniBit (ZeroExtendTrunc _ EDataBits) #val2)))))%kami_expr.
+      - refine (UniBit
+                  (TruncLsb _ _)
+                  (IF (getMulDivSign _ inst == $$MulDivSignSS)
+                   then ((UniBit (SignExtendTrunc _ EDataBits) #val1)
+                         *s (UniBit (SignExtendTrunc _ EDataBits) #val2))
+                   else (IF (getMulDivSign _ inst == $$MulDivSignSU)
+                         then ((UniBit (SignExtendTrunc _ EDataBits) #val1)
+                               *su (UniBit (ZeroExtendTrunc _ EDataBits) #val2))
+                         else ((UniBit (ZeroExtendTrunc _ EDataBits) #val1)
+                               * (UniBit (ZeroExtendTrunc _ EDataBits) #val2)))))%kami_expr.
       - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
                 then #val1 /s #val2
                 else (IF (getMulDivSign _ inst == $$MulDivSignSU)
@@ -132,7 +149,7 @@ Section Processor.
           Read src1 : Data64 <- "llSrc1";
           Read src2 : Data64 <- "llSrc2";
 
-          Assert (isMul _ inst);
+          Assert (isMulL _ inst || isMulH _ inst);
 
           If (getMulDivSign _ inst == $$MulDivSignSS)
           then
@@ -186,11 +203,13 @@ Section Processor.
 
         with Rule "longLatMultFinish" :=
           Read inst : Inst <- "llInst";
-          Assert (isMul _ inst);
+          Assert (isMulL _ inst || isMulH _ inst);
 
           Call mres <- boothMultGetResult();
-          (* TODO: write appropriate values to "llRes" *)
 
+          Write "llRes" <- (IF (isMulL _ inst)
+                            then #mres!MultOutStr@."low"
+                            else #mres!MultOutStr@."high");
           Write "llHasResult" <- $$true;
           Retv
 
@@ -199,8 +218,10 @@ Section Processor.
           Assert (isDiv _ inst || isRem _ inst);
 
           Call dres <- nrDivGetResult();
-          (* TODO: write appropriate values to "llRes" *)
 
+          Write "llRes" <- (IF (isDiv _ inst)
+                            then #dres!DivOutStr@."quotient"
+                            else #dres!DivOutStr@."remainder");
           Write "llHasResult" <- $$true;
           Retv
             
