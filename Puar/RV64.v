@@ -535,11 +535,11 @@ Section RV64.
                then (
                    Write "sepc" <- #pcVal;
                    Write "scause" <- toCauseCsr _ trap;
-
                    Write "stval" <- #exceptionInfo;
-
                    Write "spp" <- UniBit (ZeroExtendTrunc _ 1) #prv;
-                   Write "spie" <- IF (#prv == $ prvU) then #uie else #sie;
+                   Write "spie" <- (IF (#prv == $ prvU)
+                                    then #uie
+                                    else #sie);
                    Write "sie": Bit 1 <- $ 0;
                    Write "prv": Mode <- $ prvS;
                    Ret #stvec
@@ -560,11 +560,10 @@ Section RV64.
                    Write "prv": Mode <- $ prvM;
                    Ret #mtvec
                  ) as nextPcVal;
-                 LET retVal: (Struct CExec) <- STRUCT {
-                                              exception ::= $$ true ;
-                                              nextPc ::= #nextPcVal ;
-                                              dst ::= #execVal!Exec@.dst };
-                 Ret #retVal
+                 Ret ((STRUCT {
+                           exception ::= $$ true;
+                           nextPc ::= #nextPcVal;
+                           dst ::= #execVal!Exec@.dst }): ((Struct CExec) @ _))
             )
           else
             Ret $$ Default
