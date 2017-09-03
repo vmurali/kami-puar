@@ -577,7 +577,7 @@ Section RV64.
 
   (* MUST CHECK HERE ONWARDS *)
   
-  Definition execLongLatFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty Data)
+  Definition execLongLatFn ty (pc: ty VAddr) (inst: ty Inst) (src1 src2: ty (Bit Xlen))
     : ((Struct Exec) @ ty) :=
     STRUCT {
         data ::= $$ Default ;
@@ -651,8 +651,8 @@ Section RV64.
   Definition BtbSz := 10.
   Definition BpSz := 20.
 
-  Definition BtbTagSz := VAddrSz - (BtbSz + 2).
-  Definition BtbDataSz := VAddrSz - 2.
+  Definition BtbTagSz := (VAddrSz - (BtbSz + 2))%nat.
+  Definition BtbDataSz := (VAddrSz - 2)%nat.
   Definition BtbData := Bit BtbDataSz.
 
   Definition BtbState := Vector (optT (Struct (Pair (Bit BtbTagSz) BtbData))) BtbSz.

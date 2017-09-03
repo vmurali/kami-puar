@@ -119,7 +119,7 @@ Section Divider64.
         LET r : Bit DivNumBits <- #src!DivInStr@."divisor";
 
         Write "quotient" <- #m / #r;
-        Write "remainder" <- BinBit (Rem _ SignSS) #m #r;
+        Write "remainder" <- BinBit (Rem _ true) #m #r;
         Retv
 
       with Method "divGetResult"(): Struct DivOutStr :=

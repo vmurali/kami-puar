@@ -13,11 +13,12 @@ Section Processor.
   Variable isDiv: forall ty, ty Inst -> Bool @ ty.
   Variable isRem: forall ty, ty Inst -> Bool @ ty.
 
-  Definition MulDivSign := Bit 2.
-  Definition MulDivSignSS : ConstT MulDivSign := WO~0~0.
-  Definition MulDivSignSU : ConstT MulDivSign := WO~0~1.
-  Definition MulDivSignUU : ConstT MulDivSign := WO~1~0.
-  Variable getMulDivSign: forall ty, ty Inst -> MulDivSign @ ty.
+  Definition MulSign := Bit 2.
+  Definition MulSignSS : ConstT MulSign := WO~0~0.
+  Definition MulSignSU : ConstT MulSign := WO~0~1.
+  Definition MulSignUU : ConstT MulSign := WO~1~0.
+  Variable getMulSign: forall ty, ty Inst -> MulSign @ ty.
+  Variable getDivSign: forall ty, ty Inst -> Bool @ ty.
 
   Section Spec.
     Variable NumDataBytes: nat.
@@ -40,21 +41,17 @@ Section Processor.
                     else (IF (isRem _ inst)
                           then _
                           else $$Default)))%kami_expr.
-      - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
+      - refine (IF (getMulSign _ inst == $$MulSignSS)
                 then #val1 *s #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
+                else (IF (getMulSign _ inst == $$MulSignSU)
                       then #val1 *su #val2
                       else #val1 * #val2))%kami_expr.
-      - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
+      - refine (IF (getDivSign _ inst == $$ true)
                 then #val1 /s #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
-                      then #val1 /su #val2
-                      else #val1 / #val2))%kami_expr.
-      - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
-                then BinBit (Rem _ SignSS) #val1 #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
-                      then BinBit (Rem _ SignSU) #val1 #val2
-                      else BinBit (Rem _ SignUU) #val1 #val2))%kami_expr.
+                else #val1 / #val2)%kami_expr.
+      - refine (IF (getDivSign _ inst == $$ true)
+                then BinBit (Rem _ true) #val1 #val2
+                else BinBit (Rem _ false) #val1 #val2)%kami_expr.
     Defined.
 
     Definition longLatSpec :=
@@ -134,14 +131,14 @@ Section Processor.
 
           Assert (isMul _ inst);
 
-          If (getMulDivSign _ inst == $$MulDivSignSS)
+          If (getMulSign _ inst == $$MulSignSS)
           then
             Call boothMultRegister(
               STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1;
                        "multiplier" ::= UniBit (SignExtendTrunc _ _) #src2 });
             Retv
           else
-            If (getMulDivSign _ inst == $$MulDivSignSU)
+            If (getMulSign _ inst == $$MulSignSU)
             then
               Call boothMultRegister(
                 STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1;
@@ -165,14 +162,14 @@ Section Processor.
 
           Assert (isDiv _ inst || isRem _ inst);
 
-          If (getMulDivSign _ inst == $$MulDivSignSS)
+          If (getMulSign _ inst == $$MulSignSS)
           then
             Call nrDivRegister(
               STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1);
                        "divisor" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src2) });
             Retv
           else
-            If (getMulDivSign _ inst == $$MulDivSignSU)
+            If (getMulSign _ inst == $$MulSignSU)
             then
               Call nrDivRegister(
                 STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1);
