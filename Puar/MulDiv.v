@@ -63,15 +63,10 @@ Section Processor.
                          else ((UniBit (ZeroExtendTrunc _ EDataBits) #val1)
                                * (UniBit (ZeroExtendTrunc _ EDataBits) #val2)))))%kami_expr.
       - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
-                then #val1 /s #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
-                      then #val1 /su #val2
-                      else #val1 / #val2))%kami_expr.
+                then #val1 /s #val2 else #val1 / #val2)%kami_expr.
       - refine (IF (getMulDivSign _ inst == $$MulDivSignSS)
-                then BinBit (Rem _ SignSS) #val1 #val2
-                else (IF (getMulDivSign _ inst == $$MulDivSignSU)
-                      then BinBit (Rem _ SignSU) #val1 #val2
-                      else BinBit (Rem _ SignUU) #val1 #val2))%kami_expr.
+                then BinBit (Rem _ true) #val1 #val2
+                else BinBit (Rem _ false) #val1 #val2)%kami_expr.
     Defined.
 
     Definition longLatSpec :=
@@ -153,21 +148,24 @@ Section Processor.
 
           If (getMulDivSign _ inst == $$MulDivSignSS)
           then
-            Call boothMultRegister(
-              STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1;
-                       "multiplier" ::= UniBit (SignExtendTrunc _ _) #src2 });
+            (** TODO: redesign an interface *)
+            (* Call boothMultRegister( *)
+            (*   STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1; *)
+            (*            "multiplier" ::= UniBit (SignExtendTrunc _ _) #src2 }); *)
             Retv
           else
             If (getMulDivSign _ inst == $$MulDivSignSU)
             then
-              Call boothMultRegister(
-                STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1;
-                         "multiplier" ::= UniBit (ZeroExtendTrunc _ _) #src2 });
+              (** TODO: redesign an interface *)
+              (* Call boothMultRegister( *)
+              (*   STRUCT { "multiplicand" ::= UniBit (SignExtendTrunc _ _) #src1; *)
+              (*            "multiplier" ::= UniBit (ZeroExtendTrunc _ _) #src2 }); *)
               Retv
             else
-              Call boothMultRegister(
-                STRUCT { "multiplicand" ::= UniBit (ZeroExtendTrunc _ _) #src1;
-                         "multiplier" ::= UniBit (ZeroExtendTrunc _ _) #src2 });
+              (** TODO: redesign an interface *)
+              (* Call boothMultRegister( *)
+              (*   STRUCT { "multiplicand" ::= UniBit (ZeroExtendTrunc _ _) #src1; *)
+              (*            "multiplier" ::= UniBit (ZeroExtendTrunc _ _) #src2 }); *)
               Retv;
             Retv;
           Retv
@@ -205,8 +203,10 @@ Section Processor.
           Read inst : Inst <- "llInst";
           Assert (isMulL _ inst || isMulH _ inst);
 
-          Call mres <- boothMultGetResult();
-
+          (** TODO: redesign an interface *)
+          (* Call mres <- boothMultGetResult(); *)
+          Nondet mres : SyntaxKind (Struct MultOutStr);
+          
           Write "llRes" <- (IF (isMulL _ inst)
                             then #mres!MultOutStr@."low"
                             else #mres!MultOutStr@."high");

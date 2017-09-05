@@ -3,6 +3,8 @@ Require Import Lib.Indexer Lib.Struct Lib.FMap Lib.Reflection.
 Require Import Kami.Tactics Kami.SemFacts Kami.StepDet.
 Require Import Puar.Useful FunctionalExtensionality.
 
+Require Import Eqdep.
+
 Set Implicit Arguments.
 Open Scope string.
 
@@ -48,11 +50,12 @@ Section Multiplier64.
      else IF (pr == $$(WO~1~0)) then p - #m_pos
      else p)%kami_expr.
 
+  (* NOTE: must use shirt-right-arithmetic to preserve the sign bit. *)
   Definition boothStep {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
              (p: Expr ty (SyntaxKind (Bit ((MultBits - 2) + 2))))
     : Expr ty (SyntaxKind (Bit MultBits)) :=
-    (boothStep' m_pos m_neg p (UniBit (Trunc 2 _) p) >> $$(WO~1))%kami_expr.
+    (boothStep' m_pos m_neg p (UniBit (Trunc 2 _) p) ~>> $$(WO~1))%kami_expr.
 
   Definition booth4Step' {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
@@ -61,16 +64,17 @@ Section Multiplier64.
     (IF (pr == $$(WO~0~0~1)) then p + #m_pos
      else IF (pr == $$(WO~0~1~0)) then p + #m_pos
      else IF (pr == $$(WO~0~1~1)) then p + (#m_pos << $$(WO~1))
-     else IF (pr == $$(WO~1~0~0)) then p + (#m_pos << $$(WO~1))
+     else IF (pr == $$(WO~1~0~0)) then p + (#m_neg << $$(WO~1))
      else IF (pr == $$(WO~1~0~1)) then p + #m_neg
      else IF (pr == $$(WO~1~1~0)) then p + #m_neg
      else p)%kami_expr.
 
+  (* NOTE: must use shirt-right-arithmetic to preserve the sign bit. *)
   Definition booth4Step {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
              (p: Expr ty (SyntaxKind (Bit ((MultBits - 3) + 3))))
     : Expr ty (SyntaxKind (Bit MultBits)) :=
-    (booth4Step' m_pos m_neg p (UniBit (Trunc 3 _) p) >> $$(WO~1~0))%kami_expr.
+    (booth4Step' m_pos m_neg p (UniBit (Trunc 3 _) p) ~>> $$(WO~1~0))%kami_expr.
 
   Fixpoint booth4Steps (cnt: nat)
            {ty} (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
@@ -84,10 +88,8 @@ Section Multiplier64.
               booth4Steps n m_pos m_neg np cont)%kami_action
     end.
 
-  Definition boothMultRegister :=
-    MethodSig "boothMultRegister"(Struct MultInStr): Void.
-  Definition boothMultGetResult :=
-    MethodSig "boothMultGetResult"(): Struct MultOutStr.
+  Definition multPull := MethodSig "multPull"(): Struct MultInStr.
+  Definition multPush := MethodSig "multPush"(Struct MultOutStr): Void.
 
   Definition boothMultiplierImpl :=
     MODULE {
@@ -96,7 +98,9 @@ Section Multiplier64.
       with Register "p" : Bit MultBits <- Default
       with Register "cnt" : Bit (S MultLogNumPhases) <- Default
 
-      with Method "boothMultRegister"(src: Struct MultInStr): Void :=
+      with Rule "boothMultRegister" :=
+        Call src <- multPull();
+
         LET m : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
         LET m_neg <- (UniBit (Inv _) #m) + $1;
 
@@ -119,7 +123,7 @@ Section Multiplier64.
         Write "cnt" : Bit (S MultLogNumPhases) <- $(MultNumPhases);
         Retv
 
-      with Method "boothMultGetResult"(): Struct MultOutStr :=
+      with Rule "boothMultGetResult" :=
         Read cnt : Bit MultLogNumPhases <- "cnt";
         Assert (#cnt == $0);
 
@@ -132,8 +136,10 @@ Section Multiplier64.
         LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
         LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
-        LET ret : Struct MultOutStr <- STRUCT { "high" ::= $$Default; "low" ::= #low };
-        Ret #ret
+        LET res : Struct MultOutStr <- STRUCT { "high" ::= $$Default; "low" ::= #low };
+        Call multPush(#res);
+
+        Retv
             
       with Rule "boothStep" :=
         Read cnt : Bit MultLogNumPhases <- "cnt";
@@ -154,7 +160,8 @@ Section Multiplier64.
     MODULE {
       Register "p" : Bit (2 * MultNumBitsExt) <- Default
 
-      with Method "multRegister"(src: Struct MultInStr): Void :=
+      with Rule "multRegister" :=
+        Call src <- multPull();
         LET m : Bit MultNumBitsExt <- #src!MultInStr@."multiplicand";
         LET m_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
         LET r : Bit MultNumBitsExt <- #src!MultInStr@."multiplier";
@@ -163,16 +170,182 @@ Section Multiplier64.
         Write "p" <- #m_ext *s #r_ext;
         Retv
 
-      with Method "multGetResult"(): Struct MultOutStr :=
+      with Rule "multGetResult" :=
         Read p : Bit (2 * MultNumBitsExt) <- "p";
         LET highlow : Bit (2 * MultNumBits) <- UniBit (SignExtendTrunc _ _) #p;
         
         LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
         LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
-        LET ret : Struct MultOutStr <- STRUCT { "high" ::= #high; "low" ::= #low };
-        Ret #ret
+        LET res : Struct MultOutStr <- STRUCT { "high" ::= #high; "low" ::= #low };
+        Call multPush(#res);
+
+        Retv
     }.
+
+  (*! Correctness of the multiplier *)
+
+  Require Import ZArith.
+
+  Section BoothEncoding.
+
+    Inductive Booth := BZero | BPlus | BMinus.
+
+    Inductive bword: nat -> Set :=
+    | BWO: bword 0
+    | BWS: Booth -> forall n, bword n -> bword (S n).
+
+    Fixpoint bwordToZ sz (bw: bword sz): Z :=
+      match bw with
+      | BWO => 0
+      | BWS BZero bw' => bwordToZ bw' * 2
+      | BWS BPlus bw' => (bwordToZ bw' * 2) + 1
+      | BWS BMinus bw' => (bwordToZ bw' * 2) - 1
+      end.
+
+    Notation "w ~ 0" := (BWS BZero w) (at level 7, left associativity,
+                                       format "w '~' '0'"): bword_scope.
+    Notation "w ~ 'P'" := (BWS BPlus w) (at level 7, left associativity,
+                                         format "w '~' 'P'"): bword_scope.
+    Notation "w ~ 'N'" := (BWS BMinus w) (at level 7, left associativity,
+                                          format "w '~' 'N'"): bword_scope.
+    Delimit Scope bword_scope with bword.
+
+    Definition encodeB2 (mst lst: bool) :=
+      match mst, lst with
+      | false, true => BPlus
+      | true, false => BMinus
+      | _, _ => BZero
+      end.
+
+    Fixpoint wordToB2' sz (w: word sz) (p: bool): bword sz :=
+      match w with
+      | WO => BWO
+      | WS b w' => BWS (encodeB2 b p) (wordToB2' w' b)
+      end.
+
+    Definition wordToB2 sz (w: word (S sz)): bword sz :=
+      match w with
+      | WO => idProp
+      | WS b w' => wordToB2' w' b
+      end.
+
+    Lemma wordToB2_one:
+      forall (w: word 1), bwordToZ (wordToB2 w) = 0%Z.
+    Proof.
+      intros.
+    Admitted.
+
+    Lemma wordToB2_bwordToZ:
+      forall sz (w: word sz),
+        bwordToZ (wordToB2 w~0) = wordToZ w.
+    Proof.
+    Admitted.
+
+    Definition encodeB4 (b1 b2 b3: bool) :=
+      match b1, b2, b3 with
+      | false, false, true
+      | false, true, false => (BZero, BPlus)
+      | false, true, true => (BPlus, BZero)
+      | true, false, false => (BMinus, BZero)
+      | true, false, true
+      | true, true, false => (BZero, BMinus)
+      | _, _, _ => (BZero, BZero)
+      end.
+
+    (* Fixpoint wordToB4' sz (w: word sz) (p1 p2: bool): bword (S sz) := *)
+    (*   match w with *)
+    (*   | WO => BWO *)
+    (*   | WS b WO => BWS (fst (encodeB4 p1 p2 b)) (BWS (snd (encodeB4 p1 p2 b)) BWO) *)
+    (*   | WS b1 (WS b2 w') => *)
+    (*     BWS (fst (encodeB4 p1 p2 b1)) (BWS (snd (encodeB4 p1 p2 b1)) (wordToB4' w' b1 b2)) *)
+    (*   end. *)
+
+  End BoothEncoding.
+
+  Inductive BoothStepInv {sz} (m p: word sz)
+    : forall wsz, word wsz -> nat -> Prop :=
+  | BSInv: forall sl su w wl wu u,
+      wl = split1 (S sl) su w ->
+      wu = split2 (S sl) su w ->
+      wordToZ wu = (wordToZ m * u)%Z ->
+      (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
+      BoothStepInv m p w (S sl).
+
+  Lemma boothStepInv_inv:
+    forall {sz} (m p: word sz) wsz (w: word wsz) ss,
+      BoothStepInv m p w ss ->
+      exists sl su (wl: word (S sl)) wu u
+             (Hs: (S sl) + su = wsz),
+        ss = S sl /\
+        wl = split1 (S sl) su (eq_rec_r _ w Hs) /\
+        wu = split2 (S sl) su (eq_rec_r _ w Hs) /\
+        wordToZ wu = (wordToZ m * u)%Z /\
+        (u + bwordToZ (wordToB2 wl))%Z = wordToZ p.
+  Proof.
+    intros.
+    inv H; destruct_existT.
+    exists sl, su, (split1 (S sl) su w), (split2 (S sl) su w), u.
+    exists eq_refl.
+    repeat split; assumption.
+  Qed.
+
+  (*! TODO: move to word.v *)
+  Lemma natToWord_wordToZ_0:
+    forall sz, wordToZ (natToWord sz 0) = 0%Z.
+  Proof.
+  Admitted.
+
+  Lemma boothStepInv_init:
+    forall sz m p,
+      BoothStepInv m (p: word sz)
+                   (combine (combine (natToWord 1 0) p) (natToWord (S sz) 0))
+                   (S sz).
+  Proof.
+    intros; econstructor; try reflexivity.
+    - instantiate (1:= 0%Z).
+      rewrite split2_combine.
+      rewrite <-Zmult_0_r_reverse.
+      apply natToWord_wordToZ_0.
+    - rewrite Z.add_0_l.
+      rewrite <-wordToB2_bwordToZ.
+      do 2 f_equal.
+      rewrite split1_combine.
+      reflexivity.
+  Qed.
+
+  Lemma boothStepInv_finish:
+    forall sz (m p: word sz) wsz (w: word (1 + wsz)),
+      BoothStepInv m p w 1 ->
+      wordToZ (split2 1 wsz w) = (wordToZ m * wordToZ p)%Z.
+  Proof.
+    intros.
+    apply boothStepInv_inv in H; dest.
+    inv H.
+
+    rewrite wordToB2_one in H3.
+    rewrite Z.add_0_r in H3; subst.
+    rewrite <-H2; clear H2.
+
+    assert (x0 = wsz) by (inv x4; reflexivity); subst.
+    rewrite UIP_refl with (p:= x4).
+    unfold eq_rec_r, eq_rec, eq_rect; simpl.
+    reflexivity.
+  Qed.
+
+  (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
+  Local Definition thetaR (ir sr: RegsT): Prop.
+  Proof.
+    kexistv "m_pos" m_pos ir (Bit MultBits).
+    kexistv "m_neg" m_neg ir (Bit MultBits).
+    exact False. (* TODO *)
+  Defined.
+
+  Theorem multiplier_ok: boothMultiplierImpl <<== multiplierSpec.
+  Proof.
+    (* kdecomposeR_nodefs thetaR. *)
+
+  Admitted.
 
 End Multiplier64.
 
