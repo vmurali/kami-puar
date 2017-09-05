@@ -5,6 +5,7 @@ Require Import Puar.Useful FunctionalExtensionality.
 
 Set Implicit Arguments.
 Open Scope string.
+
 (* Below implements a radix-4 Booth Multiplier.
  *
  * Note that the Booth multiplication algorithm is naturally designed
@@ -16,8 +17,9 @@ Open Scope string.
  * arguments.
  *)
 Section Multiplier64.
-  (* NOTE: hard to declare [LogNumPhases] and [NumBitsPerPhase] as variables,
-   * since truncation and extension require certain equation w.r.t. bit-lengths.
+  (* NOTE: it's hard to declare [LogNumPhases] and [NumBitsPerPhase] as 
+   * variables, since truncation and extension require certain equation 
+   * w.r.t. bit-lengths.
    *)
   (* Variable MultLogNumPhases MultNumStepsPerPhase: nat. *)
   Definition MultLogNumPhases := 3.
@@ -26,11 +28,12 @@ Section Multiplier64.
   Definition MultNumBitsPerPhase := 2 * MultNumStepsPerPhase. 
 
   Definition MultNumPhases := wordToNat (wones MultLogNumPhases) + 1. (* 2^3 = 8 *)
-  Definition MultNumBits := MultNumPhases * MultNumBitsPerPhase + 1. (* 8*8 + 1 = 65 *)
-  Definition MultBits := 2 * MultNumBits + 2.
+  Definition MultNumBits := MultNumPhases * MultNumBitsPerPhase. (* 8*8 = 64 *)
+  Definition MultNumBitsExt := MultNumBits + 1. (* 8*8 + 1 = 65 *)
+  Definition MultBits := 2 * MultNumBitsExt + 2.
 
-  Definition MultInStr := STRUCT { "multiplicand" :: Bit MultNumBits;
-                                   "multiplier" :: Bit MultNumBits }.
+  Definition MultInStr := STRUCT { "multiplicand" :: Bit MultNumBitsExt;
+                                   "multiplier" :: Bit MultNumBitsExt }.
   Definition MultOutStr := STRUCT { "high" :: Bit MultNumBits;
                                     "low" :: Bit MultNumBits }.
 
@@ -94,16 +97,16 @@ Section Multiplier64.
       with Register "cnt" : Bit (S MultLogNumPhases) <- Default
 
       with Method "boothMultRegister"(src: Struct MultInStr): Void :=
-        LET m : Bit (pred MultNumBits + 1) <- #src!MultInStr@."multiplicand";
+        LET m : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
         LET m_neg <- (UniBit (Inv _) #m) + $1;
 
         LET m_pos : Bit MultBits <-
-          BinBit (Concat _ (S MultNumBits)) (UniBit (SignExtendTrunc _ _) #m) $0;
+          BinBit (Concat _ (S MultNumBitsExt)) (UniBit (SignExtendTrunc _ _) #m) $0;
         LET m_neg : Bit MultBits <-
-          BinBit (Concat _ (S MultNumBits)) (UniBit (SignExtendTrunc _ _) #m_neg) $0;
+          BinBit (Concat _ (S MultNumBitsExt)) (UniBit (SignExtendTrunc _ _) #m_neg) $0;
         LET r <- #src!MultInStr@."multiplier";
         LET p : Bit MultBits <-
-          BinBit (Concat (S MultNumBits) _) $0 (BinBit (Concat _ 1) #r $0);
+          BinBit (Concat (S MultNumBitsExt) _) $0 (BinBit (Concat _ 1) #r $0);
 
         (* Handle one bit in advance, in order to deal with other 64 bits 
          * consistently in a rule [boothStep].
@@ -121,8 +124,13 @@ Section Multiplier64.
         Assert (#cnt == $0);
 
         Read p : Bit MultBits <- "p";
-        LET high : Bit MultNumBits <- UniBit (ConstExtract (S MultNumBits) MultNumBits 1) #p;
-        LET low : Bit MultNumBits <- UniBit (ConstExtract 1 MultNumBits (S MultNumBits)) #p;
+        LET highlowe : Bit (2 * MultNumBitsExt) <-
+          UniBit (ConstExtract 1 (2 * MultNumBitsExt) 1) #p;
+        LET highlow : Bit (2 * MultNumBits) <-
+          UniBit (SignExtendTrunc _ _) #highlowe;
+        
+        LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
+        LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
         LET ret : Struct MultOutStr <- STRUCT { "high" ::= $$Default; "low" ::= #low };
         Ret #ret
@@ -144,21 +152,23 @@ Section Multiplier64.
 
   Definition multiplierSpec :=
     MODULE {
-      Register "p" : Bit (2 * MultNumBits) <- Default
+      Register "p" : Bit (2 * MultNumBitsExt) <- Default
 
       with Method "multRegister"(src: Struct MultInStr): Void :=
-        LET m : Bit MultNumBits <- #src!MultInStr@."multiplicand";
-        LET m_ext : Bit (2 * MultNumBits) <- UniBit (SignExtendTrunc _ _) #m;
-        LET r : Bit MultNumBits <- #src!MultInStr@."multiplier";
-        LET r_ext : Bit (2 * MultNumBits) <- UniBit (SignExtendTrunc _ _) #m;
+        LET m : Bit MultNumBitsExt <- #src!MultInStr@."multiplicand";
+        LET m_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
+        LET r : Bit MultNumBitsExt <- #src!MultInStr@."multiplier";
+        LET r_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
 
         Write "p" <- #m_ext *s #r_ext;
         Retv
 
       with Method "multGetResult"(): Struct MultOutStr :=
-        Read p : Bit (MultNumBits + MultNumBits) <- "p";
-        LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #p;
-        LET low : Bit MultNumBits <- UniBit (Trunc _ _) #p;
+        Read p : Bit (2 * MultNumBitsExt) <- "p";
+        LET highlow : Bit (2 * MultNumBits) <- UniBit (SignExtendTrunc _ _) #p;
+        
+        LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
+        LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
         LET ret : Struct MultOutStr <- STRUCT { "high" ::= #high; "low" ::= #low };
         Ret #ret
