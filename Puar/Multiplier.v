@@ -47,7 +47,7 @@ Section Multiplier64.
              (p: Expr ty (SyntaxKind (Bit MultBits)))
              (pr: Expr ty (SyntaxKind (Bit 2))) :=
     (IF (pr == $$(WO~0~1)) then p + #m_pos
-     else IF (pr == $$(WO~1~0)) then p - #m_pos
+     else IF (pr == $$(WO~1~0)) then p + #m_neg
      else p)%kami_expr.
 
   (* NOTE: must use shirt-right-arithmetic to preserve the sign bit. *)
@@ -55,7 +55,37 @@ Section Multiplier64.
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
              (p: Expr ty (SyntaxKind (Bit ((MultBits - 2) + 2))))
     : Expr ty (SyntaxKind (Bit MultBits)) :=
-    (boothStep' m_pos m_neg p (UniBit (Trunc 2 _) p) ~>> $$(WO~1))%kami_expr.
+    ((boothStep' m_pos m_neg p (UniBit (Trunc 2 _) p)) ~>> $$(WO~1))%kami_expr.
+
+  Lemma boothStep'_eval:
+    forall m_pos m_neg p pr,
+      evalExpr (boothStep' m_pos m_neg p pr) =
+      if weq (evalExpr pr) WO~0~1 then evalExpr p ^+ m_pos
+      else if weq (evalExpr pr) WO~1~0 then evalExpr p ^+ m_neg
+           else evalExpr p.
+  Proof.
+    intros; simpl.
+    destruct (weq _ _); try reflexivity.
+    destruct (weq _ _); reflexivity.
+  Qed.
+
+  Lemma boothStep_eval:
+    forall m_pos m_neg p,
+      evalExpr (boothStep m_pos m_neg p) =
+      if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~0~1
+      then sra (evalExpr p ^+ m_pos) 1
+      else if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~1~0
+           then sra (evalExpr p ^+ m_neg) 1
+           else sra (evalExpr p) 1.
+  Proof.
+    intros; unfold boothStep.
+    unfold evalExpr; fold evalExpr.
+    unfold evalBinBit.
+    rewrite boothStep'_eval.
+
+    destruct (weq _ _); [reflexivity|].
+    destruct (weq _ _); reflexivity.
+  Qed.
 
   Definition booth4Step' {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
@@ -191,6 +221,13 @@ Section Multiplier64.
 
     Inductive Booth := BZero | BPlus | BMinus.
 
+    Definition boothToZ (b: Booth): Z :=
+      match b with
+      | BZero => 0
+      | BPlus => 1
+      | BMinus => -1
+      end.
+
     Inductive bword: nat -> Set :=
     | BWO: bword 0
     | BWS: Booth -> forall n, bword n -> bword (S n).
@@ -210,6 +247,11 @@ Section Multiplier64.
     Notation "w ~ 'N'" := (BWS BMinus w) (at level 7, left associativity,
                                           format "w '~' 'N'"): bword_scope.
     Delimit Scope bword_scope with bword.
+
+    Definition wencodeB2 (w: word 2) :=
+      if weq w WO~0~1 then BPlus
+      else if weq w WO~1~0 then BMinus
+           else BZero.
 
     Definition encodeB2 (mst lst: bool) :=
       match mst, lst with
@@ -264,22 +306,37 @@ Section Multiplier64.
   End BoothEncoding.
 
   Inductive BoothStepInv {sz} (m p: word sz)
-    : forall wsz, word wsz -> nat -> Prop :=
+    : forall wsz, word wsz (* the target word [w] *) ->
+                  nat (* length of the lower part of [w] *) -> Prop :=
   | BSInv: forall sl su w wl wu u,
-      wl = split1 (S sl) su w ->
-      wu = split2 (S sl) su w ->
+      wl = split1 (S sl) su w -> (* |wl| = S sl *)
+      wu = split2 (S sl) su w -> (* |wu| = su *)
       wordToZ wu = (wordToZ m * u)%Z ->
       (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
       BoothStepInv m p w (S sl).
 
+  Lemma boothStepInv_intro:
+    forall {sz} (m p: word sz) {wsz} (w: word wsz)
+           sl su (wl: word (S sl)) (wu: word su) u
+           (Hs: wsz = (S sl) + su),
+      wl = split1 (S sl) su (eq_rect _ _ w _ Hs) ->
+      wu = split2 (S sl) su (eq_rect _ _ w _ Hs) ->
+      wordToZ wu = (wordToZ m * u)%Z ->
+      (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
+      BoothStepInv m p w (S sl).
+  Proof.
+    intros; subst.
+    econstructor; eauto.
+  Qed.
+
   Lemma boothStepInv_inv:
-    forall {sz} (m p: word sz) wsz (w: word wsz) ss,
-      BoothStepInv m p w ss ->
-      exists sl su (wl: word (S sl)) wu u
-             (Hs: (S sl) + su = wsz),
-        ss = S sl /\
-        wl = split1 (S sl) su (eq_rec_r _ w Hs) /\
-        wu = split2 (S sl) su (eq_rec_r _ w Hs) /\
+    forall {sz} (m p: word sz) {wsz} (w: word wsz) swl,
+      BoothStepInv m p w swl ->
+      exists sl su (wl: word (S sl)) (wu: word su) u
+             (Hs: wsz = (S sl) + su),
+        swl = S sl /\
+        wl = split1 (S sl) su (eq_rect _ _ w _ Hs) /\
+        wu = split2 (S sl) su (eq_rect _ _ w _ Hs) /\
         wordToZ wu = (wordToZ m * u)%Z /\
         (u + bwordToZ (wordToB2 wl))%Z = wordToZ p.
   Proof.
@@ -328,11 +385,47 @@ Section Multiplier64.
     rewrite <-H2; clear H2.
 
     assert (x0 = wsz) by (inv x4; reflexivity); subst.
-    rewrite UIP_refl with (p:= x4).
-    unfold eq_rec_r, eq_rec, eq_rect; simpl.
+    rewrite <-Eq_rect_eq.eq_rect_eq.
     reflexivity.
   Qed.
 
+  Lemma boothStepInv_boothStep:
+    forall (m: word MultNumBitsExt) mp mn p we nwe d,
+      mp = combine (natToWord (S MultNumBitsExt) 0) (sext m _) ->
+      mn = combine (natToWord (S MultNumBitsExt) 0) (sext (wneg m) _) ->
+      boothStep mp mn we = nwe ->
+      BoothStepInv m p (evalExpr we) d ->
+      (d > 1)%nat ->
+      BoothStepInv m p (evalExpr nwe) (d - 1).
+  Proof.
+    intros; subst.
+    apply boothStepInv_inv in H2.
+    destruct H2 as [sl [su [wl [wu [u [Hs ?]]]]]]; dest.
+    subst d.
+    
+    remember (eq_rect _ word (evalExpr we) _ Hs) as ws.
+
+    destruct sl as [|sl]; [omega|].
+    change (S (S sl) - 1) with (S sl).
+
+    assert (Hsn: MultBits = S sl + S su).
+    { replace MultBits with (MultBits - 2 + 2) by reflexivity.
+      omega.
+    }
+
+    (* set (split1 2 _ wl) as wlLsb2. *)
+    (* set (boothToZ (wencodeB2 wlLsb2)) as b. *)
+
+    rewrite boothStep_eval.
+    remember (evalExpr we) as w; clear Heqw we.
+
+    destruct (weq _ _).
+    
+    - eapply boothStepInv_intro; try reflexivity.
+
+    
+  Admitted.
+  
   (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
