@@ -17,6 +17,43 @@ Definition Trap := STRUCT {
                        isTrap :: Bool ;
                        isInterrupt :: Bool ;
                        trapValue :: Bit 4 }.
+
+Definition SYSTEM := WO~1~1~1~0~0~0~0.
+Definition ECALL := natToWord 12 0.
+Definition EBREAK := natToWord 12 1.
+Definition xRET := WO~0~0~0~1~0.
+Definition URET := WO~0~0~0~0~0~0~0.
+Definition SRET := WO~0~0~0~1~0~0~0.
+Definition MRET := WO~0~0~1~1~0~0~0.
+Definition WFI_funct7 := WO~0~0~0~1~0~0~0.
+Definition WFI_rs2 := WO~0~0~1~0~1.
+Definition SFENCE_VMA := WO~0~0~0~1~0~0~1.
+
+Definition InstAddrMisaligned := 0.
+Definition InstAccessFault := 1.
+Definition IllegalInst := 2.
+Definition Breakpoint := 3.
+Definition LoadAddrMisaligned := 4.
+Definition LoadAccessFault := 5.
+Definition StoreAMOAddrMisaligned := 6.
+Definition StoreAMOAccessFault := 7.
+Definition EnvCallU := 8.
+Definition EnvCallS := 9.
+Definition EnvCallM := 11.
+Definition InstPageFault := 12.
+Definition LoadPageFault := 13.
+Definition StoreAMOPageFault := 15.
+
+Definition USoftwareInterrupt := 0.
+Definition SSoftwareInterrupt := 1.
+Definition MSoftwareInterrupt := 3.
+Definition UTimerInterrupt := 4.
+Definition STimerInterrupt := 5.
+Definition MTimerInterrupt := 7.
+Definition UExternalInterrupt := 8.
+Definition SExternalInterrupt := 9.
+Definition MExternalInterrupt := 11.
+
 Section RV64.
   Definition LgXlenBytes := 3.
   Definition XlenBytes := ltac:(let y := eval compute in (Lib.Word.pow2 LgXlenBytes) in exact y).
@@ -61,7 +98,9 @@ Section RV64.
         extC :: Bool ;
         other :: Bool }.
 
-  Variable MemException: Kind.
+  Definition XlateInfo := STRUCT {
+                              "satp" :: Bit Xlen;
+                              "permission" :: Bit 10 }.
           
   Notation Exec := (Exec XlenBytes VAddr (Struct ExecException)).
 
@@ -314,45 +353,6 @@ Section RV64.
   Definition isLd ty (inst: ty Inst) := (op4_2 _ inst == $ 0 && op6_5 _ inst == $ 0) || isAmo _ inst.
   Definition isSt ty (inst: ty Inst) := (op4_2 _ inst == $ 0 && op6_5 _ inst == $ 1) || isAmo _ inst.
 
-  Definition MemPrivT := (MemPrivT XlenBytes VAddr PAddr Inst Mode MemException (Struct ExecException)).
-  Definition CExec := (CExec XlenBytes VAddr).
-  
-  Definition SYSTEM := WO~1~1~1~0~0~0~0.
-  Definition ECALL := natToWord 12 0.
-  Definition EBREAK := natToWord 12 1.
-  Definition xRET := WO~0~0~0~1~0.
-  Definition URET := WO~0~0~0~0~0~0~0.
-  Definition SRET := WO~0~0~0~1~0~0~0.
-  Definition MRET := WO~0~0~1~1~0~0~0.
-  Definition WFI_funct7 := WO~0~0~0~1~0~0~0.
-  Definition WFI_rs2 := WO~0~0~1~0~1.
-  Definition SFENCE_VMA := WO~0~0~0~1~0~0~1.
-
-  Definition InstAddrMisaligned := natToWord 4 0.
-  Definition InstAccessFault := natToWord 4 1.
-  Definition IllegalInst := natToWord 4 2.
-  Definition Breakpoint := natToWord 4 3.
-  Definition LoadAddrMisaligned := natToWord 4 4.
-  Definition LoadAccessFault := natToWord 4 5.
-  Definition StoreAMOAddrMisaligned := natToWord 4 6.
-  Definition StoreAMOAccessFault := natToWord 4 7.
-  Definition EnvCallU := natToWord 4 8.
-  Definition EnvCallS := natToWord 4 9.
-  Definition EnvCallM := natToWord 4 11.
-  Definition InstPageFault := natToWord 4 12.
-  Definition LoadPageFault := natToWord 4 13.
-  Definition StoreAMOPageFault := natToWord 4 15.
-
-  Definition USoftwareInterrupt := natToWord 4 0.
-  Definition SSoftwareInterrupt := natToWord 4 1.
-  Definition MSoftwareInterrupt := natToWord 4 3.
-  Definition UTimerInterrupt := natToWord 4 4.
-  Definition STimerInterrupt := natToWord 4 5.
-  Definition MTimerInterrupt := natToWord 4 7.
-  Definition UExternalInterrupt := natToWord 4 8.
-  Definition SExternalInterrupt := natToWord 4 9.
-  Definition MExternalInterrupt := natToWord 4 11.
-
   Definition toCauseCsr ty (x: ty (Struct Trap)) :=
     {((IF #x!Trap@.isInterrupt then $ 1 else $ 0): ((Bit 1) @ ty)),
      UniBit (@ZeroExtendTrunc _ (Xlen - 1)) #x!Trap@.trapValue }.
@@ -362,25 +362,50 @@ Section RV64.
              (pcVal: VAddr @ ty)
              (instVal: Inst @ ty)
              (memVAddr: VAddr @ ty): (Bit Xlen) @ ty :=
-    (IF ((exceptionValue == $$ InstAddrMisaligned)
-           || (exceptionValue == $$ InstAccessFault)
-           || (exceptionValue == $$ Breakpoint)
-           || (exceptionValue == $$ InstPageFault))
+    (IF ((exceptionValue == $ InstAddrMisaligned)
+           || (exceptionValue == $ InstAccessFault)
+           || (exceptionValue == $ Breakpoint)
+           || (exceptionValue == $ InstPageFault))
      then pcVal
-     else (IF ((exceptionValue == $$ IllegalInst))
+     else (IF ((exceptionValue == $ IllegalInst))
            then UniBit (ZeroExtendTrunc _ Xlen) instVal
-           else (IF ((exceptionValue == $$ LoadAddrMisaligned)
-                       || (exceptionValue == $$ LoadAccessFault)
-                       || (exceptionValue == $$ StoreAMOAddrMisaligned)
-                       || (exceptionValue == $$ StoreAMOAccessFault)
-                       || (exceptionValue == $$ LoadPageFault)
-                       || (exceptionValue == $$ StoreAMOPageFault))
+           else (IF ((exceptionValue == $ LoadAddrMisaligned)
+                       || (exceptionValue == $ LoadAccessFault)
+                       || (exceptionValue == $ StoreAMOAddrMisaligned)
+                       || (exceptionValue == $ StoreAMOAccessFault)
+                       || (exceptionValue == $ LoadPageFault)
+                       || (exceptionValue == $ StoreAMOPageFault))
                  then memVAddr
                  else $ 0)))%kami_expr.
+  Close Scope kami_expr.
+  
+  Definition MemPrivT := (MemPrivT XlenBytes VAddr PAddr Inst Mode MemException (Struct ExecException)).
+  Definition CExec := (CExec XlenBytes VAddr).
+  Definition VToPRp := (VToPRp PAddr Mode MemException).
+  
+  Definition MemRqT := STRUCT {
+                           "funct7" :: Bit 7 ;
+                           "isLd" :: Bool ;
+                           "isSt" :: Bool ;
+                           "addr" :: PAddr ;
+                           "data" :: Bit Xlen
+                         }.
 
-             
+  Definition MemRpT := STRUCT {
+                           "success" :: Bool ;
+                           "data" :: Bit Xlen
+                         }.
+
+  Definition getMemRqT ty (inst: ty Inst) (addr: ty PAddr) (data : ty (Bit Xlen)) :=
+    STRUCT {
+        "funct7" ::= funct7 _ inst ;
+        "isLd" ::= isLd _ inst ;
+        "isSt" ::= isSt _ inst ;
+        "addr" ::= #addr ;
+        "data" ::= #data }%kami_expr.
   
-  
+  Definition execMem := MethodSig "execMem" (Struct MemRqT): (Struct MemRpT).
+
   Definition priv :=
     SIN {
 
@@ -489,9 +514,9 @@ Section RV64.
         with Register "stval": Bit Xlen <- Default
 
         (* satp *)
-        with Register "stap_mode": Bit 1 <- Default (* WARL *)
-        with Register "stap_asid": Bit 9 <- Default (* WARL *)
-        with Register "stap_ppn": Bit 22 <- Default (* WARL *)
+        with Register "satp_mode": Bit 1 <- Default (* WARL *)
+        with Register "satp_asid": Bit 9 <- Default (* WARL *)
+        with Register "satp_ppn": Bit 22 <- Default (* WARL *)
                                    
         with Method memPriv (inp: Struct MemPrivT):
                (Struct CExec) :=
@@ -499,9 +524,20 @@ Section RV64.
           LET instVToPRpVal <- #inp!MemPrivT@.instVToPRp;
           LET instVal <- #inp!MemPrivT@.inst;
           LET execVal <- #inp!MemPrivT@.exec;
-          LET memVToPRpVal <- #inp!MemPrivT@.memVToPRp;
+          LET memVToPRpVal <- #inp!MemPrivT@.memVToPRp ;
 
-          LET trap: Struct Trap <- $$ Default;
+          If (opcode _ instVal == $$ SYSTEM)
+          then (
+              Ret $$ Default
+            )
+          else (
+              Ret ((STRUCT {
+                        "isTrap" ::= $$ true ;
+                        "isInterrupt" ::= $$ false ;
+                        "trapValue" ::= (IF #instVToPRpVal!VToPRp@.exception
+                                         then $ InstPageFault
+                                         else $ 0) }): (Struct Trap) @ _)
+            ) as trap;
 
           If #trap!Trap@.isTrap
           then (
@@ -565,8 +601,25 @@ Section RV64.
                            nextPc ::= #nextPcVal;
                            dst ::= #execVal!Exec@.dst }): ((Struct CExec) @ _))
             )
-          else
-            Ret $$ Default
+        else
+          (
+            If (isSome #memVToPRpVal)
+            then (
+                LET pAddrVal <- (getSome #memVToPRpVal)!VToPRp@.pAddr;
+                LET dataVal <- #execVal!Exec@.data;
+                Call ldVal <- execMem (getMemRqT _ instVal pAddrVal dataVal);
+                Ret #ldVal!MemRpT@.data
+              )
+            else (
+                Ret #execVal!Exec@.dst
+              )
+            as dstVal;
+            Ret ((STRUCT {
+                      exception ::= $$ false ;
+                      nextPc ::= #execVal!Exec@.nextPc ;
+                      dst ::= #dstVal
+                     }): ((Struct CExec) @ _))
+          )
           as retVal;
         Ret #retVal
       }.

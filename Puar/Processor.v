@@ -988,7 +988,7 @@ Section Processor.
           LETN inp1 : _ <- Var _ (StaleT' vAddrDef defVToP)
                         (hd (newStalePc vAddrDef defVToP) stalesVal);
           LET pAddrDef: PAddr <- $$ Default;
-          LET memExceptDef: MemException <- $$ Default ;
+          LET xlateInfo: XlateInfo <- $$ Default ;
           LET instDef: Inst <- $$ Default;
 
           LET pcVal <- #(sPc inp1);
