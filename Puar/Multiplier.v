@@ -3,7 +3,7 @@ Require Import Lib.Indexer Lib.Struct Lib.FMap Lib.Reflection.
 Require Import Kami.Tactics Kami.SemFacts Kami.StepDet.
 Require Import Puar.Useful FunctionalExtensionality.
 
-Require Import Eqdep.
+Require Import Eqdep Program.Equality.
 
 Set Implicit Arguments.
 Open Scope string.
@@ -72,11 +72,11 @@ Section Multiplier64.
   Lemma boothStep_eval:
     forall m_pos m_neg p,
       evalExpr (boothStep m_pos m_neg p) =
-      if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~0~1
-      then sra (evalExpr p ^+ m_pos) 1
-      else if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~1~0
-           then sra (evalExpr p ^+ m_neg) 1
-           else sra (evalExpr p) 1.
+      sra (if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~0~1
+           then evalExpr p ^+ m_pos
+           else if weq (split1 2 (MultBits - 2) (evalExpr p)) WO~1~0
+           then evalExpr p ^+ m_neg
+                else evalExpr p) 1.
   Proof.
     intros; unfold boothStep.
     unfold evalExpr; fold evalExpr.
@@ -135,9 +135,9 @@ Section Multiplier64.
         LET m_neg <- (UniBit (Inv _) #m) + $1;
 
         LET m_pos : Bit MultBits <-
-          BinBit (Concat _ (S MultNumBitsExt)) (UniBit (SignExtendTrunc _ _) #m) $0;
+          BinBit (Concat _ (S (S MultNumBitsExt))) #m $0;
         LET m_neg : Bit MultBits <-
-          BinBit (Concat _ (S MultNumBitsExt)) (UniBit (SignExtendTrunc _ _) #m_neg) $0;
+          BinBit (Concat _ (S (S MultNumBitsExt))) #m_neg $0;
         LET r <- #src!MultInStr@."multiplier";
         LET p : Bit MultBits <-
           BinBit (Concat (S MultNumBitsExt) _) $0 (BinBit (Concat _ 1) #r $0);
@@ -275,8 +275,10 @@ Section Multiplier64.
     Lemma wordToB2_one:
       forall (w: word 1), bwordToZ (wordToB2 w) = 0%Z.
     Proof.
-      intros.
-    Admitted.
+      dependent destruction w.
+      dependent destruction w.
+      simpl; reflexivity.
+    Qed.
 
     Lemma wordToB2_bwordToZ:
       forall sz (w: word sz),
@@ -284,16 +286,16 @@ Section Multiplier64.
     Proof.
     Admitted.
 
-    Definition encodeB4 (b1 b2 b3: bool) :=
-      match b1, b2, b3 with
-      | false, false, true
-      | false, true, false => (BZero, BPlus)
-      | false, true, true => (BPlus, BZero)
-      | true, false, false => (BMinus, BZero)
-      | true, false, true
-      | true, true, false => (BZero, BMinus)
-      | _, _, _ => (BZero, BZero)
-      end.
+    (* Definition encodeB4 (b1 b2 b3: bool) := *)
+    (*   match b1, b2, b3 with *)
+    (*   | false, false, true *)
+    (*   | false, true, false => (BZero, BPlus) *)
+    (*   | false, true, true => (BPlus, BZero) *)
+    (*   | true, false, false => (BMinus, BZero) *)
+    (*   | true, false, true *)
+    (*   | true, true, false => (BZero, BMinus) *)
+    (*   | _, _, _ => (BZero, BZero) *)
+    (*   end. *)
 
     (* Fixpoint wordToB4' sz (w: word sz) (p1 p2: bool): bword (S sz) := *)
     (*   match w with *)
@@ -306,124 +308,216 @@ Section Multiplier64.
   End BoothEncoding.
 
   Inductive BoothStepInv {sz} (m p: word sz)
-    : forall wsz, word wsz (* the target word [w] *) ->
-                  nat (* length of the lower part of [w] *) -> Prop :=
-  | BSInv: forall sl su w wl wu u,
-      wl = split1 (S sl) su w -> (* |wl| = S sl *)
-      wu = split2 (S sl) su w -> (* |wu| = su *)
+    : forall sl, word sl -> forall su, word su -> Prop :=
+  | BSInv: forall sl su (wl: word (S sl)) (wu: word su) u,
       wordToZ wu = (wordToZ m * u)%Z ->
       (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
-      BoothStepInv m p w (S sl).
-
-  Lemma boothStepInv_intro:
-    forall {sz} (m p: word sz) {wsz} (w: word wsz)
-           sl su (wl: word (S sl)) (wu: word su) u
-           (Hs: wsz = (S sl) + su),
-      wl = split1 (S sl) su (eq_rect _ _ w _ Hs) ->
-      wu = split2 (S sl) su (eq_rect _ _ w _ Hs) ->
-      wordToZ wu = (wordToZ m * u)%Z ->
-      (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
-      BoothStepInv m p w (S sl).
-  Proof.
-    intros; subst.
-    econstructor; eauto.
-  Qed.
+      BoothStepInv m p wl wu.
 
   Lemma boothStepInv_inv:
-    forall {sz} (m p: word sz) {wsz} (w: word wsz) swl,
-      BoothStepInv m p w swl ->
-      exists sl su (wl: word (S sl)) (wu: word su) u
-             (Hs: wsz = (S sl) + su),
-        swl = S sl /\
-        wl = split1 (S sl) su (eq_rect _ _ w _ Hs) /\
-        wu = split2 (S sl) su (eq_rect _ _ w _ Hs) /\
+    forall {sz} (m p: word sz) sl su (wl: word (S sl)) (wu: word su),
+      BoothStepInv m p wl wu ->
+      exists u,
         wordToZ wu = (wordToZ m * u)%Z /\
         (u + bwordToZ (wordToB2 wl))%Z = wordToZ p.
   Proof.
     intros.
     inv H; destruct_existT.
-    exists sl, su, (split1 (S sl) su w), (split2 (S sl) su w), u.
-    exists eq_refl.
-    repeat split; assumption.
+    exists u.
+    split; assumption.
   Qed.
 
   (*! TODO: move to word.v *)
-  Lemma natToWord_wordToZ_0:
-    forall sz, wordToZ (natToWord sz 0) = 0%Z.
+  Lemma natToWord_ZToWord_zero:
+    forall sz, natToWord sz 0 = ZToWord sz 0%Z.
+  Proof.
+    intros; simpl.
+    induction sz; simpl; auto.
+    rewrite IHsz; reflexivity.
+  Qed.
+
+  Lemma wmsb_wzero'_false:
+    forall sz, wmsb (wzero' sz) false = false.
+  Proof.
+    induction sz; simpl; intros; auto.
+  Qed.
+
+  Lemma wordToZ_wzero':
+    forall sz, wordToZ (wzero' sz) = 0%Z.
   Proof.
   Admitted.
 
   Lemma boothStepInv_init:
     forall sz m p,
       BoothStepInv m (p: word sz)
-                   (combine (combine (natToWord 1 0) p) (natToWord (S sz) 0))
-                   (S sz).
+                   (combine (natToWord 1 0) p)
+                   (natToWord (S sz) 0).
   Proof.
     intros; econstructor; try reflexivity.
     - instantiate (1:= 0%Z).
-      rewrite split2_combine.
       rewrite <-Zmult_0_r_reverse.
-      apply natToWord_wordToZ_0.
+      rewrite natToWord_ZToWord_zero.
+      rewrite wordToZ_wzero'.
+      reflexivity.
     - rewrite Z.add_0_l.
       rewrite <-wordToB2_bwordToZ.
-      do 2 f_equal.
-      rewrite split1_combine.
       reflexivity.
   Qed.
 
   Lemma boothStepInv_finish:
-    forall sz (m p: word sz) wsz (w: word (1 + wsz)),
-      BoothStepInv m p w 1 ->
-      wordToZ (split2 1 wsz w) = (wordToZ m * wordToZ p)%Z.
+    forall {sz} (m p: word sz) (wl: word 1) su (wu: word su),
+      BoothStepInv m p wl wu ->
+      wordToZ wu = (wordToZ m * wordToZ p)%Z.
   Proof.
     intros.
     apply boothStepInv_inv in H; dest.
-    inv H.
 
-    rewrite wordToB2_one in H3.
-    rewrite Z.add_0_r in H3; subst.
-    rewrite <-H2; clear H2.
+    rewrite wordToB2_one in H0.
+    rewrite Z.add_0_r in H0; subst.
+    assumption.
+  Qed.
 
-    assert (x0 = wsz) by (inv x4; reflexivity); subst.
-    rewrite <-Eq_rect_eq.eq_rect_eq.
+  Lemma combine_wplus:
+    forall sl (w1: word sl) su (w2 w3: word su),
+      combine w1 (w2 ^+ w3) = combine w1 w2 ^+ sll' w3 sl.
+  Proof.
+  Admitted.
+
+  Lemma existT_wplus:
+    forall sz (w1 w2: word sz) sz' (w3 w4: word sz'),
+      existT word _ w1 = existT word _ w3 ->
+      existT word _ w2 = existT word _ w4 ->
+      existT word _ (w1 ^+ w2) = existT word _ (w3 ^+ w4).
+  Proof.
+    intros.
+    rewrite eq_sigT_sig_eq in H; destruct H as [Hsz1 ?].
+    rewrite eq_sigT_sig_eq in H0; destruct H0 as [Hsz2 ?].
+    subst; do 2 rewrite <-eq_rect_eq.
     reflexivity.
   Qed.
 
+  Lemma sra_wplus:
+    forall sz (w1 w2: word sz) n,
+      sra (w1 ^+ w2) n = sra w1 n ^+ sra w2 n.
+  Proof.
+  Admitted.
+
+  Lemma combine_sra_rtrunc_sext:
+    forall s (w: word s) sl (wl: word (S (S sl))) su (wu: word su),
+      existT word s w =
+      existT word ((S (S sl)) + su) (combine wl wu) ->
+      existT word s (sra w 1) =
+      existT word ((S sl) + (su + 1)) (combine (rtrunc wl 1) (sext wu 1)).
+  Proof.
+  Admitted.
+
+  Lemma sra_sll'_sext:
+    forall sz (w: word sz) n1 n2,
+      existT word _ (sra (sll' w (n1 + n2)) n1) =
+      existT word _ (sext (sll' w n2) n1).
+  Proof.
+  Admitted.
+
+  Lemma sll'_sext:
+    forall sz (w: word sz) n1 n2,
+      existT word _ (sll' (sext w n1) n2) =
+      existT word _ (sext (sll' w n2) n1).
+  Proof.
+  Admitted.
+
+  Lemma existT_sext:
+    forall sz1 (w1: word sz1) sz2 (w2: word sz2) n,
+      existT word _ w1 = existT word _ w2 ->
+      existT word _ (sext w1 n) = existT word _ (sext w2 n).
+  Proof.
+  Admitted.
+
+  Lemma sll'_sll':
+    forall sz (w: word sz) n1 n2,
+      existT word _ (sll' (sll' w n1) n2) =
+      existT word _ (sll' w (n2 + n1)).
+  Proof.
+  Admitted.
+
+  Lemma sext_wordToZ:
+    forall sz (w: word sz) n,
+      wordToZ (sext w n) = wordToZ w.
+  Proof.
+  Admitted.
+
   Lemma boothStepInv_boothStep:
-    forall (m: word MultNumBitsExt) mp mn p we nwe d,
-      mp = combine (natToWord (S MultNumBitsExt) 0) (sext m _) ->
-      mn = combine (natToWord (S MultNumBitsExt) 0) (sext (wneg m) _) ->
+    forall (m: word MultNumBitsExt) mp mn p we nwe,
+      mp = sll' m (S (S MultNumBitsExt)) ->
+      mn = sll' (wneg m) (S (S MultNumBitsExt)) ->
       boothStep mp mn we = nwe ->
-      BoothStepInv m p (evalExpr we) d ->
-      (d > 1)%nat ->
-      BoothStepInv m p (evalExpr nwe) (d - 1).
+      forall sl su (wl: word (S (S sl))) (wu: word su) sus,
+        sus + MultNumBitsExt = su ->
+        existT word _ (evalExpr we) = existT word _ (combine wl wu) ->
+        BoothStepInv m p wl wu ->
+        exists (nwl: word (S sl)) (nwu: word (su + 1)),
+          existT word _ (evalExpr nwe) = existT word _ (combine nwl nwu) /\
+          BoothStepInv m p nwl nwu.
   Proof.
     intros; subst.
-    apply boothStepInv_inv in H2.
-    destruct H2 as [sl [su [wl [wu [u [Hs ?]]]]]]; dest.
-    subst d.
-    
-    remember (eq_rect _ word (evalExpr we) _ Hs) as ws.
 
-    destruct sl as [|sl]; [omega|].
-    change (S (S sl) - 1) with (S sl).
-
-    assert (Hsn: MultBits = S sl + S su).
-    { replace MultBits with (MultBits - 2 + 2) by reflexivity.
-      omega.
-    }
-
-    (* set (split1 2 _ wl) as wlLsb2. *)
-    (* set (boothToZ (wencodeB2 wlLsb2)) as b. *)
-
+    apply boothStepInv_inv in H4.
+    destruct H4 as [u ?]; dest.
     rewrite boothStep_eval.
     remember (evalExpr we) as w; clear Heqw we.
+    destruct (weq _ _); [|destruct (weq _ _)].
 
-    destruct (weq _ _).
-    
-    - eapply boothStepInv_intro; try reflexivity.
-
-    
+    - exists (rtrunc wl 1).
+      exists (sext wu 1 ^+ sext (sll' m sus) 1).
+      split.
+      + rewrite sra_wplus.
+        rewrite combine_wplus.
+        apply existT_wplus.
+        * apply combine_sra_rtrunc_sext; auto.
+        * change (S (S MultNumBitsExt)) with (1 + (S MultNumBitsExt)).
+          change (MultBits - 2 + 2) with (1 + (S MultNumBitsExt) + MultNumBitsExt).
+          rewrite sra_sll'_sext.
+          rewrite sll'_sext.
+          apply existT_sext.
+          rewrite sll'_sll'.
+          replace (S sl + sus) with (S MultNumBitsExt); [reflexivity|].
+          (* NOTE: [omega] can't solve this :( *)
+          clear -H3; apply eq_sigT_fst in H3.
+          assert (MultBits - 2 = sl + (sus + MultNumBitsExt)) by omega.
+          rewrite Nat.add_assoc in H.
+          assert (MultBits - 2 - MultNumBitsExt = sl + sus) by omega.
+          simpl; rewrite <-H0; reflexivity.
+      + admit.
+      
+    - exists (rtrunc wl 1).
+      exists (sext wu 1 ^+ sext (sll' (^~ m) sus) 1).
+      split.
+      + rewrite sra_wplus.
+        rewrite combine_wplus.
+        apply existT_wplus.
+        * apply combine_sra_rtrunc_sext; auto.
+        * change (S (S MultNumBitsExt)) with (1 + (S MultNumBitsExt)).
+          change (MultBits - 2 + 2) with (1 + (S MultNumBitsExt) + MultNumBitsExt).
+          rewrite sra_sll'_sext.
+          rewrite sll'_sext.
+          apply existT_sext.
+          rewrite sll'_sll'.
+          replace (S sl + sus) with (S MultNumBitsExt); [reflexivity|].
+          (* NOTE: [omega] can't solve this :( *)
+          clear -H3; apply eq_sigT_fst in H3.
+          assert (MultBits - 2 = sl + (sus + MultNumBitsExt)) by omega.
+          rewrite Nat.add_assoc in H.
+          assert (MultBits - 2 - MultNumBitsExt = sl + sus) by omega.
+          simpl; rewrite <-H0; reflexivity.
+      + admit.
+      
+    - exists (rtrunc wl 1).
+      exists (sext wu 1).
+      split.
+      + apply combine_sra_rtrunc_sext; auto.
+      + econstructor.
+        * rewrite sext_wordToZ; eassumption.
+        * admit.
+        
   Admitted.
   
   (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
