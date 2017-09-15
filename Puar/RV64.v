@@ -376,12 +376,12 @@ Section RV64.
                        || (exceptionValue == $ LoadPageFault)
                        || (exceptionValue == $ StoreAMOPageFault))
                  then memVAddr
-                 else $ 0)))%kami_expr.
+                 else $ 0))).
   Close Scope kami_expr.
   
-  Definition MemPrivT := (MemPrivT XlenBytes VAddr PAddr Inst Mode MemException (Struct ExecException)).
+  Definition MemPrivT := (MemPrivT XlenBytes VAddr PAddr Inst Mode (Struct XlateInfo) (Struct ExecException)).
   Definition CExec := (CExec XlenBytes VAddr).
-  Definition VToPRp := (VToPRp PAddr Mode MemException).
+  Definition VToPRp := (VToPRp PAddr Mode (Struct XlateInfo)).
   
   Definition MemRqT := STRUCT {
                            "funct7" :: Bit 7 ;
@@ -526,18 +526,19 @@ Section RV64.
           LET execVal <- #inp!MemPrivT@.exec;
           LET memVToPRpVal <- #inp!MemPrivT@.memVToPRp ;
 
-          If (opcode _ instVal == $$ SYSTEM)
-          then (
-              Ret $$ Default
-            )
-          else (
-              Ret ((STRUCT {
-                        "isTrap" ::= $$ true ;
-                        "isInterrupt" ::= $$ false ;
-                        "trapValue" ::= (IF #instVToPRpVal!VToPRp@.exception
-                                         then $ InstPageFault
-                                         else $ 0) }): (Struct Trap) @ _)
-            ) as trap;
+          (* If (opcode _ instVal == $$ SYSTEM) *)
+          (* then ( *)
+          (*     Ret $$ Default *)
+          (*   ) *)
+          (* else ( *)
+          (*     Ret ((STRUCT { *)
+          (*               "isTrap" ::= $$ true ; *)
+          (*               "isInterrupt" ::= $$ false ; *)
+          (*               "trapValue" ::= (IF #instVToPRpVal!VToPRp@.exception *)
+          (*                                then $ InstPageFault *)
+          (*                                else $ 0) }): (Struct Trap) @ _) *)
+          (*   ) as trap; *)
+          LET trap : (Struct Trap) <- $$ Default ;
 
           If #trap!Trap@.isTrap
           then (
@@ -625,7 +626,8 @@ Section RV64.
       }.
 
   Eval compute in (natToWord 3 1).
-  
+
+  Print Scopes.
 
   (* MUST CHECK HERE ONWARDS *)
   
@@ -635,9 +637,9 @@ Section RV64.
         data ::= $$ Default ;
         memVAddr ::= $$ Default ;
         exception ::= getExecException pc inst ($$ Default) ;
-        nextPc ::= $$ Default }.
+        nextPc ::= $$ Default }%kami_expr.
   
-  Definition next ty (pc: ty VAddr) := #pc + $ 4.
+  Definition next ty (pc: ty VAddr) := (#pc + $ 4)%kami_expr.
 
   (* Definition getNextBtb ty (btbState: ty BtbState) (pc: ty VAddr) := *)
   (*   let btbIndex := UniBit (Trunc BtbSz 2) *)

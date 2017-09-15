@@ -988,7 +988,7 @@ Section Processor.
           LETN inp1 : _ <- Var _ (StaleT' vAddrDef defVToP)
                         (hd (newStalePc vAddrDef defVToP) stalesVal);
           LET pAddrDef: PAddr <- $$ Default;
-          LET xlateInfo: XlateInfo <- $$ Default ;
+          (* LET xlateInfo: XlateInfo <- $$ Default ; *)
           LET instDef: Inst <- $$ Default;
 
           LET pcVal <- #(sPc inp1);
@@ -1291,11 +1291,13 @@ Section Processor.
                  sMemVAddr := None;
                  sMemVToP := evalExpr none |}
        else None).
+
+    Definition some ty K (val: K @ ty) := STRUCT {"valid" ::= $$ true; "data" ::= val}%kami_expr.
                  
     Definition fromFetchRqT (s: <| Struct FetchRqT |>) (v: bool) :=
       (if v then
          Some {| sPc := s (FetchRqT !! pc);
-                 sInstVToP := evalExpr (some #(s (FetchRqT !! instVToPRp))%kami_expr);
+                 sInstVToP := evalExpr (@some _ (Struct VToPRp) #(s (FetchRqT !! instVToPRp))%kami_expr);
                  sInst := None;
                  sMemVAddr := None;
                  sMemVToP := evalExpr none |}
@@ -1304,7 +1306,7 @@ Section Processor.
     Definition fromFetchRpT (s: <| Struct FetchRpT |>) (v: bool) :=
       (if v then
          Some {| sPc := s (FetchRpT !! pc);
-                 sInstVToP := evalExpr (some #(s (FetchRpT !! instVToPRp))%kami_expr);
+                 sInstVToP := evalExpr (@some _ (Struct VToPRp) #(s (FetchRpT !! instVToPRp))%kami_expr);
                  sInst := Some (s (FetchRpT !! inst));
                  sMemVAddr := None;
                  sMemVToP := evalExpr none |}
@@ -1313,7 +1315,7 @@ Section Processor.
     Definition fromRegReadT (s: <| Struct RegReadT |>) (v: bool) :=
       (if v then
          Some {| sPc := s (RegReadT !! pc);
-                 sInstVToP := evalExpr (some #(s (RegReadT !! instVToPRp))%kami_expr);
+                 sInstVToP := evalExpr (@some _ (Struct VToPRp) #(s (RegReadT !! instVToPRp))%kami_expr);
                  sInst := Some (s (RegReadT !! inst));
                  sMemVAddr := None;
                  sMemVToP := evalExpr none |}
@@ -1322,7 +1324,7 @@ Section Processor.
     Definition fromExecT (s: <| Struct ExecT |>) (v: bool) :=
       (if v then
          Some {| sPc := s (ExecT !! pc);
-                 sInstVToP := evalExpr (some #(s (ExecT !! instVToPRp))%kami_expr);
+                 sInstVToP := evalExpr (@some _ (Struct VToPRp) #(s (ExecT !! instVToPRp))%kami_expr);
                  sInst := Some (s (ExecT !! inst));
                  sMemVAddr := Some (s (ExecT !! exec) (Exec !! memVAddr));
                  sMemVToP := evalExpr none |}
@@ -1331,7 +1333,7 @@ Section Processor.
     Definition fromMemRqT (s: <| Struct MemRqT |>) (v: bool) :=
       (if v then
          Some {| sPc := s (MemRqT !! pc);
-                 sInstVToP := evalExpr (some #(s (MemRqT !! instVToPRp))%kami_expr);
+                 sInstVToP := evalExpr (@some _ (Struct VToPRp) #(s (MemRqT !! instVToPRp))%kami_expr);
                  sInst := Some (s (MemRqT !! inst));
                  sMemVAddr := Some (s (MemRqT !! exec) (Exec !! memVAddr));
                  sMemVToP := s (MemRqT !! memVToPRp)
@@ -1704,7 +1706,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec longLatFinish.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (staleMemVAddr).
+      initInvRight procSpec "staleMemVAddr"%string.
       - unfold indexIn.
         cbv [evalExpr].
         rewrite (rmNonePartition 1).
@@ -1814,7 +1816,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec longLatDrop.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (drop);
+      initInvRight procSpec "drop"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
       rewrite evalFalse.
@@ -1835,7 +1837,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec instVToPRq.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (stalePc).
+      initInvRight procSpec "stalePc"%string.
       rewrite (rmNonePartition 4).
       cbv [partition fst snd].
       simplBoolFalse.
@@ -1891,7 +1893,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec fetchRq.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (staleInstVToP).
+      initInvRight procSpec "staleInstVToP"%string.
       - unfold indexIn.
         cbv [evalExpr].
         rewrite (rmNonePartition 4).
@@ -1940,7 +1942,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec fetchRp.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (staleInst).
+      initInvRight procSpec "staleInst"%string.
       - unfold indexIn.
         cbv [evalExpr].
         rewrite (rmNonePartition 3).
@@ -1991,7 +1993,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec exec.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (staleMemVAddr).
+      initInvRight procSpec "staleMemVAddr"%string.
       - unfold indexIn.
         cbv [evalExpr].
         rewrite (rmNonePartition 1).
@@ -2098,7 +2100,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec memVToPRq.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (staleMemVToP);
+      initInvRight procSpec "staleMemVToP"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate].
       - simplBoolFalse; repeat substFind.
         rewrite (rmNonePartition 0).
@@ -2205,7 +2207,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec regReadDrop.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (drop);
+      initInvRight procSpec "drop"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
       rewrite evalFalse.
@@ -2226,7 +2228,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec memRqDrop.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (drop);
+      initInvRight procSpec "drop"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
       - simpl in H6.
@@ -2279,7 +2281,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec execDrop.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (drop);
+      initInvRight procSpec "drop"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
       rewrite evalFalse.
@@ -2300,7 +2302,7 @@ Section Processor.
       ruleMapInst combined_inv procInlUnfold procSpec memRq.
     Proof.
       (* SKIP_PROOF_ON
-      initInvRight procSpec (memRq);
+      initInvRight procSpec "memRq"%string;
         try solve [let X := fresh in intros X; simpl in X; discriminate]; simplBoolFalse;
           repeat substFind.
       - simpl.
@@ -2685,7 +2687,7 @@ Section Processor.
       modFromMetaModules procFull <<== procSpec.
     Proof.
       (* SKIP_PROOF_ON
-      fullTrans (procFullInlM).
+      fullTrans (modFromMeta procFullInl).
       - apply procFullInl_ref.
       - apply procInlUnfold_refines_procSpec.
       END_SKIP_PROOF_ON *) apply cheat.
