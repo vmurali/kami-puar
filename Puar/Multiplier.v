@@ -126,22 +126,28 @@ Section Multiplier64.
       Register "m_pos" : Bit MultBits <- Default
       with Register "m_neg" : Bit MultBits <- Default
       with Register "p" : Bit MultBits <- Default
+      with Register "om" : Bit MultNumBitsExt <- Default
+      with Register "or" : Bit MultNumBitsExt <- Default
       with Register "cnt" : Bit (S MultLogNumPhases) <- Default
 
       with Rule "boothMultRegister" :=
         Call src <- multPull();
 
-        LET m : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
-        LET m_neg <- (UniBit (Inv _) #m) + $1;
+        LET om : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
+        LET om_neg <- (UniBit (Inv _) #om) + $1;
 
         LET m_pos : Bit MultBits <-
-          BinBit (Concat _ (S (S MultNumBitsExt))) #m $0;
+          BinBit (Concat _ (S (S MultNumBitsExt))) #om $0;
         LET m_neg : Bit MultBits <-
-          BinBit (Concat _ (S (S MultNumBitsExt))) #m_neg $0;
+          BinBit (Concat _ (S (S MultNumBitsExt))) #om_neg $0;
+
         LET r <- #src!MultInStr@."multiplier";
         LET p : Bit MultBits <-
           BinBit (Concat (S MultNumBitsExt) _) $0 (BinBit (Concat _ 1) #r $0);
 
+        Write "om" <- #om;
+        Write "or" <- #r;
+        
         (* Handle one bit in advance, in order to deal with other 64 bits 
          * consistently in a rule [boothStep].
          *)
@@ -266,11 +272,40 @@ Section Multiplier64.
       | WS b w' => BWS (encodeB2 b p) (wordToB2' w' b)
       end.
 
+    Definition rtrunc1 sz (w: word (S sz)): word sz:=
+      match w with
+      | WO => idProp
+      | WS _ w' => w'
+      end.
+
+    Definition wlsb sz (w: word (S sz)) :=
+      match w with
+      | WO => idProp
+      | WS b _ => b
+      end.
+
+    (*! TODO *)
+    (* Lemma wordToB2'_WO: *)
+
+    Lemma wordToB2'_rtrunc1_wlsb:
+      forall sz (w: word (S sz)) p,
+        wordToB2' w p = BWS (encodeB2 (wlsb w) p) (wordToB2' (rtrunc1 w) (wlsb w)).
+    Proof.
+      intros; dependent destruction w; simpl; reflexivity.
+    Qed.
+
     Definition wordToB2 sz (w: word (S sz)): bword sz :=
       match w with
       | WO => idProp
       | WS b w' => wordToB2' w' b
       end.
+
+    (* Lemma wordToB2_rtrunc1_wlsb: *)
+    (*   forall sz (w: word (S sz)), *)
+    (*     wordToB2 w = BWS (encodeB2 (wlsb w) (wlsb w)) (wordToB2' (rtrunc1 w) (wlsb w)). *)
+    (* Proof. *)
+    (*   intros; dependent destruction w; simpl; reflexivity. *)
+    (* Qed. *)
 
     Lemma wordToB2_one:
       forall (w: word 1), bwordToZ (wordToB2 w) = 0%Z.
@@ -283,6 +318,14 @@ Section Multiplier64.
     Lemma wordToB2_bwordToZ:
       forall sz (w: word sz),
         bwordToZ (wordToB2 w~0) = wordToZ w.
+    Proof.
+    Admitted.
+
+    Lemma wordToB2_bwordToZ_step:
+      forall sz (w: word (S (S sz))),
+        bwordToZ (wordToB2 w) =
+        (2 * (bwordToZ (wordToB2 (rtrunc1 w)) +
+              boothToZ (wencodeB2 (split1 2 _ w))))%Z.
     Proof.
     Admitted.
 
@@ -311,7 +354,7 @@ Section Multiplier64.
     : forall sl, word sl -> forall su, word su -> Prop :=
   | BSInv: forall sl su (wl: word (S sl)) (wu: word su) u,
       wordToZ wu = (wordToZ m * u)%Z ->
-      (u + bwordToZ (wordToB2 wl))%Z = wordToZ p ->
+      (u + bwordToZ (wordToB2 wl) * Z.of_nat (pow2 (su - sz - 1)))%Z = wordToZ p ->
       BoothStepInv m p wl wu.
 
   Lemma boothStepInv_inv:
@@ -319,7 +362,7 @@ Section Multiplier64.
       BoothStepInv m p wl wu ->
       exists u,
         wordToZ wu = (wordToZ m * u)%Z /\
-        (u + bwordToZ (wordToB2 wl))%Z = wordToZ p.
+        (u + bwordToZ (wordToB2 wl) * Z.of_nat (pow2 (su - sz - 1)))%Z = wordToZ p.
   Proof.
     intros.
     inv H; destruct_existT.
@@ -360,7 +403,9 @@ Section Multiplier64.
       rewrite wordToZ_wzero'.
       reflexivity.
     - rewrite Z.add_0_l.
-      rewrite <-wordToB2_bwordToZ.
+      replace (S sz - sz - 1) with 0 by omega.
+      simpl; rewrite <-wordToB2_bwordToZ.
+      rewrite Z.mul_1_r.
       reflexivity.
   Qed.
 
@@ -402,12 +447,12 @@ Section Multiplier64.
   Proof.
   Admitted.
 
-  Lemma combine_sra_rtrunc_sext:
+  Lemma combine_sra_rtrunc1_sext:
     forall s (w: word s) sl (wl: word (S (S sl))) su (wu: word su),
       existT word s w =
       existT word ((S (S sl)) + su) (combine wl wu) ->
       existT word s (sra w 1) =
-      existT word ((S sl) + (su + 1)) (combine (rtrunc wl 1) (sext wu 1)).
+      existT word ((S sl) + (su + 1)) (combine (rtrunc1 wl) (sext wu 1)).
   Proof.
   Admitted.
 
@@ -439,9 +484,41 @@ Section Multiplier64.
   Proof.
   Admitted.
 
+  Lemma sext_wplus_wordToZ_distr:
+    forall sz (w1 w2: word sz) n,
+      n <> 0 -> wordToZ (sext w1 n ^+ sext w2 n) =
+                (wordToZ (sext w1 n) + wordToZ (sext w2 n))%Z.
+  Proof.
+  Admitted.
+
   Lemma sext_wordToZ:
     forall sz (w: word sz) n,
       wordToZ (sext w n) = wordToZ w.
+  Proof.
+  Admitted.
+
+  Lemma split1_combine_existT:
+    forall sz n (w: word (n + sz)) sl (wl: word (n + sl)) su (wu: word su),
+      existT word _ w = existT word _ (combine wl wu) ->
+      split1 n _ w = split1 n _ wl.
+  Proof.
+  Admitted.
+
+  Lemma sll'_pow2_wordToZ:
+    forall sz (w: word sz) n,
+      wordToZ (sll' w n) = (wordToZ w * Z.of_nat (pow2 n))%Z.
+  Proof.
+  Admitted.
+
+  Lemma sll'_wneg:
+    forall sz (w: word sz) n,
+      sll' (wneg w) n = wneg (sll' w n).
+  Proof.
+  Admitted.
+
+  Lemma wneg_wordToZ:
+    forall sz (w: word sz) z,
+      (z + wordToZ (wneg w))%Z = (z - wordToZ w)%Z.
   Proof.
   Admitted.
 
@@ -451,7 +528,7 @@ Section Multiplier64.
       mn = sll' (wneg m) (S (S MultNumBitsExt)) ->
       boothStep mp mn we = nwe ->
       forall sl su (wl: word (S (S sl))) (wu: word su) sus,
-        sus + MultNumBitsExt = su ->
+        (S sus) + MultNumBitsExt = su ->
         existT word _ (evalExpr we) = existT word _ (combine wl wu) ->
         BoothStepInv m p wl wu ->
         exists (nwl: word (S sl)) (nwu: word (su + 1)),
@@ -459,65 +536,183 @@ Section Multiplier64.
           BoothStepInv m p nwl nwu.
   Proof.
     intros; subst.
-
     apply boothStepInv_inv in H4.
     destruct H4 as [u ?]; dest.
     rewrite boothStep_eval.
     remember (evalExpr we) as w; clear Heqw we.
     destruct (weq _ _); [|destruct (weq _ _)].
 
-    - exists (rtrunc wl 1).
-      exists (sext wu 1 ^+ sext (sll' m sus) 1).
+    - exists (rtrunc1 wl).
+      exists (sext wu 1 ^+ sext (sll' m (S sus)) 1).
       split.
       + rewrite sra_wplus.
         rewrite combine_wplus.
         apply existT_wplus.
-        * apply combine_sra_rtrunc_sext; auto.
+        * apply combine_sra_rtrunc1_sext; auto.
         * change (S (S MultNumBitsExt)) with (1 + (S MultNumBitsExt)).
           change (MultBits - 2 + 2) with (1 + (S MultNumBitsExt) + MultNumBitsExt).
           rewrite sra_sll'_sext.
           rewrite sll'_sext.
           apply existT_sext.
           rewrite sll'_sll'.
-          replace (S sl + sus) with (S MultNumBitsExt); [reflexivity|].
+          replace (S sl + S sus) with (S MultNumBitsExt); [reflexivity|].
           (* NOTE: [omega] can't solve this :( *)
           clear -H3; apply eq_sigT_fst in H3.
-          assert (MultBits - 2 = sl + (sus + MultNumBitsExt)) by omega.
+          assert (MultBits - 2 = sl + (S sus + MultNumBitsExt)) by omega.
           rewrite Nat.add_assoc in H.
-          assert (MultBits - 2 - MultNumBitsExt = sl + sus) by omega.
+          assert (MultBits - 2 - MultNumBitsExt = sl + S sus) by omega.
           simpl; rewrite <-H0; reflexivity.
-      + admit.
+      + eapply BSInv with (u0:= (u + Z.of_nat (pow2 (S sus)))%Z).
+        * rewrite Z.mul_add_distr_l, <-H.
+          rewrite sext_wplus_wordToZ_distr by discriminate.
+          f_equal.
+          { apply sext_wordToZ. }
+          { rewrite sext_wordToZ.
+            apply sll'_pow2_wordToZ.
+          }
+        * rewrite <-H0, <-Z.add_assoc.
+          replace (S sus + MultNumBitsExt + 1 - MultNumBitsExt - 1) with (S sus) by omega.
+          replace (S sus + MultNumBitsExt - MultNumBitsExt - 1) with sus by omega.
+          replace (Z.of_nat (pow2 (S sus))) with (1 * Z.of_nat (pow2 (S sus)))%Z at 1 by ring.
+          rewrite <-Z.mul_add_distr_r.
+          replace (Z.of_nat (pow2 (S sus))) with (Z.of_nat 2 * Z.of_nat (pow2 sus))%Z
+            by (apply eq_sym, Nat2Z.inj_mul).
+          rewrite Z.mul_assoc.
+          rewrite wordToB2_bwordToZ_step.
+          replace (split1 2 sl wl) with (WO~0~1)
+            by (erewrite <-split1_combine_existT; eauto).
+          change (boothToZ (wencodeB2 WO~0~1)) with 1%Z.
+          ring.
       
-    - exists (rtrunc wl 1).
-      exists (sext wu 1 ^+ sext (sll' (^~ m) sus) 1).
+    - exists (rtrunc1 wl).
+      exists (sext wu 1 ^+ sext (sll' (^~ m) (S sus)) 1).
       split.
       + rewrite sra_wplus.
         rewrite combine_wplus.
         apply existT_wplus.
-        * apply combine_sra_rtrunc_sext; auto.
+        * apply combine_sra_rtrunc1_sext; auto.
         * change (S (S MultNumBitsExt)) with (1 + (S MultNumBitsExt)).
           change (MultBits - 2 + 2) with (1 + (S MultNumBitsExt) + MultNumBitsExt).
           rewrite sra_sll'_sext.
           rewrite sll'_sext.
           apply existT_sext.
           rewrite sll'_sll'.
-          replace (S sl + sus) with (S MultNumBitsExt); [reflexivity|].
+          replace (S sl + S sus) with (S MultNumBitsExt); [reflexivity|].
           (* NOTE: [omega] can't solve this :( *)
           clear -H3; apply eq_sigT_fst in H3.
-          assert (MultBits - 2 = sl + (sus + MultNumBitsExt)) by omega.
+          assert (MultBits - 2 = sl + (S sus + MultNumBitsExt)) by omega.
           rewrite Nat.add_assoc in H.
-          assert (MultBits - 2 - MultNumBitsExt = sl + sus) by omega.
+          assert (MultBits - 2 - MultNumBitsExt = sl + S sus) by omega.
           simpl; rewrite <-H0; reflexivity.
-      + admit.
+      + eapply BSInv with (u0:= (u - Z.of_nat (pow2 (S sus)))%Z).
+        * rewrite Z.mul_sub_distr_l, <-H.
+          rewrite sext_wplus_wordToZ_distr by discriminate.
+          do 2 rewrite sext_wordToZ.
+          rewrite sll'_wneg.
+          rewrite wneg_wordToZ.
+          f_equal.
+          apply sll'_pow2_wordToZ.
+        * rewrite <-H0.
+          rewrite Z.add_comm with (n:= (u - _)%Z).
+          rewrite Z.add_sub_assoc.
+          rewrite Z.add_sub_swap.
+          rewrite Z.add_comm with (n:= u).
+          replace (S sus + MultNumBitsExt + 1 - MultNumBitsExt - 1) with (S sus) by omega.
+          replace (S sus + MultNumBitsExt - MultNumBitsExt - 1) with sus by omega.
+          replace (Z.of_nat (pow2 (S sus))) with (1 * Z.of_nat (pow2 (S sus)))%Z at 2 by ring.
+          rewrite <-Z.mul_sub_distr_r.
+          replace (Z.of_nat (pow2 (S sus))) with (Z.of_nat 2 * Z.of_nat (pow2 sus))%Z
+            by (apply eq_sym, Nat2Z.inj_mul).
+          rewrite wordToB2_bwordToZ_step.
+          replace (split1 2 sl wl) with WO~1~0
+            by (erewrite <-split1_combine_existT; eauto).
+          change (boothToZ (wencodeB2 WO~1~0)) with (-1)%Z.
+          ring.
       
-    - exists (rtrunc wl 1).
+    - exists (rtrunc1 wl).
       exists (sext wu 1).
       split.
-      + apply combine_sra_rtrunc_sext; auto.
+      + apply combine_sra_rtrunc1_sext; auto.
       + econstructor.
         * rewrite sext_wordToZ; eassumption.
-        * admit.
-        
+        * rewrite <-H0.
+          rewrite wordToB2_bwordToZ_step.
+          replace (boothToZ (wencodeB2 (split1 2 sl wl))) with 0%Z.
+          { replace (S sus + MultNumBitsExt + 1 - MultNumBitsExt - 1) with (S sus) by omega.
+            replace (S sus + MultNumBitsExt - MultNumBitsExt - 1) with sus by omega.
+            replace (Z.of_nat (pow2 (S sus))) with (Z.of_nat 2 * Z.of_nat (pow2 sus))%Z
+              by (apply eq_sym, Nat2Z.inj_mul).
+            ring.
+          }
+          { remember (split1 2 (MultBits - 2) w) as wt.
+            replace (split1 2 sl wl) with wt
+              by (subst; erewrite split1_combine_existT; eauto).
+            do 3 dependent destruction wt.
+            destruct b; destruct b0; intuition.
+          }
+  Qed.
+
+  Record BoothMultiplierInv (o: RegsT): Prop :=
+    { bsiOm : fullType type (SyntaxKind (Bit MultNumBitsExt));
+      HbsiOm : M.find "om" o = Some (existT _ _ bsiOm);
+      bsiOr : fullType type (SyntaxKind (Bit MultNumBitsExt));
+      HbsiOr : M.find "or" o = Some (existT _ _ bsiOr);
+
+      bsiMp : fullType type (SyntaxKind (Bit MultBits));
+      HbsiMp : M.find "m_pos" o = Some (existT _ _ bsiMp);
+      bsiMn : fullType type (SyntaxKind (Bit MultBits));
+      HbsiMn : M.find "m_neg" o = Some (existT _ _ bsiMn);
+
+      bsiP : fullType type (SyntaxKind (Bit MultBits));
+      HbsiP : M.find "p" o = Some (existT _ _ bsiP);
+
+      HbsiMmp : bsiMp = sll' bsiOm (S (S MultNumBitsExt));
+      HbsiMmn : bsiMn = sll' (wneg bsiOm) (S (S MultNumBitsExt));
+
+      HbsiInv : exists sl (wl: word sl) su (wu: word su),
+          existT word _ bsiP = existT word _ (combine wl wu) /\
+          BoothStepInv bsiOm bsiOr wl wu
+          
+    }.
+
+  Ltac boothMultiplierInv_old :=
+    repeat match goal with
+           | [H: BoothMultiplierInv _ |- _] => destruct H
+           end;
+    kinv_red.
+
+  Ltac boothMultiplierInv_new :=
+    econstructor; (* let's prove that the invariant holds for the next state *)
+    try (findReify; (reflexivity || eassumption); fail);
+    kregmap_clear; (* for improving performance *)
+    kinv_red; (* unfolding invariant definitions *)
+    repeat (* cheaper than "intuition" *)
+      (match goal with
+       | [ |- _ /\ _ ] => split
+       end);
+    try eassumption; intros; try reflexivity;
+    intuition kinv_simpl; intuition idtac.
+
+  Lemma boothMultiplierInv_ok':
+    forall init n ll,
+      init = initRegs (getRegInits boothMultiplierImpl) ->
+      Multistep boothMultiplierImpl init n ll ->
+      BoothMultiplierInv n.
+  Proof.
+    induction 2; intros.
+
+    - boothMultiplierInv_old.
+      unfold getRegInits, fst, boothMultiplierImpl, projT1.
+      boothMultiplierInv_new.
+
+      admit.
+
+    - kinvert.
+      + mred.
+      + mred.
+      + admit.
+      + admit.
+      + admit.
   Admitted.
   
   (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
@@ -531,7 +726,6 @@ Section Multiplier64.
   Theorem multiplier_ok: boothMultiplierImpl <<== multiplierSpec.
   Proof.
     (* kdecomposeR_nodefs thetaR. *)
-
   Admitted.
 
 End Multiplier64.
