@@ -1,4 +1,4 @@
-Require Import Kami Puar.Processor Puar.Useful.
+Require Import Kami Lib.NatLib Puar.Processor Puar.Useful.
 
 Set Implicit Arguments.
 Set Asymmetric Patterns.
@@ -56,7 +56,7 @@ Definition MExternalInterrupt := 11.
 
 Section RV64.
   Definition LgXlenBytes := 3.
-  Definition XlenBytes := ltac:(let y := eval compute in (Lib.Word.pow2 LgXlenBytes) in exact y).
+  Definition XlenBytes := ltac:(let y := eval compute in (Lib.NatLib.pow2 LgXlenBytes) in exact y).
   Definition VAddrSz := 64.
   Variable PAddrSz: nat.
 
@@ -77,7 +77,7 @@ Section RV64.
   Definition RegFileInit := getDefaultConst (Vector (Data XlenBytes) RIndexSz).
 
   Definition LgXlen := ltac:(let y := eval compute in (3 + LgXlenBytes) in exact y).
-  Definition Xlen := ltac:(let y := eval compute in (Lib.Word.pow2 LgXlen) in exact y).
+  Definition Xlen := ltac:(let y := eval compute in (Lib.NatLib.pow2 LgXlen) in exact y).
 
   Open Scope string.
   Notation bInstAddr := "bInstAddr".
