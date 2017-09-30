@@ -121,35 +121,41 @@ Section Multiplier64.
     repeat destruct (weq _ _); reflexivity.
   Qed.
 
+  Definition booth4StepEvalM (m_pos m_neg: word MultBits)
+             (p: Expr type (SyntaxKind (Bit (MultBits - 3 + 3)))) :=
+    if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~0~1
+    then m_pos
+    else
+      if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~1~0
+      then m_pos
+      else
+        if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~1~1
+        then (wlshift m_pos 1)
+        else
+          if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~0~0
+          then (wlshift m_neg 1)
+          else
+            if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~0~1
+            then m_neg
+            else
+              if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~1~0
+              then m_neg
+              else $0.
+
   Lemma booth4Step_eval:
     forall m_pos m_neg p,
       evalExpr (booth4Step m_pos m_neg p) =
       wrshifta
-        (if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~0~1
-         then evalExpr p ^+ m_pos
-         else
-           if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~1~0
-           then evalExpr p ^+ m_pos
-           else
-             if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~0~1~1
-             then evalExpr p ^+ (wlshift m_pos 1)
-             else
-               if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~0~0
-               then evalExpr p ^+ (wlshift m_neg 1)
-               else
-                 if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~0~1
-                 then evalExpr p ^+ m_neg
-                 else
-                   if weq (split1 3 (MultBits - 3) (evalExpr p)) WO~1~1~0
-                   then evalExpr p ^+ m_neg
-                   else evalExpr p) 2.
+        ((evalExpr p)
+           ^+ (booth4StepEvalM m_pos m_neg p)) 2.
   Proof.
-    intros; unfold booth4Step.
+    intros; unfold booth4Step, booth4StepEvalM.
     unfold evalExpr; fold evalExpr.
     unfold evalBinBit.
     rewrite booth4Step'_eval.
 
     repeat destruct (weq _ _); try reflexivity.
+    rewrite wplus_comm, wplus_unit; reflexivity.
   Qed.
   
   Fixpoint booth4Steps (cnt: nat)
@@ -687,6 +693,68 @@ Section Multiplier64.
     ring.
   Qed.
 
+  Definition booth4AddM (m: word MultNumBitsExt) (wl: word 3) {sus}
+    : word (S sus + MultNumBitsExt + 2).
+  Proof.
+    assert (Hsu: sus + (MultNumBitsExt + 1 + 2) = S sus + MultNumBitsExt + 2)
+      by (abstract omega).
+    refine (if weq wl WO~0~0~1 then _
+            else if weq wl WO~0~1~0 then _
+                 else if weq wl WO~0~1~1 then _
+                      else if weq wl WO~1~0~0 then _
+                           else if weq wl WO~1~0~1 then _
+                                else if weq wl WO~1~1~0 then _
+                                     else _).
+    - exact (eq_rect _ word (extz (sext (sext m 1) 2) sus) _ Hsu).
+    - exact (eq_rect _ word (extz (sext (sext m 1) 2) sus) _ Hsu).
+    - exact (sext (extz m (S sus)) 2).
+    - exact (sext (extz (wneg m) (S sus)) 2).
+    - exact (eq_rect _ word (extz (sext (sext (wneg m) 1) 2) sus) _ Hsu).
+    - exact (eq_rect _ word (extz (sext (sext (wneg m) 1) 2) sus) _ Hsu).
+    - exact $0.
+  Defined.
+
+  Local Definition booth4AddU (wl: word 3) (sus: nat) :=
+    (if weq wl WO~0~0~1 then (Z.of_nat (pow2 sus))
+     else if weq wl WO~0~1~0 then (Z.of_nat (pow2 sus))
+          else if weq wl WO~0~1~1 then (Z.of_nat (pow2 (S sus)))
+               else if weq wl WO~1~0~0 then -(Z.of_nat (pow2 (S sus)))
+                    else if weq wl WO~1~0~1 then -(Z.of_nat (pow2 sus))
+                         else if weq wl WO~1~1~0 then -(Z.of_nat (pow2 sus))
+                              else 0)%Z.
+
+  Lemma wencodeB4_zero:
+    forall (wl: word 3),
+      wl <> WO~0~0~1 -> wl <> WO~0~1~0 -> wl <> WO~0~1~1 ->
+      wl <> WO~1~0~0 -> wl <> WO~1~0~1 -> wl <> WO~1~1~0 ->
+      wencodeB4 wl = (BZero, BZero).
+  Proof.
+    intros.
+    dependent destruction wl.
+    dependent destruction wl.
+    dependent destruction wl.
+    dependent destruction wl.
+    destruct b, b0, b1; intuition idtac.
+  Qed.
+  
+  Lemma booth4AddU_bbToZ:
+    forall wl n,
+      booth4AddU wl n =
+      (bbToZ (wencodeB4 wl) * Z.of_nat (pow2 n))%Z.
+  Proof.
+    unfold booth4AddU, bbToZ; intros.
+    repeat destruct (weq _ _); subst.
+    - simpl; destruct (Z.of_nat (pow2 n)); reflexivity.
+    - simpl; destruct (Z.of_nat (pow2 n)); reflexivity.
+    - rewrite pow2_S_z; simpl; reflexivity.
+    - rewrite pow2_S_z; simpl.
+      destruct (Z.of_nat (pow2 n)); reflexivity.
+    - simpl; destruct (Z.of_nat (pow2 n)); reflexivity.
+    - simpl; destruct (Z.of_nat (pow2 n)); reflexivity.
+    - rewrite wencodeB4_zero by assumption.
+      reflexivity.
+  Qed.
+
   Lemma boothStepInv_booth4Step:
     forall (m: word MultNumBitsExt) mp mn p we nwe,
       mp = extz (sext m 1) (S MultNumBitsExt) ->
@@ -704,73 +772,39 @@ Section Multiplier64.
     apply boothStepInv_inv in H4.
     rewrite wordToB2_wordToB4 in H4.
     destruct H4 as [u ?]; dest.
-    rewrite booth4Step_eval.
-    remember (evalExpr we) as w; clear Heqw we.
-    repeat destruct (weq _ _).
 
-    - exists (rtrunc2 wl).
-      assert (Hsu: sus + (MultNumBitsExt + 1 + 2) = S sus + MultNumBitsExt + 2)
-        by omega.
-      exists (sext wu 2 ^+ (eq_rect _ word (extz (sext (sext m 1) 2) sus) _ Hsu)).
-      split.
+    exists (rtrunc2 wl).
+    exists (sext wu 2 ^+ (booth4AddM m (split1 3 (MultBits - 3) (evalExpr we)))).
+    split.
 
-      + rewrite wrshifta_wplus.
-        rewrite combine_wplus.
-        apply existT_wplus.
-        * apply combine_wrshifta_rtrunc2_sext; auto.
-        * apply eq_sigT_fst in H3.
-          change (S MultNumBitsExt) with (2 + (MultNumBitsExt - 1)).
-          change (MultBits - 3 + 3) with
-              (2 + (MultNumBitsExt - 1) + (S MultNumBitsExt)).
-          rewrite wrshifta_extz_sext.
-          rewrite <-extz_sext.
-          replace (MultNumBitsExt - 1) with (S sl + (MultNumBitsExt - 1 - (S sl)))
-            by admit.
-          rewrite <-extz_extz.
-          apply existT_extz.
-          rewrite existT_eq_rect.
-          replace (MultNumBitsExt - 1 - S sl) with sus; [reflexivity|].
-          assert (S (S (S sl)) + sus = MultBits - MultNumBitsExt - 1) by omega.
-          simpl in H1; assert (S (sl + sus) = 64) by omega.
-          apply eq_sym, Nat.add_sub_eq_l.
-          simpl; rewrite H2; reflexivity.
-      + eapply BSInv with (u0:= (u + Z.of_nat (pow2 sus))%Z).
-        * pose proof (extz_sext_eq_rect (sext m 1) 2 sus Hsu).
-          destruct H1 as [Hsu' ?].
-          rewrite H1.
-          pose proof (sext_eq_rect (extz (sext m 1) sus) 2 _ Hsu').
-          destruct H2 as [Hsu'' ?].
-          rewrite H2.
-          rewrite sext_wplus_wordToZ_distr by discriminate.
-          rewrite Z.mul_add_distr_l, <-H.
-          do 2 rewrite sext_wordToZ.
-          rewrite wordToZ_eq_rect.
-          rewrite extz_pow2_wordToZ.
-          rewrite sext_wordToZ.
-          reflexivity.
-        * rewrite wordToB2_wordToB4.
-          rewrite <-H0, <-Z.add_assoc.
-          replace (S sus + MultNumBitsExt + 2 - MultNumBitsExt - 1)
-            with (S (S sus)) by omega.
-          apply Z.add_cancel_l.
-          replace (S sus + MultNumBitsExt - MultNumBitsExt - 1) with sus by omega.
-          rewrite wordToB4_bwordToZ_step.
-          replace (split1 3 sl wl) with (WO~0~0~1)
-            by (erewrite <-split1_combine_existT; eauto).
-          change (bbToZ (wencodeB4 WO~0~0~1)) with 1%Z.
-          rewrite Z.mul_add_distr_r.
-          rewrite Z.add_comm.
-          f_equal; [|omega].
-          replace (Z.of_nat (pow2 (S (S sus)))) with (4 * Z.of_nat (pow2 sus))%Z
+    - rewrite booth4Step_eval.
+      rewrite wrshifta_wplus.
+      rewrite combine_wplus.
+      apply existT_wplus.
+      * apply combine_wrshifta_rtrunc2_sext; auto.
+      * admit.
+
+    - eapply BSInv
+        with (u0:= (u + booth4AddU (split1 3 (MultBits - 3)
+                                           (evalExpr we)) sus)%Z).
+      + rewrite Z.mul_add_distr_l, <-H.
+        admit.
+      + rewrite wordToB2_wordToB4.
+        rewrite <-H0, <-Z.add_assoc.
+        replace (S sus + MultNumBitsExt + 2 - MultNumBitsExt - 1)
+          with (S (S sus)) by omega.
+        apply Z.add_cancel_l.
+        replace (S sus + MultNumBitsExt - MultNumBitsExt - 1) with sus by omega.
+        rewrite wordToB4_bwordToZ_step.
+        rewrite Z.mul_add_distr_r.
+        rewrite Z.add_comm.
+        f_equal.
+        * replace (Z.of_nat (pow2 (S (S sus)))) with (4 * Z.of_nat (pow2 sus))%Z
             by (do 2 rewrite pow2_S_z; ring).
           rewrite Z.mul_assoc; f_equal; omega.
-
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
+        * replace (split1 3 (MultBits - 3) (evalExpr we)) with (split1 3 sl wl)
+            by (apply eq_sym; eauto using split1_combine_existT).
+          apply booth4AddU_bbToZ.
   Admitted.
 
   Lemma boothStepInv_boothStep:
