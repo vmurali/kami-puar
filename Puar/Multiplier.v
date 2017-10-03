@@ -87,6 +87,8 @@ Section Multiplier64.
     destruct (weq _ _); reflexivity.
   Qed.
 
+  Opaque boothStep.
+
   Definition booth4Step' {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
              (p: Expr ty (SyntaxKind (Bit MultBits)))
@@ -157,6 +159,8 @@ Section Multiplier64.
     repeat destruct (weq _ _); try reflexivity.
     rewrite wplus_comm, wplus_unit; reflexivity.
   Qed.
+
+  Opaque booth4Step.
   
   Fixpoint booth4Steps (cnt: nat)
            {ty} (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
@@ -178,41 +182,46 @@ Section Multiplier64.
       Register "m_pos" : Bit MultBits <- Default
       with Register "m_neg" : Bit MultBits <- Default
       with Register "p" : Bit MultBits <- Default
-      with Register "om" : Bit MultNumBitsExt <- Default
-      with Register "or" : Bit MultNumBitsExt <- Default
+      with Register "m" : Bit MultNumBitsExt <- Default
+      with Register "r" : Bit MultNumBitsExt <- Default
       with Register "cnt" : Bit (S MultLogNumPhases) <- Default
 
       with Rule "boothMultRegister" :=
         Call src <- multPull();
 
-        LET om : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
-        LET om_neg <- (UniBit (Inv _) #om) + $1;
+        LET m : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
+        LET m_neg <- (UniBit (Inv _) #m) + $1;
 
         LET m_pos : Bit MultBits <-
-          BinBit (Concat _ (S (S MultNumBitsExt))) #om $0;
+          BinBit (Concat _ (S MultNumBitsExt))
+                 (UniBit (SignExtendTrunc _ (S MultNumBitsExt)) #m) $0;
         LET m_neg : Bit MultBits <-
-          BinBit (Concat _ (S (S MultNumBitsExt))) #om_neg $0;
+          BinBit (Concat _ (S MultNumBitsExt))
+                 (UniBit (SignExtendTrunc _ (S MultNumBitsExt)) #m_neg) $0;
+
+        Write "m_pos" <- #m_pos;
+        Write "m_neg" <- #m_neg;
+        Write "m" <- #m;
 
         LET r <- #src!MultInStr@."multiplier";
+        Write "r" <- #r;
+
         LET p : Bit MultBits <-
           BinBit (Concat (S MultNumBitsExt) _) $0 (BinBit (Concat _ 1) #r $0);
-
-        Write "om" <- #om;
-        Write "or" <- #r;
+        LET m_pos_ex <- #m_pos << $$(WO~1);
+        LET m_neg_ex <- #m_neg << $$(WO~1);
         
         (* Handle one bit in advance, in order to deal with other 64 bits 
          * consistently in a rule [boothStep].
          *)
-        LET np : Bit MultBits <- boothStep m_pos m_neg #p;
-        Write "m_pos" <- #m_pos;
-        Write "m_neg" <- #m_neg;
+        LET np : Bit MultBits <- boothStep m_pos_ex m_neg_ex #p;
         Write "p" <- #np;
 
         Write "cnt" : Bit (S MultLogNumPhases) <- $(MultNumPhases);
         Retv
 
       with Rule "boothMultGetResult" :=
-        Read cnt : Bit MultLogNumPhases <- "cnt";
+        Read cnt : Bit (S MultLogNumPhases) <- "cnt";
         Assert (#cnt == $0);
 
         Read p : Bit MultBits <- "p";
@@ -230,7 +239,7 @@ Section Multiplier64.
         Retv
             
       with Rule "boothStep" :=
-        Read cnt : Bit MultLogNumPhases <- "cnt";
+        Read cnt : Bit (S MultLogNumPhases) <- "cnt";
         Assert (#cnt != $0);
 
         Read m_pos : Bit MultBits <- "m_pos";
@@ -810,12 +819,8 @@ Section Multiplier64.
           apply existT_sext.
           rewrite extz_extz.
           replace (S sl + S sus) with (S MultNumBitsExt); [reflexivity|].
-          (* NOTE: [omega] can't solve this :( *)
           clear -H3; apply eq_sigT_fst in H3.
-          assert (MultBits - 2 = sl + (S sus + MultNumBitsExt)) by omega.
-          rewrite Nat.add_assoc in H.
-          assert (MultBits - 2 - MultNumBitsExt = sl + S sus) by omega.
-          simpl; rewrite <-H0; reflexivity.
+          cbn; cbn in H3; omega.
       + eapply BSInv with (u0:= (u + Z.of_nat (pow2 (S sus)))%Z).
         * rewrite Z.mul_add_distr_l, <-H.
           rewrite sext_wplus_wordToZ_distr by discriminate.
@@ -854,10 +859,7 @@ Section Multiplier64.
           replace (S sl + S sus) with (S MultNumBitsExt); [reflexivity|].
           (* NOTE: [omega] can't solve this :( *)
           clear -H3; apply eq_sigT_fst in H3.
-          assert (MultBits - 2 = sl + (S sus + MultNumBitsExt)) by omega.
-          rewrite Nat.add_assoc in H.
-          assert (MultBits - 2 - MultNumBitsExt = sl + S sus) by omega.
-          simpl; rewrite <-H0; reflexivity.
+          cbn; cbn in H3; omega.
       + eapply BSInv with (u0:= (u - Z.of_nat (pow2 (S sus)))%Z).
         * rewrite Z.mul_sub_distr_l, <-H.
           rewrite sext_wplus_wordToZ_distr by discriminate.
@@ -906,11 +908,19 @@ Section Multiplier64.
           }
   Qed.
 
+  Lemma booth4Step_evalExpr_var:
+    forall m_pos m_neg e,
+      evalExpr (booth4Step m_pos m_neg (Var _ _ (evalExpr e))) =
+      evalExpr (booth4Step m_pos m_neg e).
+  Proof.
+    intros; do 2 rewrite booth4Step_eval; reflexivity.
+  Qed.
+
   Record BoothMultiplierInv (o: RegsT): Prop :=
-    { bsiOm : fullType type (SyntaxKind (Bit MultNumBitsExt));
-      HbsiOm : M.find "om" o = Some (existT _ _ bsiOm);
-      bsiOr : fullType type (SyntaxKind (Bit MultNumBitsExt));
-      HbsiOr : M.find "or" o = Some (existT _ _ bsiOr);
+    { bsiM : fullType type (SyntaxKind (Bit MultNumBitsExt));
+      HbsiM : M.find "m" o = Some (existT _ _ bsiM);
+      bsiR : fullType type (SyntaxKind (Bit MultNumBitsExt));
+      HbsiR : M.find "r" o = Some (existT _ _ bsiR);
 
       bsiMp : fullType type (SyntaxKind (Bit MultBits));
       HbsiMp : M.find "m_pos" o = Some (existT _ _ bsiMp);
@@ -920,13 +930,18 @@ Section Multiplier64.
       bsiP : fullType type (SyntaxKind (Bit MultBits));
       HbsiP : M.find "p" o = Some (existT _ _ bsiP);
 
-      HbsiMmp : bsiMp = extz bsiOm (S (S MultNumBitsExt));
-      HbsiMmn : bsiMn = extz (wneg bsiOm) (S (S MultNumBitsExt));
+      bsiCnt : fullType type (SyntaxKind (Bit (S MultLogNumPhases)));
+      HbsiCnt : M.find "cnt" o = Some (existT _ _ bsiCnt);
 
-      HbsiInv : exists sl (wl: word sl) su (wu: word su),
+      HbsiMmp : bsiMp = extz (sext bsiM 1) (S MultNumBitsExt);
+      HbsiMmn : bsiMn = extz (sext (wneg bsiM) 1) (S MultNumBitsExt);
+
+      HbsiInv :
+        exists sl (wl: word sl) sus su (wu: word su),
+          (bsiCnt <> WO~0~0~0~0 -> (sl = 8 * (wordToNat bsiCnt) + 1)%nat) /\
+          su = S sus + MultNumBitsExt /\
           existT word _ bsiP = existT word _ (combine wl wu) /\
-          BoothStepInv bsiOm bsiOr wl wu
-          
+          BoothStepInv bsiM bsiR wl wu
     }.
 
   Ltac boothMultiplierInv_old :=
@@ -938,7 +953,6 @@ Section Multiplier64.
   Ltac boothMultiplierInv_new :=
     econstructor; (* let's prove that the invariant holds for the next state *)
     try (findReify; (reflexivity || eassumption); fail);
-    kregmap_clear; (* for improving performance *)
     kinv_red; (* unfolding invariant definitions *)
     repeat (* cheaper than "intuition" *)
       (match goal with
@@ -954,19 +968,78 @@ Section Multiplier64.
       BoothMultiplierInv n.
   Proof.
     induction 2; intros.
-
+ 
     - boothMultiplierInv_old.
       unfold getRegInits, fst, boothMultiplierImpl, projT1.
       boothMultiplierInv_new.
 
-      admit.
+      do 5 eexists; split; [|split; [|split]]; [| | |apply boothStepInv_init].
+      + intuition idtac.
+      + instantiate (1:= O); omega.
+      + reflexivity.
 
-    - kinvert.
-      + mred.
-      + mred.
-      + admit.
-      + admit.
-      + admit.
+    - kinvert; [mred|mred| | |].
+      + (* boothMultRegister *)
+        admit.
+      + (* boothMultGetResult *)
+        admit.
+      + (* boothStep *)
+        kinv_action_dest.
+        kinv_custom boothMultiplierInv_old.
+        boothMultiplierInv_new.
+
+        remember (8 * wordToNat x + 1) as psl.
+        assert (psl >= 9)%nat.
+        { subst; clear -n0.
+          do 5 (dependent destruction x).
+          destruct b, b0, b1, b2; cbn; try omega.
+          elim n0; reflexivity.
+        }
+        do 9 (destruct psl as [|psl]; [omega|]); clear H.
+
+        rename H12 into Hinv0.
+        eapply (boothStepInv_booth4Step
+                  (we:= Var type (SyntaxKind (Bit MultBits)) x2)
+                  eq_refl eq_refl eq_refl eq_refl) in Hinv0; [|eassumption].
+        replace (S x5 + MultNumBitsExt + 2)
+          with ((S (S (S x5))) + MultNumBitsExt) in Hinv0 by omega.
+        destruct Hinv0 as [nwl1 [nwu1 [Heq1 Hinv1]]].
+        
+        eapply (boothStepInv_booth4Step
+                  eq_refl eq_refl eq_refl eq_refl) in Hinv1; [|eassumption].
+        replace (S (S (S x5)) + MultNumBitsExt + 2)
+          with (S (S (S (S (S x5)))) + MultNumBitsExt) in Hinv1 by omega.
+        destruct Hinv1 as [nwl2 [nwu2 [Heq2 Hinv2]]].
+
+        eapply (boothStepInv_booth4Step
+                  eq_refl eq_refl eq_refl eq_refl) in Hinv2; [|eassumption].
+        replace (S (S (S (S (S x5)))) + MultNumBitsExt + 2)
+          with (S (S (S (S (S (S (S x5)))))) + MultNumBitsExt) in Hinv2 by omega.
+        destruct Hinv2 as [nwl3 [nwu3 [Heq3 Hinv3]]].
+
+        eapply (boothStepInv_booth4Step
+                  eq_refl eq_refl eq_refl eq_refl) in Hinv3; [|eassumption].
+        replace (S (S (S (S (S (S (S x5)))))) + MultNumBitsExt + 2)
+          with (S (S (S (S (S (S (S (S (S x5)))))))) + MultNumBitsExt) in Hinv3 by omega.
+        destruct Hinv3 as [nwl4 [nwu4 [Heq4 Hinv4]]].
+
+        eexists; exists nwl4.
+        eexists; eexists; exists nwu4.
+
+        repeat split.
+        * intros.
+          match goal with
+          | [ |- context [_ ^- ?w] ] =>
+            replace w with (natToWord (S MultLogNumPhases) 1) by reflexivity
+          end.
+          rewrite <-wordToNat_natToWord_pred by assumption.
+          omega.
+        * rewrite booth4Step_evalExpr_var with (e:= booth4Step _ _ (#x2)%kami_expr).
+          rewrite booth4Step_evalExpr_var with (e:= booth4Step _ _ (booth4Step _ _ _)).
+          rewrite booth4Step_evalExpr_var.
+          assumption.
+        * assumption.
+
   Admitted.
   
   (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
