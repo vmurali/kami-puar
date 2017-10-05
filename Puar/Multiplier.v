@@ -190,7 +190,7 @@ Section Multiplier64.
         Call src <- multPull();
 
         LET m : Bit (pred MultNumBitsExt + 1) <- #src!MultInStr@."multiplicand";
-        LET m_neg <- (UniBit (Inv _) #m) + $1;
+        LET m_neg <- UniBit (Inv _) #m;
 
         LET m_pos : Bit MultBits <-
           BinBit (Concat _ (S MultNumBitsExt))
@@ -980,9 +980,61 @@ Section Multiplier64.
 
     - kinvert; [mred|mred| | |].
       + (* boothMultRegister *)
-        admit.
+        Opaque natToWord evalExpr combine.
+        kinv_action_dest.
+        Transparent natToWord evalExpr.
+        kinv_custom boothMultiplierInv_old.
+        boothMultiplierInv_new.
+        
+        * simpl; unfold eq_rec; eq_rect_simpl.
+          reflexivity.
+        * simpl; unfold eq_rec; eq_rect_simpl.
+          reflexivity.
+        * simpl; unfold eq_rec; eq_rect_simpl.
+
+          clear.
+          set (extz (combine (x (Fin.FS Fin.F1)) (natToWord (MultNumBitsExt + 1) 0)) 1) as ww.
+          pose proof (boothStepInv_init (x Fin.F1) (x (Fin.FS Fin.F1))) as Hinv0.
+          eapply (boothStepInv_boothStep
+                    (we:= Var type (SyntaxKind (Bit MultBits)) ww) (sus:= O)
+                    eq_refl eq_refl eq_refl eq_refl) in Hinv0; [|reflexivity].
+          simpl in Hinv0.
+          destruct Hinv0 as [nwl [nwu [? ?]]].
+
+          eexists; exists nwl.
+          exists 1; eexists; exists nwu.
+
+          repeat split.
+          { subst ww.
+            simpl; rewrite <-H.
+            do 3 f_equal.
+            { pose proof (wlshift_combine_sext_extz
+                            (natToWord (S MultNumBitsExt) 0) (x Fin.F1) 1).
+              simpl in H1; destruct_existT.
+              match goal with
+              | [H: @wlshift ?sz1 ?w1 ?n1 = _ |- @wlshift ?sz2 ?w2 ?n2 = _] =>
+                change (@wlshift sz2 w2 n2) with (@wlshift sz1 w1 n1); rewrite H; clear H
+              end.
+              reflexivity.
+            }
+            { pose proof (wlshift_combine_sext_extz
+                            (natToWord (S MultNumBitsExt) 0) (wneg (x Fin.F1)) 1).
+              simpl in H1; destruct_existT.
+              match goal with
+              | [H: @wlshift ?sz1 ?w1 ?n1 = _ |- @wlshift ?sz2 ?w2 ?n2 = _] =>
+                change (@wlshift sz2 w2 n2) with (@wlshift sz1 w1 n1); rewrite H; clear H
+              end.
+              reflexivity.
+            }
+          }
+          { assumption. }
+        
       + (* boothMultGetResult *)
-        admit.
+        Opaque MultNumBits.
+        kinv_action_dest.
+        mred.
+        Transparent MultNumBits.
+
       + (* boothStep *)
         kinv_action_dest.
         kinv_custom boothMultiplierInv_old.
@@ -1039,8 +1091,7 @@ Section Multiplier64.
           rewrite booth4Step_evalExpr_var.
           assumption.
         * assumption.
-
-  Admitted.
+  Qed.
   
   (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
   Local Definition thetaR (ir sr: RegsT): Prop.

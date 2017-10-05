@@ -95,6 +95,13 @@ Lemma wlshift_sext_extz:
 Proof.
 Admitted.
 
+Lemma wlshift_combine_sext_extz:
+  forall sz' (w': word sz') sz (w: word sz) n,
+    existT word _ (wlshift (combine w' (sext w n)) n) =
+    existT word _ (combine w' (extz w n)).
+Proof.
+Admitted.
+
 Lemma extz_sext:
   forall sz (w: word sz) n1 n2,
     existT word _ (extz (sext w n1) n2) =
