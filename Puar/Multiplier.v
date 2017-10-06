@@ -233,8 +233,7 @@ Section Multiplier64.
         LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
         LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
-        LET res : Struct MultOutStr <- STRUCT { "high" ::= $$Default; "low" ::= #low };
-        Call multPush(#res);
+        Call multPush(STRUCT { "high" ::= #high; "low" ::= #low });
 
         Retv
             
@@ -255,27 +254,31 @@ Section Multiplier64.
 
   Definition multiplierSpec :=
     MODULE {
-      Register "p" : Bit (2 * MultNumBitsExt) <- Default
+      Register "m" : Bit MultNumBitsExt <- Default
+      with Register "r" : Bit MultNumBitsExt <- Default
 
       with Rule "multRegister" :=
         Call src <- multPull();
         LET m : Bit MultNumBitsExt <- #src!MultInStr@."multiplicand";
-        LET m_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
         LET r : Bit MultNumBitsExt <- #src!MultInStr@."multiplier";
-        LET r_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
 
-        Write "p" <- #m_ext *s #r_ext;
+        Write "m" <- #m;
+        Write "r" <- #r;
         Retv
 
       with Rule "multGetResult" :=
-        Read p : Bit (2 * MultNumBitsExt) <- "p";
+        Read m : Bit MultNumBitsExt <- "m";
+        LET m_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #m;
+        Read r : Bit MultNumBitsExt <- "r";
+        LET r_ext : Bit (2 * MultNumBitsExt) <- UniBit (SignExtendTrunc _ _) #r;
+
+        LET p : Bit (2 * MultNumBitsExt) <- #m_ext *s #r_ext;
         LET highlow : Bit (2 * MultNumBits) <- UniBit (SignExtendTrunc _ _) #p;
         
         LET high : Bit MultNumBits <- UniBit (TruncLsb _ _) #highlow;
         LET low : Bit MultNumBits <- UniBit (Trunc _ _) #highlow;
 
-        LET res : Struct MultOutStr <- STRUCT { "high" ::= #high; "low" ::= #low };
-        Call multPush(#res);
+        Call multPush(STRUCT { "high" ::= #high; "low" ::= #low });
 
         Retv
     }.
@@ -938,7 +941,7 @@ Section Multiplier64.
 
       HbsiInv :
         exists sl (wl: word sl) sus su (wu: word su),
-          (bsiCnt <> WO~0~0~0~0 -> (sl = 8 * (wordToNat bsiCnt) + 1)%nat) /\
+          sl = 8 * (wordToNat bsiCnt) + 1 /\
           su = S sus + MultNumBitsExt /\
           existT word _ bsiP = existT word _ (combine wl wu) /\
           BoothStepInv bsiM bsiR wl wu
@@ -973,10 +976,15 @@ Section Multiplier64.
       unfold getRegInits, fst, boothMultiplierImpl, projT1.
       boothMultiplierInv_new.
 
-      do 5 eexists; split; [|split; [|split]]; [| | |apply boothStepInv_init].
-      + intuition idtac.
-      + instantiate (1:= O); omega.
+      eexists; exists (natToWord 1 0).
+      eexists; eexists; exists (natToWord (2 * MultNumBitsExt + 1) 0).
+      split; [|split; [|split]].
       + reflexivity.
+      + instantiate (1:= MultNumBitsExt); reflexivity.
+      + reflexivity.
+      + econstructor.
+        * instantiate (1:= 0%Z); reflexivity.
+        * reflexivity.
 
     - kinvert; [mred|mred| | |].
       + (* boothMultRegister *)
@@ -1092,18 +1100,99 @@ Section Multiplier64.
           assumption.
         * assumption.
   Qed.
+
+  Lemma boothMultiplierInv_ok:
+    forall o,
+      reachable o boothMultiplierImpl ->
+      BoothMultiplierInv o.
+  Proof.
+    intros; inv H; inv H0.
+    eapply boothMultiplierInv_ok'; eauto.
+  Qed.
   
-  (* ["m_pos"; "m_neg"; "p"; "cnt"] ~ ["p"] *)
   Local Definition thetaR (ir sr: RegsT): Prop.
   Proof.
     kexistv "m_pos" m_pos ir (Bit MultBits).
     kexistv "m_neg" m_neg ir (Bit MultBits).
-    exact False. (* TODO *)
+    kexistv "p" p ir (Bit MultBits).
+    kexistv "m" m ir (Bit MultNumBitsExt).
+    kexistv "r" r ir (Bit MultNumBitsExt).
+    kexistv "cnt" cnt ir (Bit (S MultLogNumPhases)).
+
+    exact (sr = ["r" <- existT _ _ r]
+                +["m" <- existT _ _ m])%fmap.
   Defined.
+  Hint Unfold thetaR: MapDefs.
+
+  Local Notation "'_STRUCT_'" := (fun i : Fin.t _ => _).
 
   Theorem multiplier_ok: boothMultiplierImpl <<== multiplierSpec.
   Proof.
-    (* kdecomposeR_nodefs thetaR. *)
+    kdecomposeR_nodefs thetaR.
+
+    kinv_add boothMultiplierInv_ok.
+
+    kinvert.
+
+    - (* "boothMultRegister" |-> "multRegister" *)
+      Opaque natToWord evalExpr combine.
+      kinv_action_dest.
+      kinv_custom boothMultiplierInv_old.
+      kinv_regmap_red.
+      eexists; exists (Some "multRegister"); split; kinv_constr.
+      kinv_eq.
+      Transparent natToWord evalExpr combine.
+
+    - (* "boothMultGetResult" |-> "multGetResult" *)
+      Opaque MultNumBits.
+      kinv_action_dest.
+      kinv_custom boothMultiplierInv_old.
+      kinv_regmap_red.
+      Transparent MultNumBits.
+      eexists; exists (Some "multGetResult"); split; kinv_constr.
+      
+      apply boothStepInv_finish in H6.
+      assert (x3 = MultNumBitsExt) by (apply eq_sigT_fst in H5; cbn; cbn in H5; omega).
+      subst; destruct_existT.
+
+      rewrite idElementwiseId; unfold id.
+      repeat f_equal.
+      apply pair_eq; [|reflexivity].
+      fin_func_eq.
+      + Opaque split1 split2 wordToZ.
+        simpl.
+        unfold eq_rec_r, eq_rec; repeat rewrite <-eq_rect_eq.
+        repeat f_equal.
+        rewrite wtl_combine.
+        unfold wmultZ, wordBinZ.
+        pose proof (sext_wordToZ bsiM 65).
+        cbn; cbn in H; rewrite H.
+        pose proof (sext_wordToZ bsiR 65).
+        cbn; cbn in H0; rewrite H0.
+        cbn in H6; rewrite <-H6.
+        Transparent split1 split2 wordToZ.
+        admit.
+        
+      + Opaque split1 split2 wordToZ.
+        simpl.
+        unfold eq_rec_r, eq_rec; repeat rewrite <-eq_rect_eq.
+        repeat f_equal.
+        rewrite wtl_combine.
+        unfold wmultZ, wordBinZ.
+        pose proof (sext_wordToZ bsiM 65).
+        cbn; cbn in H; rewrite H.
+        pose proof (sext_wordToZ bsiR 65).
+        cbn; cbn in H0; rewrite H0.
+        cbn in H6; rewrite <-H6.
+        Transparent split1 split2 wordToZ.
+        admit.
+
+    - (* "boothStep" |-> . *)
+      kinv_action_dest.
+      kinv_custom boothMultiplierInv_old.
+      kinv_regmap_red.
+      eexists; exists None; split; kinv_constr.
+      
   Admitted.
 
 End Multiplier64.

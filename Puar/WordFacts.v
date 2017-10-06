@@ -38,6 +38,12 @@ Lemma wordToZ_wzero':
 Proof.
 Admitted.
 
+Lemma wtl_combine:
+  forall (x: word 1) sz (y: word sz),
+    wtl (combine x y) = y.
+Proof.
+Admitted.
+
 Lemma combine_wplus:
   forall sl (w1: word sl) su (w2 w3: word su),
     combine w1 (w2 ^+ w3) = combine w1 w2 ^+ extz w3 sl.
