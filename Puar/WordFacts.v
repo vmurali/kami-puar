@@ -170,6 +170,29 @@ Lemma extz_extz:
 Proof.
 Admitted.
 
+Lemma sext_zero:
+  forall n m, sext (natToWord n 0) m = natToWord _ 0.
+Proof.
+Admitted.
+
+Lemma sext_wplus:
+  forall sz (w1 w2: word sz) n,
+    sext w1 n ^+ sext w2 n = sext (w1 ^+ w2) n.
+Proof.
+Admitted.
+
+Lemma sext_split1:
+  forall sz (w: word sz) n,
+    split1 sz _ (sext w n) = w.
+Proof.
+Admitted.
+
+Lemma sext_sext:
+  forall sz (w: word sz) n1 n2,
+    existT word _ (sext w (n1 + n2)) = existT word _ (sext (sext w n1) n2).
+Proof.
+Admitted.
+
 Lemma sext_wplus_wordToZ_distr:
   forall sz (w1 w2: word sz) n,
     n <> 0 -> wordToZ (sext w1 n ^+ sext w2 n) =
@@ -199,6 +222,11 @@ Admitted.
 Lemma extz_wneg:
   forall sz (w: word sz) n,
     extz (wneg w) n = wneg (extz w n).
+Proof.
+Admitted.
+
+Lemma ZToWord_wordToZ:
+  forall sz (w: word sz), ZToWord sz (wordToZ w) = w.
 Proof.
 Admitted.
 
