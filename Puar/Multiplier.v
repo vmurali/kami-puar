@@ -39,9 +39,6 @@ Section Multiplier64.
   Definition MultOutStr := STRUCT { "high" :: Bit MultNumBits;
                                     "low" :: Bit MultNumBits }.
 
-  Definition multRegister := MethodSig "multRegister"(Struct MultInStr): Void.
-  Definition multGetResult := MethodSig "multGetResult"(Void): Struct MultOutStr.
-
   Definition boothStep' {ty}
              (m_pos m_neg: fullType ty (SyntaxKind (Bit MultBits)))
              (p: Expr ty (SyntaxKind (Bit MultBits)))

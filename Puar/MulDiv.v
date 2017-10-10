@@ -184,19 +184,22 @@ Section Processor.
 
           If (getMulSign _ inst == $$MulSignSS)
           then
-            Call nrDivRegister(
-              STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1);
-                       "divisor" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src2) });
+            (** TODO: redesign an interface *)
+            (* Call nrDivRegister( *)
+            (*   STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1); *)
+            (*            "divisor" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src2) }); *)
             Retv
           else
             If (getMulSign _ inst == $$MulSignSU)
             then
-              Call nrDivRegister(
-                STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1);
-                         "divisor" ::= #src2 });
+              (** TODO: redesign an interface *)
+              (* Call nrDivRegister( *)
+              (*   STRUCT { "dividend" ::= UniBit (ZeroExtendTrunc _ 64) (UniBit (Trunc 63 1) #src1); *)
+              (*            "divisor" ::= #src2 }); *)
               Retv
             else
-              Call nrDivRegister(STRUCT { "dividend" ::= #src1; "divisor" ::= #src2 });
+              (** TODO: redesign an interface *)
+              (* Call nrDivRegister(STRUCT { "dividend" ::= #src1; "divisor" ::= #src2 }); *)
               Retv;
             Retv;
           Retv
@@ -219,7 +222,9 @@ Section Processor.
           Read inst : Inst <- "llInst";
           Assert (isDiv _ inst || isRem _ inst);
 
-          Call dres <- nrDivGetResult();
+          (** TODO: redesign an interface *)
+          (* Call dres <- nrDivGetResult(); *)
+          Nondet dres : SyntaxKind (Struct DivOutStr);
 
           Write "llRes" <- (IF (isDiv _ inst)
                             then #dres!DivOutStr@."quotient"

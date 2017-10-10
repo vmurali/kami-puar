@@ -1,6 +1,6 @@
 (*! TODO: merge with Word.v !*)
 
-Require Import ZArith Eqdep.
+Require Import ZArith Eqdep Program.Equality.
 Require Import Lib.CommonTactics Lib.NatLib Lib.Word.
 
 Set Implicit Arguments.
@@ -33,21 +33,41 @@ Definition wlsb sz (w: word (S sz)) :=
 
 (* some more facts *)
 
+Lemma wmsb_wzero':
+  forall sz, wmsb (wzero' sz) false = false.
+Proof. induction sz; auto. Qed.
+
+Lemma wordToN_wzero':
+  forall sz, wordToN (wzero' sz) = 0%N.
+Proof.
+  induction sz; simpl; auto.
+  rewrite IHsz; auto.
+Qed.
+
 Lemma wordToZ_wzero':
   forall sz, wordToZ (wzero' sz) = 0%Z.
 Proof.
-Admitted.
+  unfold wordToZ; intros.
+  rewrite wmsb_wzero'.
+  rewrite wordToN_wzero'.
+  reflexivity.
+Qed.
 
 Lemma wtl_combine:
   forall (x: word 1) sz (y: word sz),
     wtl (combine x y) = y.
 Proof.
-Admitted.
+  intros.
+  do 2 dependent destruction x.
+  reflexivity.
+Qed.
 
 Lemma combine_wplus:
   forall sl (w1: word sl) su (w2 w3: word su),
     combine w1 (w2 ^+ w3) = combine w1 w2 ^+ extz w3 sl.
 Proof.
+  dependent induction w1; intros; [reflexivity|].
+  cbn. rewrite IHw1.
 Admitted.
 
 Lemma existT_wplus:
